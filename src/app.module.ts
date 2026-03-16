@@ -9,8 +9,11 @@ import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './modules/mail/mail.module';
 import { NoAuthModule } from './modules/no-auth/no-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { BudgetsModule } from './modules/budgets/budgets.module';
 import { MobileModule } from './modules/mobile/mobile.module';
+import { ServicesModule } from './modules/services/services.module';
 import { WebModule } from './modules/web/web.module';
+import { WorksModule } from './modules/works/works.module';
 
 @Module({
   imports: [
@@ -27,7 +30,10 @@ import { WebModule } from './modules/web/web.module';
     MailModule,
     NoAuthModule,
     AdminModule,
+    BudgetsModule,
     MobileModule,
+    ServicesModule,
+    WorksModule,
     WebModule,
   ],
   providers: [

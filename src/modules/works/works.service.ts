@@ -1,0 +1,569 @@
+import { PrismaService } from '@database/PrismaService';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, Role, User } from '@prisma/client';
+import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
+import { parsePositiveInt } from '@utils/parsePositiveInt';
+import { parsePriceDecimal } from '@utils/parsePriceDecimal';
+import { BudgetStatus } from '../budgets/enums/budget-status.enum';
+import { CreateWorkResponseDto } from './dto/create-work-response.dto';
+import { CreateWorkDto } from './dto/create-work.dto';
+import { CancelWorkDto } from './dto/cancel-work.dto';
+import { FinishWorkDto } from './dto/finish-work.dto';
+import { QueryWorkDto } from './dto/query-work.dto';
+import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
+import { ResponseWorkDto } from './dto/response-work.dto';
+import { UpdateWorkDto } from './dto/update-work.dto';
+import { WorkFileType } from './enums/work-file-type.enum';
+import { WorkScope } from './enums/work-scope.enum';
+import { WorkStatus } from './enums/work-status.enum';
+
+@Injectable()
+export class WorksService {
+  constructor(private readonly prisma: PrismaService) {}
+
+  private readonly workSelect = Prisma.validator<Prisma.WorkSelect>()({
+    id: true,
+    status: true,
+    details: true,
+    completionDescription: true,
+    cancelReason: true,
+    serviceDate: true,
+    startedAt: true,
+    finishedAt: true,
+    cancelledAt: true,
+    serviceValue: true,
+    totalValue: true,
+    budgetId: true,
+    serviceId: true,
+    requesterId: true,
+    providerId: true,
+    createdAt: true,
+    updatedAt: true,
+    budget: {
+      select: {
+        id: true,
+      },
+    },
+    service: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+    requester: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        fileUrl: true,
+      },
+    },
+    provider: {
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        fileUrl: true,
+      },
+    },
+    files: {
+      select: {
+        id: true,
+        fileName: true,
+        fileUrl: true,
+        fileKey: true,
+        type: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    },
+  });
+
+  async create(user: User, payload: CreateWorkDto): Promise<CreateWorkResponseDto> {
+    const budgetId = parsePositiveInt(payload.budgetId, 'budgetId');
+    const budget = await this.prisma.budget.findUnique({
+      where: { id: budgetId },
+      select: {
+        id: true,
+        status: true,
+        serviceId: true,
+        requesterId: true,
+        providerId: true,
+        description: true,
+        responseValue: true,
+        files: {
+          select: {
+            fileName: true,
+            fileUrl: true,
+            fileKey: true,
+          },
+        },
+        work: {
+          select: { id: true },
+        },
+      },
+    });
+
+    if (!budget) {
+      throw new NotFoundException('Orçamento não encontrado.');
+    }
+
+    if (budget.status !== BudgetStatus.Responded) {
+      throw new BadRequestException('Somente orçamentos respondidos podem virar trabalho.');
+    }
+
+    if (budget.work) {
+      throw new BadRequestException('Já existe trabalho cadastrado para esse orçamento.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (budget.providerId !== user.id && !isAdmin) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    try {
+      const work = await this.prisma.work.create({
+        data: {
+          details: payload.details ? payload.details.trim() : budget.description,
+          serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : null,
+          serviceValue: payload.serviceValue
+            ? parsePriceDecimal(payload.serviceValue)
+            : budget.responseValue,
+          totalValue: payload.totalValue
+            ? parsePriceDecimal(payload.totalValue)
+            : budget.responseValue,
+          budgetId: budget.id,
+          serviceId: budget.serviceId,
+          requesterId: budget.requesterId,
+          providerId: budget.providerId,
+          startedAt: new Date(),
+          files: {
+            create: [
+              ...budget.files.map((file) => ({
+                fileName: file.fileName,
+                fileUrl: file.fileUrl,
+                fileKey: file.fileKey,
+                type: WorkFileType.Requester,
+              })),
+              ...((payload.providerFiles || []).map((file) => ({
+                fileName: file.fileName,
+                fileUrl: file.fileUrl,
+                fileKey: file.fileKey,
+                type: WorkFileType.Provider,
+              })) as Array<{
+                fileName: string;
+                fileUrl: string;
+                fileKey: string;
+                type: WorkFileType;
+              }>),
+            ],
+          },
+        },
+        select: this.workSelect,
+      });
+
+      await this.prisma.budget.update({
+        where: { id: budget.id },
+        data: { status: BudgetStatus.Responded },
+      });
+
+      return {
+        message: 'Trabalho cadastrado com sucesso.',
+        work: {
+          id: work.id,
+          status: work.status as WorkStatus,
+          details: work.details,
+          completionDescription: work.completionDescription,
+          cancelReason: work.cancelReason,
+          serviceDate: work.serviceDate,
+          startedAt: work.startedAt,
+          finishedAt: work.finishedAt,
+          cancelledAt: work.cancelledAt,
+          serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
+          totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
+          budgetId: work.budgetId,
+          budget: work.budget,
+          serviceId: work.serviceId,
+          service: work.service,
+          requesterId: work.requesterId,
+          requester: work.requester,
+          providerId: work.providerId,
+          provider: work.provider,
+          files: work.files.map((file) => ({
+            id: file.id,
+            fileName: file.fileName,
+            fileUrl: file.fileUrl,
+            fileKey: file.fileKey,
+            type: file.type as WorkFileType,
+            createdAt: file.createdAt,
+            updatedAt: file.updatedAt,
+          })),
+          createdAt: work.createdAt,
+          updatedAt: work.updatedAt,
+        },
+      };
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error) {
+        throw new BadRequestException('Não foi possível cadastrar o trabalho.');
+      }
+
+      throw error;
+    }
+  }
+
+  async findAll(user: User, query: QueryWorkDto): Promise<ResponseFindAllWorkDto> {
+    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
+    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const serviceId = query.serviceId ? parsePositiveInt(query.serviceId, 'serviceId') : undefined;
+    const search = query.search ? query.search.trim() : undefined;
+    const scope = query.scope || WorkScope.Received;
+
+    const where: Prisma.WorkWhereInput = {
+      status: query.status,
+      serviceId,
+      requesterId: scope === WorkScope.Requested ? user.id : undefined,
+      providerId: scope === WorkScope.Received ? user.id : undefined,
+      OR: search
+        ? [
+            { requester: { name: { contains: search } } },
+            { provider: { name: { contains: search } } },
+            { service: { name: { contains: search } } },
+          ]
+        : undefined,
+    };
+
+    const [works, totalRecords] = await Promise.all([
+      this.prisma.work.findMany({
+        where,
+        select: this.workSelect,
+        orderBy: [{ createdAt: 'desc' }],
+        take,
+        skip: (page - 1) * take,
+      }),
+      this.prisma.work.count({ where }),
+    ]);
+
+    return {
+      works: works.map((work) => ({
+        id: work.id,
+        status: work.status as WorkStatus,
+        details: work.details,
+        completionDescription: work.completionDescription,
+        cancelReason: work.cancelReason,
+        serviceDate: work.serviceDate,
+        startedAt: work.startedAt,
+        finishedAt: work.finishedAt,
+        cancelledAt: work.cancelledAt,
+        serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
+        totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
+        budgetId: work.budgetId,
+        budget: work.budget,
+        serviceId: work.serviceId,
+        service: work.service,
+        requesterId: work.requesterId,
+        requester: work.requester,
+        providerId: work.providerId,
+        provider: work.provider,
+        files: work.files.map((file) => ({
+          id: file.id,
+          fileName: file.fileName,
+          fileUrl: file.fileUrl,
+          fileKey: file.fileKey,
+          type: file.type as WorkFileType,
+          createdAt: file.createdAt,
+          updatedAt: file.updatedAt,
+        })),
+        createdAt: work.createdAt,
+        updatedAt: work.updatedAt,
+      })),
+      currentPage: page,
+      totalPages: Math.max(1, Math.ceil(totalRecords / take)),
+      totalRecords,
+    };
+  }
+
+  async findById(user: User, id: number): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: this.workSelect,
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+    const canAccess = work.requesterId === user.id || work.providerId === user.id || isAdmin;
+
+    if (!canAccess) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    return {
+      id: work.id,
+      status: work.status as WorkStatus,
+      details: work.details,
+      completionDescription: work.completionDescription,
+      cancelReason: work.cancelReason,
+      serviceDate: work.serviceDate,
+      startedAt: work.startedAt,
+      finishedAt: work.finishedAt,
+      cancelledAt: work.cancelledAt,
+      serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
+      totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
+      budgetId: work.budgetId,
+      budget: work.budget,
+      serviceId: work.serviceId,
+      service: work.service,
+      requesterId: work.requesterId,
+      requester: work.requester,
+      providerId: work.providerId,
+      provider: work.provider,
+      files: work.files.map((file) => ({
+        id: file.id,
+        fileName: file.fileName,
+        fileUrl: file.fileUrl,
+        fileKey: file.fileKey,
+        type: file.type as WorkFileType,
+        createdAt: file.createdAt,
+        updatedAt: file.updatedAt,
+      })),
+      createdAt: work.createdAt,
+      updatedAt: work.updatedAt,
+    };
+  }
+
+  async update(user: User, id: number, payload: UpdateWorkDto): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: { id: true, requesterId: true, providerId: true },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+    const isProvider = work.providerId === user.id;
+
+    if (!isProvider && !isAdmin) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    try {
+      await this.prisma.work.update({
+        where: { id },
+        data: {
+          details:
+            payload.details !== undefined
+              ? payload.details
+                ? payload.details.trim()
+                : null
+              : undefined,
+          completionDescription:
+            payload.completionDescription !== undefined
+              ? payload.completionDescription
+                ? payload.completionDescription.trim()
+                : null
+              : undefined,
+          cancelReason:
+            payload.cancelReason !== undefined
+              ? payload.cancelReason
+                ? payload.cancelReason.trim()
+                : null
+              : undefined,
+          serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : undefined,
+          serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
+          totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
+          files:
+            payload.requesterFiles || payload.providerFiles || payload.completionFiles
+              ? {
+                  deleteMany: {
+                    type: {
+                      in: [
+                        ...(payload.requesterFiles ? [WorkFileType.Requester] : []),
+                        ...(payload.providerFiles ? [WorkFileType.Provider] : []),
+                        ...(payload.completionFiles ? [WorkFileType.Completion] : []),
+                      ],
+                    },
+                  },
+                  create: [
+                    ...((payload.requesterFiles || []).map((file) => ({
+                      fileName: file.fileName,
+                      fileUrl: file.fileUrl,
+                      fileKey: file.fileKey,
+                      type: WorkFileType.Requester,
+                    })) as Array<{
+                      fileName: string;
+                      fileUrl: string;
+                      fileKey: string;
+                      type: WorkFileType;
+                    }>),
+                    ...((payload.providerFiles || []).map((file) => ({
+                      fileName: file.fileName,
+                      fileUrl: file.fileUrl,
+                      fileKey: file.fileKey,
+                      type: WorkFileType.Provider,
+                    })) as Array<{
+                      fileName: string;
+                      fileUrl: string;
+                      fileKey: string;
+                      type: WorkFileType;
+                    }>),
+                    ...((payload.completionFiles || []).map((file) => ({
+                      fileName: file.fileName,
+                      fileUrl: file.fileUrl,
+                      fileKey: file.fileKey,
+                      type: WorkFileType.Completion,
+                    })) as Array<{
+                      fileName: string;
+                      fileUrl: string;
+                      fileKey: string;
+                      type: WorkFileType;
+                    }>),
+                  ],
+                }
+              : undefined,
+        },
+      });
+    } catch (error) {
+      if (typeof error === 'object' && error !== null && 'code' in error) {
+        throw new BadRequestException('Não foi possível atualizar o trabalho.');
+      }
+
+      throw error;
+    }
+
+    return this.findById(user, id);
+  }
+
+  async start(user: User, id: number): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: { id: true, providerId: true, status: true },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.providerId !== user.id && !isAdmin) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        status: WorkStatus.InProgress,
+        startedAt: new Date(),
+        cancelledAt: null,
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
+  async finish(user: User, id: number, payload: FinishWorkDto): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: { id: true, providerId: true },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.providerId !== user.id && !isAdmin) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        status: WorkStatus.Finished,
+        completionDescription: payload.completionDescription.trim(),
+        serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : undefined,
+        serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
+        totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
+        finishedAt: new Date(),
+        files: payload.completionFiles
+          ? {
+              deleteMany: { type: WorkFileType.Completion },
+              create: payload.completionFiles.map((file) => ({
+                fileName: file.fileName,
+                fileUrl: file.fileUrl,
+                fileKey: file.fileKey,
+                type: WorkFileType.Completion,
+              })),
+            }
+          : undefined,
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
+  async cancel(user: User, id: number, payload: CancelWorkDto): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: { id: true, requesterId: true, providerId: true },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+    const canCancel = work.requesterId === user.id || work.providerId === user.id || isAdmin;
+
+    if (!canCancel) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        status: WorkStatus.Cancelled,
+        cancelReason: payload.cancelReason.trim(),
+        cancelledAt: new Date(),
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
+  async delete(user: User, id: number): Promise<ImessageEntity> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: { id: true, requesterId: true, providerId: true },
+    });
+
+    if (!work) {
+      throw new NotFoundException('Trabalho não encontrado.');
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+    const canDelete = work.requesterId === user.id || work.providerId === user.id || isAdmin;
+
+    if (!canDelete) {
+      throw new ForbiddenException('Acesso não autorizado.');
+    }
+
+    await this.prisma.work.delete({ where: { id } });
+
+    return { message: 'Trabalho deletado com sucesso.' };
+  }
+}
