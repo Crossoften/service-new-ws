@@ -8,52 +8,233 @@ datasource db {
 }
 
 model User {
-  id               Int               @id @default(autoincrement())
-  name             String
-  email            String            @unique
-  document         String?           @unique @db.VarChar(18)
-  phone            String?           @unique
-  password         String
-  code             String?           @db.VarChar(4)
-  codeExpiresIn    DateTime?
-  role             Role              @default(User)
-  status           Status            @default(Pending)
-  fileUrl          String?           @db.VarChar(1500)
-  fileKey          String?           @db.VarChar(1500)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  id Int @id @default(autoincrement())
+
+  name          String
+  email         String    @unique
+  document      String?   @unique @db.VarChar(18)
+  phone         String?   @unique
+  password      String
+  code          String?   @db.VarChar(4)
+  codeExpiresIn DateTime?
+  role          Role      @default(User)
+  status        Status    @default(Pending)
+  fileUrl       String?   @db.VarChar(1500)
+  fileKey       String?   @db.VarChar(1500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   adminPermissions AdminPermission[]
   files            File[]
+  services         Service[]
+  requestedBudgets Budget[]          @relation("BudgetRequester")
+  providedBudgets  Budget[]          @relation("BudgetProvider")
+  requestedWorks   Work[]            @relation("WorkRequester")
+  providedWorks    Work[]            @relation("WorkProvider")
 
   @@map("users")
 }
 
 model AdminPermission {
-  id        Int              @id @default(autoincrement())
-  name      AdminPermissions @unique()
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  admin     User[]
+  id Int @id @default(autoincrement())
+
+  name AdminPermissions @unique()
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  admin User[]
 
   @@map("admin_permissions")
 }
 
-model File {
-  id        Int      @id @default(autoincrement())
-  fileUrl   String?  @db.VarChar(1500)
-  fileKey   String?  @db.VarChar(1500)
-  user      User     @relation(fields: [userId], references: [id])
-  userId    Int
+model ServiceCategory {
+  id Int @id @default(autoincrement())
+
+  name      String  @unique @db.VarChar(120)
+  slug      String  @unique @db.VarChar(120)
+  iconUrl   String? @db.VarChar(1500)
+  iconKey   String? @db.VarChar(1500)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  services Service[]
+
+  @@map("service_categories")
+}
+
+model Service {
+  id Int @id @default(autoincrement())
+
+  name             String      @db.VarChar(160)
+  type             ServiceType
+  registrationCode String?     @db.VarChar(80)
+  price            Decimal     @db.Decimal(10, 2)
+  description      String?     @db.LongText()
+  imageUrl         String?     @db.VarChar(1500)
+  imageKey         String?     @db.VarChar(1500)
+  isActive         Boolean     @default(true)
+  categoryId       Int
+  userId           Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category ServiceCategory @relation(fields: [categoryId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
+  budgets  Budget[]
+  works    Work[]
+
+  @@index([categoryId])
+  @@index([userId])
+  @@map("services")
+}
+
+model Budget {
+  id Int @id @default(autoincrement())
+
+  description          String?         @db.LongText()
+  status               BudgetStatus    @default(Pending)
+  responseDescription  String?         @db.LongText()
+  responseValue        Decimal?        @db.Decimal(10, 2)
+  responseTimeQuantity Int?
+  responseTimeUnit     BudgetTimeUnit?
+  serviceId            Int
+  requesterId          Int
+  providerId           Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service             Service             @relation(fields: [serviceId], references: [id])
+  requester           User                @relation("BudgetRequester", fields: [requesterId], references: [id])
+  provider            User                @relation("BudgetProvider", fields: [providerId], references: [id])
+  files               BudgetFile[]
+  informationRequests BudgetInformation[]
+  work                Work?
+
+  @@index([serviceId])
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@map("budgets")
+}
+
+model BudgetFile {
+  id Int @id @default(autoincrement())
+
+  fileName             String         @db.VarChar(191)
+  fileUrl              String         @db.VarChar(1500)
+  fileKey              String         @db.VarChar(1500)
+  type                 BudgetFileType @default(Request)
+  budgetId             Int
+  informationRequestId Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget             Budget             @relation(fields: [budgetId], references: [id])
+  informationRequest BudgetInformation? @relation(fields: [informationRequestId], references: [id])
+
+  @@index([budgetId])
+  @@index([informationRequestId])
+  @@map("budget_files")
+}
+
+model BudgetInformation {
+  id Int @id @default(autoincrement())
+
+  message  String @db.LongText()
+  budgetId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget Budget       @relation(fields: [budgetId], references: [id])
+  files  BudgetFile[]
+
+  @@index([budgetId])
+  @@map("budget_information")
+}
+
+model Work {
+  id Int @id @default(autoincrement())
+
+  status                WorkStatus @default(InProgress)
+  details               String?    @db.LongText()
+  completionDescription String?    @db.LongText()
+  cancelReason          String?    @db.LongText()
+  serviceDate           DateTime?
+  startedAt             DateTime?
+  finishedAt            DateTime?
+  cancelledAt           DateTime?
+  serviceValue          Decimal?   @db.Decimal(10, 2)
+  totalValue            Decimal?   @db.Decimal(10, 2)
+  budgetId              Int        @unique
+  serviceId             Int
+  requesterId           Int
+  providerId            Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  budget    Budget     @relation(fields: [budgetId], references: [id])
+  service   Service    @relation(fields: [serviceId], references: [id])
+  requester User       @relation("WorkRequester", fields: [requesterId], references: [id])
+  provider  User       @relation("WorkProvider", fields: [providerId], references: [id])
+  files     WorkFile[]
+
+  @@index([serviceId])
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@map("works")
+}
+
+model WorkFile {
+  id Int @id @default(autoincrement())
+
+  fileName String       @db.VarChar(191)
+  fileUrl  String       @db.VarChar(1500)
+  fileKey  String       @db.VarChar(1500)
+  type     WorkFileType @default(Requester)
+  workId   Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  work Work @relation(fields: [workId], references: [id])
+
+  @@index([workId])
+  @@index([type])
+  @@map("work_files")
+}
+
+model File {
+  id Int @id @default(autoincrement())
+
+  fileUrl String? @db.VarChar(1500)
+  fileKey String? @db.VarChar(1500)
+  userId  Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
 
   @@map("files")
 }
 
 model Text {
-  id        Int      @id @default(autoincrement())
-  type      TextType
-  text      String   @db.LongText()
+  id Int @id @default(autoincrement())
+
+  type TextType
+  text String   @db.LongText()
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -83,4 +264,41 @@ enum TextType {
   Terms
   Tips
   Cookies
+}
+
+enum ServiceType {
+  Online
+  Presential
+  Home
+}
+
+enum BudgetStatus {
+  Pending
+  Responded
+  WaitingInformation
+  Cancelled
+}
+
+enum BudgetTimeUnit {
+  Hour
+  Day
+  Week
+  Month
+}
+
+enum BudgetFileType {
+  Request
+  InformationRequest
+}
+
+enum WorkStatus {
+  InProgress
+  Finished
+  Cancelled
+}
+
+enum WorkFileType {
+  Requester
+  Provider
+  Completion
 }
