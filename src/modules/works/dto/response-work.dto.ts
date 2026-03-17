@@ -1,4 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { PaymentMethod } from '../enums/payment-method.enum';
+import { PaymentStatus } from '../enums/payment-status.enum';
 import { WorkStatus } from '../enums/work-status.enum';
 import { ResponseWorkFileDto } from './response-work-file.dto';
 
@@ -91,6 +93,70 @@ export class ResponseWorkBudgetDto {
     type: Number,
   })
   id: number;
+}
+
+export class ResponseWorkPaymentDto {
+  @ApiProperty({ description: 'Identificador do pagamento.', example: 1, type: Number })
+  id: number;
+
+  @ApiProperty({
+    description: 'Método de pagamento utilizado.',
+    enum: PaymentMethod,
+    enumName: 'PaymentMethod',
+    example: PaymentMethod.CreditCard,
+  })
+  method: PaymentMethod;
+
+  @ApiProperty({
+    description: 'Status do pagamento.',
+    enum: PaymentStatus,
+    enumName: 'PaymentStatus',
+    example: PaymentStatus.Paid,
+  })
+  status: PaymentStatus;
+
+  @ApiProperty({
+    description: 'Nome do titular do cartão, quando informado.',
+    required: false,
+    nullable: true,
+    example: 'Lynna Rossy',
+    type: String,
+  })
+  holderName?: string;
+
+  @ApiProperty({
+    description: 'Bandeira do cartão, quando informada.',
+    required: false,
+    nullable: true,
+    example: 'VISA',
+    type: String,
+  })
+  cardBrand?: string;
+
+  @ApiProperty({
+    description: 'Últimos quatro dígitos do cartão, quando aplicável.',
+    required: false,
+    nullable: true,
+    example: '2354',
+    type: String,
+  })
+  cardLast4?: string;
+
+  @ApiProperty({
+    description: 'Valor pago em formato decimal.',
+    example: '350.00',
+    type: String,
+  })
+  amount: string;
+
+  @ApiProperty({
+    description: 'Data e hora em que o pagamento foi registrado.',
+    required: false,
+    nullable: true,
+    example: '2026-03-17T10:00:00.000Z',
+    type: String,
+  })
+  paidAt?: Date;
 }
 
 export class ResponseWorkListItemDto {
@@ -189,6 +255,14 @@ export class ResponseWorkListItemDto {
     type: String,
   })
   createdAt: Date;
+
+  @ApiProperty({
+    description: 'Resumo do pagamento do trabalho, quando já registrado.',
+    required: false,
+    nullable: true,
+    type: ResponseWorkPaymentDto,
+  })
+  payment?: ResponseWorkPaymentDto;
 }
 
 export class ResponseWorkDto {
@@ -353,4 +427,12 @@ export class ResponseWorkDto {
     type: String,
   })
   updatedAt: Date;
+
+  @ApiProperty({
+    description: 'Dados do pagamento do trabalho, quando registrado.',
+    required: false,
+    nullable: true,
+    type: ResponseWorkPaymentDto,
+  })
+  payment?: ResponseWorkPaymentDto;
 }

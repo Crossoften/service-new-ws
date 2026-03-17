@@ -9,10 +9,17 @@ import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
 import { CancelWorkDto } from './dto/cancel-work.dto';
 import { FinishWorkDto } from './dto/finish-work.dto';
+import { PayWorkDto } from './dto/pay-work.dto';
+import { PayWorkResponseDto } from './dto/pay-work-response.dto';
 import { QueryWorkDto } from './dto/query-work.dto';
 import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
 import { ResponseWorkDto } from './dto/response-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
+import { PaymentMethod } from './enums/payment-method.enum';
+import { PaymentReferenceType } from './enums/payment-reference-type.enum';
+import { PaymentStatus } from './enums/payment-status.enum';
+import { FinancialTransactionCategory } from './enums/financial-transaction-category.enum';
+import { FinancialTransactionType } from './enums/financial-transaction-type.enum';
 import { WorkFileType } from './enums/work-file-type.enum';
 import { WorkScope } from './enums/work-scope.enum';
 import { WorkStatus } from './enums/work-status.enum';
@@ -22,6 +29,9 @@ import { WorkBudgetNotFoundException } from './exceptions/work-budget-not-found.
 import { WorkBudgetNotRespondedException } from './exceptions/work-budget-not-responded.exception';
 import { WorkCreateFailedException } from './exceptions/work-create-failed.exception';
 import { WorkNotFoundException } from './exceptions/work-not-found.exception';
+import { WorkPaymentAlreadyRegisteredException } from './exceptions/work-payment-already-registered.exception';
+import { WorkPaymentNotAllowedException } from './exceptions/work-payment-not-allowed.exception';
+import { WorkPaymentOnlyAfterFinishException } from './exceptions/work-payment-only-after-finish.exception';
 import { WorkUpdateFailedException } from './exceptions/work-update-failed.exception';
 
 @Injectable()
@@ -215,6 +225,13 @@ export class WorksService {
         data: { status: BudgetStatus.Responded },
       });
 
+      const payment = await this.prisma.payment.findFirst({
+        where: {
+          referenceType: PaymentReferenceType.Work,
+          referenceId: work.id,
+        },
+      });
+
       return {
         message: 'Trabalho cadastrado com sucesso.',
         work: {
@@ -248,6 +265,18 @@ export class WorksService {
           })),
           createdAt: work.createdAt,
           updatedAt: work.updatedAt,
+          payment: payment
+            ? {
+                id: payment.id,
+                method: payment.method as PaymentMethod,
+                status: payment.status as PaymentStatus,
+                holderName: payment.holderName || undefined,
+                cardBrand: payment.cardBrand || undefined,
+                cardLast4: payment.cardLast4 || undefined,
+                amount: payment.amount.toFixed(2),
+                paidAt: payment.paidAt || undefined,
+              }
+            : undefined,
         },
       };
     } catch (error) {
@@ -291,6 +320,17 @@ export class WorksService {
       this.prisma.work.count({ where }),
     ]);
 
+    const payments =
+      works.length > 0
+        ? await this.prisma.payment.findMany({
+            where: {
+              referenceType: PaymentReferenceType.Work,
+              referenceId: { in: works.map((work) => work.id) },
+            },
+          })
+        : [];
+    const paymentMap = new Map(payments.map((payment) => [payment.referenceId, payment]));
+
     return {
       works: works.map((work) => ({
         id: work.id,
@@ -314,6 +354,18 @@ export class WorksService {
           fileUrl: work.provider.fileUrl,
         },
         createdAt: work.createdAt,
+        payment: paymentMap.get(work.id)
+          ? {
+              id: paymentMap.get(work.id)!.id,
+              method: paymentMap.get(work.id)!.method as PaymentMethod,
+              status: paymentMap.get(work.id)!.status as PaymentStatus,
+              holderName: paymentMap.get(work.id)!.holderName || undefined,
+              cardBrand: paymentMap.get(work.id)!.cardBrand || undefined,
+              cardLast4: paymentMap.get(work.id)!.cardLast4 || undefined,
+              amount: paymentMap.get(work.id)!.amount.toFixed(2),
+              paidAt: paymentMap.get(work.id)!.paidAt || undefined,
+            }
+          : undefined,
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -344,6 +396,13 @@ export class WorksService {
     if (!canAccess) {
       throw new WorkAccessDeniedException();
     }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        referenceType: PaymentReferenceType.Work,
+        referenceId: work.id,
+      },
+    });
 
     return {
       id: work.id,
@@ -376,6 +435,18 @@ export class WorksService {
       })),
       createdAt: work.createdAt,
       updatedAt: work.updatedAt,
+      payment: payment
+        ? {
+            id: payment.id,
+            method: payment.method as PaymentMethod,
+            status: payment.status as PaymentStatus,
+            holderName: payment.holderName || undefined,
+            cardBrand: payment.cardBrand || undefined,
+            cardLast4: payment.cardLast4 || undefined,
+            amount: payment.amount.toFixed(2),
+            paidAt: payment.paidAt || undefined,
+          }
+        : undefined,
     };
   }
 
@@ -551,6 +622,108 @@ export class WorksService {
     });
 
     return this.findById(user, id);
+  }
+
+  async pay(user: User, id: number, payload: PayWorkDto): Promise<PayWorkResponseDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        requesterId: true,
+        providerId: true,
+        totalValue: true,
+        serviceValue: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    if (work.requesterId !== user.id) {
+      throw new WorkPaymentNotAllowedException();
+    }
+
+    if (work.status !== WorkStatus.Finished) {
+      throw new WorkPaymentOnlyAfterFinishException();
+    }
+
+    const existingPayment = await this.prisma.payment.findFirst({
+      where: {
+        referenceType: PaymentReferenceType.Work,
+        referenceId: work.id,
+      },
+      select: { id: true },
+    });
+
+    if (existingPayment) {
+      throw new WorkPaymentAlreadyRegisteredException();
+    }
+
+    const amount = work.totalValue || work.serviceValue;
+
+    if (!amount) {
+      throw new WorkPaymentOnlyAfterFinishException();
+    }
+
+    const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
+    const cardLast4 =
+      trimmedCardNumber.length >= 4
+        ? trimmedCardNumber.slice(trimmedCardNumber.length - 4)
+        : undefined;
+
+    await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          method: payload.method,
+          status: PaymentStatus.Paid,
+          referenceType: PaymentReferenceType.Work,
+          referenceId: work.id,
+          holderName: payload.holderName ? payload.holderName.trim() : null,
+          cardBrand: payload.cardBrand ? payload.cardBrand.trim() : null,
+          cardLast4: cardLast4 || null,
+          amount,
+          paidAt: new Date(),
+          payerId: work.requesterId,
+          receiverId: work.providerId,
+        },
+      });
+
+      await tx.financialTransaction.createMany({
+        data: [
+          {
+            type: FinancialTransactionType.Debit,
+            category: FinancialTransactionCategory.WorkPayment,
+            status: PaymentStatus.Paid,
+            amount,
+            description: `Pagamento do trabalho #${work.id}`,
+            availableAt: new Date(),
+            referenceType: PaymentReferenceType.Work,
+            referenceId: work.id,
+            userId: work.requesterId,
+            paymentId: payment.id,
+          },
+          {
+            type: FinancialTransactionType.Credit,
+            category: FinancialTransactionCategory.WorkPayment,
+            status: PaymentStatus.Paid,
+            amount,
+            description: `Recebimento do trabalho #${work.id}`,
+            availableAt: new Date(),
+            referenceType: PaymentReferenceType.Work,
+            referenceId: work.id,
+            userId: work.providerId,
+            paymentId: payment.id,
+          },
+        ],
+      });
+    });
+
+    return {
+      message: 'Pagamento registrado com sucesso.',
+      work: await this.findById(user, id),
+    };
   }
 
   async cancel(user: User, id: number, payload: CancelWorkDto): Promise<ResponseWorkDto> {

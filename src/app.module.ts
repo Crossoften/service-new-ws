@@ -9,7 +9,10 @@ import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './modules/mail/mail.module';
 import { NoAuthModule } from './modules/no-auth/no-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { AccommodationsModule } from './modules/accommodations/accommodations.module';
+import { BalancesModule } from './modules/balances/balances.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
+import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { ProductsModule } from './modules/products/products.module';
 import { ServicesModule } from './modules/services/services.module';
@@ -26,18 +29,29 @@ import { WorksModule } from './modules/works/works.module';
       },
     ]),
     ConfigModule.forRoot({ isGlobal: true }),
+
     AuthModule,
     LoginModule,
+    NoAuthModule,
+
     UploadModule,
     MailModule,
-    NoAuthModule,
+
+    //
     AdminModule,
+
+    //
+    AccommodationsModule,
+    BalancesModule,
+    BankAccountsModule,
     BudgetsModule,
     MobileModule,
     ProductsModule,
     ServicesModule,
     TransportationsModule,
     WorksModule,
+
+    //
     WebModule,
   ],
   providers: [

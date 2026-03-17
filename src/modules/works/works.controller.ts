@@ -26,6 +26,8 @@ import { CancelWorkDto } from './dto/cancel-work.dto';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
 import { FinishWorkDto } from './dto/finish-work.dto';
+import { PayWorkDto } from './dto/pay-work.dto';
+import { PayWorkResponseDto } from './dto/pay-work-response.dto';
 import { QueryWorkDto } from './dto/query-work.dto';
 import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
 import { ResponseWorkDto } from './dto/response-work.dto';
@@ -153,6 +155,24 @@ export class WorksController {
     @Body() payload: FinishWorkDto,
   ): Promise<ResponseWorkDto> {
     return this.worksService.finish(user, id, payload);
+  }
+
+  @Post(':id/pay')
+  @ApiOperation({
+    summary: 'Rota para registrar o pagamento de um trabalho concluído.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: PayWorkResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async pay(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: PayWorkDto,
+  ): Promise<PayWorkResponseDto> {
+    return this.worksService.pay(user, id, payload);
   }
 
   @Patch(':id/cancel')
