@@ -13,6 +13,7 @@ model User {
   name          String
   email         String    @unique
   document      String?   @unique @db.VarChar(18)
+  biography     String?   @db.LongText()
   phone         String?   @unique
   password      String
   code          String?   @db.VarChar(4)
