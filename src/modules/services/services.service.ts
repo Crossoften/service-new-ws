@@ -1,10 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
@@ -13,11 +8,19 @@ import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateServiceResponseDto } from './dto/create-service-response.dto';
+import { CreateServiceReviewDto } from './dto/create-service-review.dto';
+import { CreateServiceReviewResponseDto } from './dto/create-service-review-response.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { QueryServiceDto } from './dto/query-service.dto';
 import { ResponseFindAllServiceDto } from './dto/response-find-all-service.dto';
 import { ResponseServiceCategoryDto } from './dto/response-service-category.dto';
 import { ResponseServiceDto } from './dto/response-service.dto';
+import { ServiceAccessDeniedException } from './exceptions/service-access-denied.exception';
+import { ServiceCategoryNotFoundException } from './exceptions/service-category-not-found.exception';
+import { ServiceNotFoundException } from './exceptions/service-not-found.exception';
+import { ServicePersistenceException } from './exceptions/service-persistence.exception';
+import { ServiceReviewNotAllowedException } from './exceptions/service-review-not-allowed.exception';
+import { ServiceSelfReviewNotAllowedException } from './exceptions/service-self-review-not-allowed.exception';
 import { ServiceType } from './enums/service-type.enum';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
@@ -62,6 +65,31 @@ export class ServicesService {
     },
   });
 
+  private readonly serviceListSelect = Prisma.validator<Prisma.ServiceSelect>()({
+    id: true,
+    name: true,
+    type: true,
+    price: true,
+    description: true,
+    imageUrl: true,
+    isActive: true,
+    category: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        iconUrl: true,
+      },
+    },
+    user: {
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+      },
+    },
+  });
+
   async create(user: User, payload: CreateServiceDto): Promise<CreateServiceResponseDto> {
     const categoryId = parsePositiveInt(payload.categoryId, 'categoryId');
     const price = parsePriceDecimal(payload.price);
@@ -88,44 +116,11 @@ export class ServicesService {
 
       return {
         message: 'Serviço cadastrado com sucesso.',
-        service: {
-          id: service.id,
-          name: service.name,
-          type: service.type as ServiceType,
-          registrationCode: service.registrationCode,
-          price: service.price.toFixed(2),
-          description: service.description,
-          imageUrl: service.imageUrl,
-          imageKey: service.imageKey,
-          isActive: service.isActive,
-          categoryId: service.categoryId,
-          category: {
-            id: service.category.id,
-            name: service.category.name,
-            slug: service.category.slug,
-            iconUrl: service.category.iconUrl,
-            iconKey: service.category.iconKey,
-            isActive: service.category.isActive,
-            sortOrder: service.category.sortOrder,
-            createdAt: service.category.createdAt,
-            updatedAt: service.category.updatedAt,
-          },
-          userId: service.userId,
-          user: {
-            id: service.user.id,
-            name: service.user.name,
-            email: service.user.email,
-            phone: service.user.phone,
-          },
-          createdAt: service.createdAt,
-          updatedAt: service.updatedAt,
-        },
+        service: await this.findById(service.id),
       };
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
-        throw new BadRequestException(
-          'Não foi possível persistir o serviço com os dados informados.',
-        );
+        throw new ServicePersistenceException();
       }
 
       throw error;
@@ -173,12 +168,33 @@ export class ServicesService {
     const [services, totalRecords] = await Promise.all([
       this.prisma.service.findMany({
         where,
-        select: this.serviceSelect,
+        select: this.serviceListSelect,
         orderBy: [{ createdAt: 'desc' }],
         take,
         skip: (page - 1) * take,
       }),
       this.prisma.service.count({ where }),
+    ]);
+    const serviceIds = services.map((service) => service.id);
+    const [reviewCounts, completedWorkCounts] = await Promise.all([
+      serviceIds.length > 0
+        ? this.prisma.$queryRaw<Array<{ serviceId: number; type: string; total: bigint | number }>>`
+            SELECT serviceId, type, COUNT(*) AS total
+            FROM reviews
+            WHERE serviceId IN (${Prisma.join(serviceIds)})
+            GROUP BY serviceId, type
+          `
+        : Promise.resolve([]),
+      serviceIds.length > 0
+        ? this.prisma.work.groupBy({
+            by: ['serviceId'],
+            where: {
+              serviceId: { in: serviceIds },
+              status: 'Finished',
+            },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
     ]);
     const totalPages = Math.max(1, Math.ceil(totalRecords / take));
 
@@ -187,33 +203,30 @@ export class ServicesService {
         id: service.id,
         name: service.name,
         type: service.type as ServiceType,
-        registrationCode: service.registrationCode,
         price: service.price.toFixed(2),
         description: service.description,
         imageUrl: service.imageUrl,
-        imageKey: service.imageKey,
         isActive: service.isActive,
-        categoryId: service.categoryId,
         category: {
           id: service.category.id,
           name: service.category.name,
           slug: service.category.slug,
           iconUrl: service.category.iconUrl,
-          iconKey: service.category.iconKey,
-          isActive: service.category.isActive,
-          sortOrder: service.category.sortOrder,
-          createdAt: service.category.createdAt,
-          updatedAt: service.category.updatedAt,
         },
-        userId: service.userId,
         user: {
           id: service.user.id,
           name: service.user.name,
-          email: service.user.email,
           phone: service.user.phone,
         },
-        createdAt: service.createdAt,
-        updatedAt: service.updatedAt,
+        positiveReviews: reviewCounts
+          .filter((review) => review.serviceId === service.id && review.type === 'Positive')
+          .reduce((total, review) => total + Number(review.total), 0),
+        negativeReviews: reviewCounts
+          .filter((review) => review.serviceId === service.id && review.type === 'Negative')
+          .reduce((total, review) => total + Number(review.total), 0),
+        completedWorks: completedWorkCounts
+          .filter((work) => work.serviceId === service.id)
+          .reduce((total, work) => total + work._count._all, 0),
       })),
       currentPage: page,
       totalPages,
@@ -242,12 +255,33 @@ export class ServicesService {
     const [services, totalRecords] = await Promise.all([
       this.prisma.service.findMany({
         where,
-        select: this.serviceSelect,
+        select: this.serviceListSelect,
         orderBy: [{ createdAt: 'desc' }],
         take,
         skip: (page - 1) * take,
       }),
       this.prisma.service.count({ where }),
+    ]);
+    const serviceIds = services.map((service) => service.id);
+    const [reviewCounts, completedWorkCounts] = await Promise.all([
+      serviceIds.length > 0
+        ? this.prisma.$queryRaw<Array<{ serviceId: number; type: string; total: bigint | number }>>`
+            SELECT serviceId, type, COUNT(*) AS total
+            FROM reviews
+            WHERE serviceId IN (${Prisma.join(serviceIds)})
+            GROUP BY serviceId, type
+          `
+        : Promise.resolve([]),
+      serviceIds.length > 0
+        ? this.prisma.work.groupBy({
+            by: ['serviceId'],
+            where: {
+              serviceId: { in: serviceIds },
+              status: 'Finished',
+            },
+            _count: { _all: true },
+          })
+        : Promise.resolve([]),
     ]);
     const totalPages = Math.max(1, Math.ceil(totalRecords / take));
 
@@ -256,33 +290,30 @@ export class ServicesService {
         id: service.id,
         name: service.name,
         type: service.type as ServiceType,
-        registrationCode: service.registrationCode,
         price: service.price.toFixed(2),
         description: service.description,
         imageUrl: service.imageUrl,
-        imageKey: service.imageKey,
         isActive: service.isActive,
-        categoryId: service.categoryId,
         category: {
           id: service.category.id,
           name: service.category.name,
           slug: service.category.slug,
           iconUrl: service.category.iconUrl,
-          iconKey: service.category.iconKey,
-          isActive: service.category.isActive,
-          sortOrder: service.category.sortOrder,
-          createdAt: service.category.createdAt,
-          updatedAt: service.category.updatedAt,
         },
-        userId: service.userId,
         user: {
           id: service.user.id,
           name: service.user.name,
-          email: service.user.email,
           phone: service.user.phone,
         },
-        createdAt: service.createdAt,
-        updatedAt: service.updatedAt,
+        positiveReviews: reviewCounts
+          .filter((review) => review.serviceId === service.id && review.type === 'Positive')
+          .reduce((total, review) => total + Number(review.total), 0),
+        negativeReviews: reviewCounts
+          .filter((review) => review.serviceId === service.id && review.type === 'Negative')
+          .reduce((total, review) => total + Number(review.total), 0),
+        completedWorks: completedWorkCounts
+          .filter((work) => work.serviceId === service.id)
+          .reduce((total, work) => total + work._count._all, 0),
       })),
       currentPage: page,
       totalPages,
@@ -291,12 +322,26 @@ export class ServicesService {
   }
 
   async findById(id: number): Promise<ResponseServiceDto> {
-    const service = await this.prisma.service.findUnique({
-      where: { id },
-      select: this.serviceSelect,
-    });
+    const [service, reviewCounts, completedWorks] = await Promise.all([
+      this.prisma.service.findUnique({
+        where: { id },
+        select: this.serviceSelect,
+      }),
+      this.prisma.$queryRaw<Array<{ type: string; total: bigint | number }>>`
+        SELECT type, COUNT(*) AS total
+        FROM reviews
+        WHERE serviceId = ${id}
+        GROUP BY type
+      `,
+      this.prisma.work.count({
+        where: {
+          serviceId: id,
+          status: 'Finished',
+        },
+      }),
+    ]);
 
-    if (!service) throw new NotFoundException('Serviço não encontrado.');
+    if (!service) throw new ServiceNotFoundException();
 
     return {
       id: service.id,
@@ -327,18 +372,39 @@ export class ServicesService {
         email: service.user.email,
         phone: service.user.phone,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === 'Positive')
+        .reduce((total, review) => total + Number(review.total), 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === 'Negative')
+        .reduce((total, review) => total + Number(review.total), 0),
+      completedWorks,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
     };
   }
 
   async findPublicById(id: number): Promise<ResponseServiceDto> {
-    const service = await this.prisma.service.findFirst({
-      where: { id, isActive: true },
-      select: this.serviceSelect,
-    });
+    const [service, reviewCounts, completedWorks] = await Promise.all([
+      this.prisma.service.findFirst({
+        where: { id, isActive: true },
+        select: this.serviceSelect,
+      }),
+      this.prisma.$queryRaw<Array<{ type: string; total: bigint | number }>>`
+        SELECT type, COUNT(*) AS total
+        FROM reviews
+        WHERE serviceId = ${id}
+        GROUP BY type
+      `,
+      this.prisma.work.count({
+        where: {
+          serviceId: id,
+          status: 'Finished',
+        },
+      }),
+    ]);
 
-    if (!service) throw new NotFoundException('Serviço não encontrado.');
+    if (!service) throw new ServiceNotFoundException();
 
     return {
       id: service.id,
@@ -369,8 +435,69 @@ export class ServicesService {
         email: service.user.email,
         phone: service.user.phone,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === 'Positive')
+        .reduce((total, review) => total + Number(review.total), 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === 'Negative')
+        .reduce((total, review) => total + Number(review.total), 0),
+      completedWorks,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
+    };
+  }
+
+  async review(
+    user: User,
+    id: number,
+    payload: CreateServiceReviewDto,
+  ): Promise<CreateServiceReviewResponseDto> {
+    const service = await this.prisma.service.findFirst({
+      where: {
+        id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!service) {
+      throw new ServiceNotFoundException();
+    }
+
+    if (service.userId === user.id) {
+      throw new ServiceSelfReviewNotAllowedException();
+    }
+
+    const finishedWork = await this.prisma.work.findFirst({
+      where: {
+        serviceId: id,
+        requesterId: user.id,
+        status: 'Finished',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!finishedWork) {
+      throw new ServiceReviewNotAllowedException();
+    }
+
+    await this.prisma.$executeRaw`
+      INSERT INTO reviews (type, comment, serviceId, requesterId, createdAt, updatedAt)
+      VALUES (${payload.type}, ${payload.comment ? payload.comment.trim() : null}, ${id}, ${user.id}, NOW(), NOW())
+      ON DUPLICATE KEY UPDATE
+        type = VALUES(type),
+        comment = VALUES(comment),
+        updatedAt = NOW()
+    `;
+
+    return {
+      message: 'Avaliação do serviço registrada com sucesso.',
+      service: await this.findPublicById(id),
     };
   }
 
@@ -381,7 +508,7 @@ export class ServicesService {
     const isOwner = user.id === service.userId;
 
     if (!isAdmin && !isOwner) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new ServiceAccessDeniedException();
     }
 
     const categoryId = payload.categoryId
@@ -417,9 +544,7 @@ export class ServicesService {
       });
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
-        throw new BadRequestException(
-          'Não foi possível persistir o serviço com os dados informados.',
-        );
+        throw new ServicePersistenceException();
       }
 
       throw error;
@@ -435,7 +560,7 @@ export class ServicesService {
     const isOwner = user.id === service.userId;
 
     if (!isAdmin && !isOwner) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new ServiceAccessDeniedException();
     }
 
     await this.prisma.service.delete({ where: { id } });
@@ -448,7 +573,7 @@ export class ServicesService {
       where: { id, isActive: true },
     });
 
-    if (!category) throw new NotFoundException('Categoria de serviço não encontrada.');
+    if (!category) throw new ServiceCategoryNotFoundException();
 
     return category;
   }

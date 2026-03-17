@@ -11,7 +11,9 @@ import { NoAuthModule } from './modules/no-auth/no-auth.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { BudgetsModule } from './modules/budgets/budgets.module';
 import { MobileModule } from './modules/mobile/mobile.module';
+import { ProductsModule } from './modules/products/products.module';
 import { ServicesModule } from './modules/services/services.module';
+import { TransportationsModule } from './modules/transportations/transportations.module';
 import { WebModule } from './modules/web/web.module';
 import { WorksModule } from './modules/works/works.module';
 
@@ -32,7 +34,9 @@ import { WorksModule } from './modules/works/works.module';
     AdminModule,
     BudgetsModule,
     MobileModule,
+    ProductsModule,
     ServicesModule,
+    TransportationsModule,
     WorksModule,
     WebModule,
   ],

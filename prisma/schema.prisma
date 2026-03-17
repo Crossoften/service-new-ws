@@ -27,7 +27,10 @@ model User {
 
   adminPermissions AdminPermission[]
   files            File[]
+  products         Product[]
+  transportations  Transportation[]
   services         Service[]
+  reviews          Review[]
   requestedBudgets Budget[]          @relation("BudgetRequester")
   providedBudgets  Budget[]          @relation("BudgetProvider")
   requestedWorks   Work[]            @relation("WorkRequester")
@@ -67,6 +70,95 @@ model ServiceCategory {
   @@map("service_categories")
 }
 
+model ProductCategory {
+  id Int @id @default(autoincrement())
+
+  name      String  @unique @db.VarChar(120)
+  slug      String  @unique @db.VarChar(120)
+  iconUrl   String? @db.VarChar(1500)
+  iconKey   String? @db.VarChar(1500)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@map("product_categories")
+}
+
+model TransportationCategory {
+  id Int @id @default(autoincrement())
+
+  name      String  @unique @db.VarChar(120)
+  slug      String  @unique @db.VarChar(120)
+  iconUrl   String? @db.VarChar(1500)
+  iconKey   String? @db.VarChar(1500)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transportations Transportation[]
+
+  @@map("transportation_categories")
+}
+
+model Product {
+  id Int @id @default(autoincrement())
+
+  name            String                 @db.VarChar(160)
+  transactionType ProductTransactionType @default(Sale)
+  model           String?                @db.VarChar(160)
+  year            Int?
+  price           Decimal                @db.Decimal(10, 2)
+  description     String?                @db.LongText()
+  imageUrl        String?                @db.VarChar(1500)
+  imageKey        String?                @db.VarChar(1500)
+  isActive        Boolean                @default(true)
+  categoryId      Int
+  userId          Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category ProductCategory @relation(fields: [categoryId], references: [id])
+  user     User            @relation(fields: [userId], references: [id])
+
+  @@index([categoryId])
+  @@index([userId])
+  @@map("products")
+}
+
+model Transportation {
+  id Int @id @default(autoincrement())
+
+  name        String  @db.VarChar(160)
+  model       String? @db.VarChar(160)
+  mileageKm   Int?
+  capacity    Int?
+  year        Int?
+  price       Decimal @db.Decimal(10, 2)
+  description String? @db.LongText()
+  imageUrl    String? @db.VarChar(1500)
+  imageKey    String? @db.VarChar(1500)
+  isActive    Boolean @default(true)
+  categoryId  Int
+  userId      Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category TransportationCategory @relation(fields: [categoryId], references: [id])
+  user     User                   @relation(fields: [userId], references: [id])
+
+  @@index([categoryId])
+  @@index([userId])
+  @@map("transportations")
+}
+
 model Service {
   id Int @id @default(autoincrement())
 
@@ -88,10 +180,32 @@ model Service {
   user     User            @relation(fields: [userId], references: [id])
   budgets  Budget[]
   works    Work[]
+  reviews  Review[]
 
   @@index([categoryId])
   @@index([userId])
   @@map("services")
+}
+
+model Review {
+  id Int @id @default(autoincrement())
+
+  type        ReviewType
+  comment     String?    @db.LongText()
+  serviceId   Int
+  requesterId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service   Service @relation(fields: [serviceId], references: [id])
+  requester User    @relation(fields: [requesterId], references: [id])
+
+  @@unique([serviceId, requesterId])
+  @@index([serviceId])
+  @@index([requesterId])
+  @@index([type])
+  @@map("reviews")
 }
 
 model Budget {
@@ -103,14 +217,14 @@ model Budget {
   responseValue        Decimal?        @db.Decimal(10, 2)
   responseTimeQuantity Int?
   responseTimeUnit     BudgetTimeUnit?
-  serviceId            Int
+  serviceId            Int?
   requesterId          Int
   providerId           Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  service             Service             @relation(fields: [serviceId], references: [id])
+  service             Service?            @relation(fields: [serviceId], references: [id])
   requester           User                @relation("BudgetRequester", fields: [requesterId], references: [id])
   provider            User                @relation("BudgetProvider", fields: [providerId], references: [id])
   files               BudgetFile[]
@@ -245,6 +359,7 @@ enum Role {
   Master
   Admin
   User
+  Supplier
 }
 
 enum Status {
@@ -256,6 +371,9 @@ enum Status {
 enum AdminPermissions {
   Dashboard
   Settings
+  Services
+  Financial
+  Users
 }
 
 enum TextType {
@@ -270,6 +388,12 @@ enum ServiceType {
   Online
   Presential
   Home
+}
+
+enum ProductTransactionType {
+  Rent
+  Sale
+  RentAndSale
 }
 
 enum BudgetStatus {
@@ -301,4 +425,9 @@ enum WorkFileType {
   Requester
   Provider
   Completion
+}
+
+enum ReviewType {
+  Positive
+  Negative
 }
