@@ -25,16 +25,21 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  adminPermissions AdminPermission[]
-  files            File[]
-  products         Product[]
-  transportations  Transportation[]
-  services         Service[]
-  reviews          Review[]
-  requestedBudgets Budget[]          @relation("BudgetRequester")
-  providedBudgets  Budget[]          @relation("BudgetProvider")
-  requestedWorks   Work[]            @relation("WorkRequester")
-  providedWorks    Work[]            @relation("WorkProvider")
+  adminPermissions      AdminPermission[]
+  accommodations        Accommodation[]
+  bankAccount           BankAccount?
+  files                 File[]
+  products              Product[]
+  transportations       Transportation[]
+  services              Service[]
+  reviews               Review[]
+  requestedBudgets      Budget[]               @relation("BudgetRequester")
+  providedBudgets       Budget[]               @relation("BudgetProvider")
+  requestedWorks        Work[]                 @relation("WorkRequester")
+  sentPayments          Payment[]              @relation("PaymentPayer")
+  financialTransactions FinancialTransaction[]
+  providedWorks         Work[]                 @relation("WorkProvider")
+  receivedPayments      Payment[]              @relation("PaymentReceiver")
 
   @@map("users")
 }
@@ -106,6 +111,24 @@ model TransportationCategory {
   @@map("transportation_categories")
 }
 
+model AccommodationCategory {
+  id Int @id @default(autoincrement())
+
+  name      String  @unique @db.VarChar(120)
+  slug      String  @unique @db.VarChar(120)
+  iconUrl   String? @db.VarChar(1500)
+  iconKey   String? @db.VarChar(1500)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accommodations Accommodation[]
+
+  @@map("accommodation_categories")
+}
+
 model Product {
   id Int @id @default(autoincrement())
 
@@ -157,6 +180,52 @@ model Transportation {
   @@index([categoryId])
   @@index([userId])
   @@map("transportations")
+}
+
+model Accommodation {
+  id Int @id @default(autoincrement())
+
+  name          String  @db.VarChar(160)
+  street        String? @db.VarChar(160)
+  neighborhood  String? @db.VarChar(120)
+  city          String? @db.VarChar(120)
+  state         String? @db.VarChar(120)
+  roomsQuantity Int?
+  price         Decimal @db.Decimal(10, 2)
+  description   String? @db.LongText()
+  imageUrl      String? @db.VarChar(1500)
+  imageKey      String? @db.VarChar(1500)
+  isActive      Boolean @default(true)
+  categoryId    Int
+  userId        Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category AccommodationCategory @relation(fields: [categoryId], references: [id])
+  user     User                  @relation(fields: [userId], references: [id])
+
+  @@index([categoryId])
+  @@index([userId])
+  @@map("accommodations")
+}
+
+model BankAccount {
+  id Int @id @default(autoincrement())
+
+  bankName    String          @db.VarChar(120)
+  accountType BankAccountType
+  agency      String          @db.VarChar(30)
+  account     String          @db.VarChar(30)
+  cpf         String          @db.VarChar(14)
+  userId      Int             @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@map("bank_accounts")
 }
 
 model Service {
@@ -394,6 +463,11 @@ enum ProductTransactionType {
   Rent
   Sale
   RentAndSale
+}
+
+enum BankAccountType {
+  Checking
+  Savings
 }
 
 enum BudgetStatus {
