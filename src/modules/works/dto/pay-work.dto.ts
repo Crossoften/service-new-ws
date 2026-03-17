@@ -1,0 +1,51 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
+import { PaymentMethod } from '../enums/payment-method.enum';
+
+export class PayWorkDto {
+  @ApiProperty({
+    description: 'Método de pagamento escolhido para quitar o trabalho.',
+    enum: PaymentMethod,
+    enumName: 'PaymentMethod',
+    example: PaymentMethod.CreditCard,
+  })
+  @IsEnum(PaymentMethod)
+  method: PaymentMethod;
+
+  @ApiProperty({
+    description: 'Nome completo do titular do cartão, quando o método exigir cartão.',
+    required: false,
+    nullable: true,
+    example: 'Lynna Rossy',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(160)
+  holderName?: string;
+
+  @ApiProperty({
+    description: 'Bandeira do cartão, quando informada pela interface.',
+    required: false,
+    nullable: true,
+    example: 'VISA',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  @MaxLength(60)
+  cardBrand?: string;
+
+  @ApiProperty({
+    description:
+      'Número do cartão usado apenas para extrair os 4 últimos dígitos. O valor completo não é persistido.',
+    required: false,
+    nullable: true,
+    example: '2421572879112354',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  @IsNotEmpty()
+  cardNumber?: string;
+}
