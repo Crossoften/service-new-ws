@@ -8,6 +8,8 @@ import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateAccommodationResponseDto } from './dto/create-accommodation-response.dto';
+import { CreateAccommodationReviewResponseDto } from './dto/create-accommodation-review-response.dto';
+import { CreateAccommodationReviewDto } from './dto/create-accommodation-review.dto';
 import { CreateAccommodationDto } from './dto/create-accommodation.dto';
 import { QueryAccommodationDto } from './dto/query-accommodation.dto';
 import { ResponseAccommodationCategoryDto } from './dto/response-accommodation-category.dto';
@@ -18,6 +20,8 @@ import { AccommodationAccessDeniedException } from './exceptions/accommodation-a
 import { AccommodationCategoryNotFoundException } from './exceptions/accommodation-category-not-found.exception';
 import { AccommodationNotFoundException } from './exceptions/accommodation-not-found.exception';
 import { AccommodationPersistenceException } from './exceptions/accommodation-persistence.exception';
+import { AccommodationSelfReviewNotAllowedException } from './exceptions/accommodation-self-review-not-allowed.exception';
+import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class AccommodationsService {
@@ -157,6 +161,8 @@ export class AccommodationsService {
             email: accommodation.user.email,
             phone: accommodation.user.phone || undefined,
           },
+          positiveReviews: 0,
+          negativeReviews: 0,
           createdAt: accommodation.createdAt,
           updatedAt: accommodation.updatedAt,
         },
@@ -221,6 +227,19 @@ export class AccommodationsService {
       }),
       this.prisma.accommodation.count({ where }),
     ]);
+    const accommodationIds = accommodations.map((accommodation) => accommodation.id);
+    const reviewCounts =
+      accommodationIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              accommodationId: { in: accommodationIds },
+            },
+            select: {
+              accommodationId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       accommodations: accommodations.map((accommodation) => ({
@@ -244,6 +263,18 @@ export class AccommodationsService {
           name: accommodation.user.name,
           phone: accommodation.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.accommodationId === accommodation.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.accommodationId === accommodation.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -285,6 +316,19 @@ export class AccommodationsService {
       }),
       this.prisma.accommodation.count({ where }),
     ]);
+    const accommodationIds = accommodations.map((accommodation) => accommodation.id);
+    const reviewCounts =
+      accommodationIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              accommodationId: { in: accommodationIds },
+            },
+            select: {
+              accommodationId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       accommodations: accommodations.map((accommodation) => ({
@@ -308,6 +352,18 @@ export class AccommodationsService {
           name: accommodation.user.name,
           phone: accommodation.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.accommodationId === accommodation.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.accommodationId === accommodation.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -316,10 +372,20 @@ export class AccommodationsService {
   }
 
   async findById(id: number): Promise<ResponseAccommodationDto> {
-    const accommodation = await this.prisma.accommodation.findUnique({
-      where: { id },
-      select: this.accommodationSelect,
-    });
+    const [accommodation, reviewCounts] = await Promise.all([
+      this.prisma.accommodation.findUnique({
+        where: { id },
+        select: this.accommodationSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          accommodationId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!accommodation) {
       throw new AccommodationNotFoundException();
@@ -357,16 +423,32 @@ export class AccommodationsService {
         email: accommodation.user.email,
         phone: accommodation.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: accommodation.createdAt,
       updatedAt: accommodation.updatedAt,
     };
   }
 
   async findPublicById(id: number): Promise<ResponseAccommodationDto> {
-    const accommodation = await this.prisma.accommodation.findFirst({
-      where: { id, isActive: true },
-      select: this.accommodationSelect,
-    });
+    const [accommodation, reviewCounts] = await Promise.all([
+      this.prisma.accommodation.findFirst({
+        where: { id, isActive: true },
+        select: this.accommodationSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          accommodationId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!accommodation) {
       throw new AccommodationNotFoundException();
@@ -404,8 +486,73 @@ export class AccommodationsService {
         email: accommodation.user.email,
         phone: accommodation.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: accommodation.createdAt,
       updatedAt: accommodation.updatedAt,
+    };
+  }
+
+  async review(
+    user: User,
+    id: number,
+    payload: CreateAccommodationReviewDto,
+  ): Promise<CreateAccommodationReviewResponseDto> {
+    const accommodation = await this.prisma.accommodation.findFirst({
+      where: {
+        id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!accommodation) {
+      throw new AccommodationNotFoundException();
+    }
+
+    if (accommodation.userId === user.id) {
+      throw new AccommodationSelfReviewNotAllowedException();
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        accommodationId: id,
+        requesterId: user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingReview) {
+      await this.prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+        },
+      });
+    } else {
+      await this.prisma.review.create({
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+          accommodationId: id,
+          requesterId: user.id,
+        },
+      });
+    }
+
+    return {
+      message: 'Avaliação da hospedagem registrada com sucesso.',
+      accommodation: await this.findPublicById(id),
     };
   }
 

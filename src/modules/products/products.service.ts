@@ -8,6 +8,8 @@ import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateProductResponseDto } from './dto/create-product-response.dto';
+import { CreateProductReviewResponseDto } from './dto/create-product-review-response.dto';
+import { CreateProductReviewDto } from './dto/create-product-review.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { ResponseFindAllProductDto } from './dto/response-find-all-product.dto';
@@ -18,7 +20,9 @@ import { ProductAccessDeniedException } from './exceptions/product-access-denied
 import { ProductCategoryNotFoundException } from './exceptions/product-category-not-found.exception';
 import { ProductNotFoundException } from './exceptions/product-not-found.exception';
 import { ProductPersistenceException } from './exceptions/product-persistence.exception';
+import { ProductSelfReviewNotAllowedException } from './exceptions/product-self-review-not-allowed.exception';
 import { ProductTransactionType } from './enums/product-transaction-type.enum';
+import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -147,6 +151,8 @@ export class ProductsService {
             email: product.user.email,
             phone: product.user.phone || undefined,
           },
+          positiveReviews: 0,
+          negativeReviews: 0,
           createdAt: product.createdAt,
           updatedAt: product.updatedAt,
         },
@@ -209,6 +215,19 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ]);
+    const productIds = products.map((product) => product.id);
+    const reviewCounts =
+      productIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              productId: { in: productIds },
+            },
+            select: {
+              productId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       products: products.map((product) => ({
@@ -232,6 +251,16 @@ export class ProductsService {
           name: product.user.name,
           phone: product.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) => review.productId === product.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) => review.productId === product.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -268,6 +297,19 @@ export class ProductsService {
       }),
       this.prisma.product.count({ where }),
     ]);
+    const productIds = products.map((product) => product.id);
+    const reviewCounts =
+      productIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              productId: { in: productIds },
+            },
+            select: {
+              productId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       products: products.map((product) => ({
@@ -291,6 +333,16 @@ export class ProductsService {
           name: product.user.name,
           phone: product.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) => review.productId === product.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) => review.productId === product.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -299,10 +351,20 @@ export class ProductsService {
   }
 
   async findById(id: number): Promise<ResponseProductDto> {
-    const product = await this.prisma.product.findUnique({
-      where: { id },
-      select: this.productSelect,
-    });
+    const [product, reviewCounts] = await Promise.all([
+      this.prisma.product.findUnique({
+        where: { id },
+        select: this.productSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          productId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!product) {
       throw new ProductNotFoundException();
@@ -338,16 +400,32 @@ export class ProductsService {
         email: product.user.email,
         phone: product.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
     };
   }
 
   async findPublicById(id: number): Promise<ResponseProductDto> {
-    const product = await this.prisma.product.findFirst({
-      where: { id, isActive: true },
-      select: this.productSelect,
-    });
+    const [product, reviewCounts] = await Promise.all([
+      this.prisma.product.findFirst({
+        where: { id, isActive: true },
+        select: this.productSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          productId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!product) {
       throw new ProductNotFoundException();
@@ -383,8 +461,73 @@ export class ProductsService {
         email: product.user.email,
         phone: product.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
+    };
+  }
+
+  async review(
+    user: User,
+    id: number,
+    payload: CreateProductReviewDto,
+  ): Promise<CreateProductReviewResponseDto> {
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!product) {
+      throw new ProductNotFoundException();
+    }
+
+    if (product.userId === user.id) {
+      throw new ProductSelfReviewNotAllowedException();
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        productId: id,
+        requesterId: user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingReview) {
+      await this.prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+        },
+      });
+    } else {
+      await this.prisma.review.create({
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+          productId: id,
+          requesterId: user.id,
+        },
+      });
+    }
+
+    return {
+      message: 'Avaliação do produto registrada com sucesso.',
+      product: await this.findPublicById(id),
     };
   }
 
