@@ -150,6 +150,7 @@ model Product {
 
   category ProductCategory @relation(fields: [categoryId], references: [id])
   user     User            @relation(fields: [userId], references: [id])
+  reviews  Review[]
 
   @@index([categoryId])
   @@index([userId])
@@ -177,6 +178,7 @@ model Transportation {
 
   category TransportationCategory @relation(fields: [categoryId], references: [id])
   user     User                   @relation(fields: [userId], references: [id])
+  reviews  Review[]
 
   @@index([categoryId])
   @@index([userId])
@@ -205,6 +207,7 @@ model Accommodation {
 
   category AccommodationCategory @relation(fields: [categoryId], references: [id])
   user     User                  @relation(fields: [userId], references: [id])
+  reviews  Review[]
 
   @@index([categoryId])
   @@index([userId])
@@ -260,19 +263,31 @@ model Service {
 model Review {
   id Int @id @default(autoincrement())
 
-  type        ReviewType
-  comment     String?    @db.LongText()
-  serviceId   Int
-  requesterId Int
+  type             ReviewType
+  comment          String?         @db.LongText()
+  serviceId        Int?
+  productId        Int?
+  accommodationId  Int?
+  transportationId Int?
+  requesterId      Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  service   Service @relation(fields: [serviceId], references: [id])
-  requester User    @relation(fields: [requesterId], references: [id])
+  service        Service?        @relation(fields: [serviceId], references: [id])
+  product        Product?        @relation(fields: [productId], references: [id])
+  accommodation  Accommodation?  @relation(fields: [accommodationId], references: [id])
+  transportation Transportation? @relation(fields: [transportationId], references: [id])
+  requester      User            @relation(fields: [requesterId], references: [id])
 
   @@unique([serviceId, requesterId])
+  @@unique([productId, requesterId])
+  @@unique([accommodationId, requesterId])
+  @@unique([transportationId, requesterId])
   @@index([serviceId])
+  @@index([productId])
+  @@index([accommodationId])
+  @@index([transportationId])
   @@index([requesterId])
   @@index([type])
   @@map("reviews")

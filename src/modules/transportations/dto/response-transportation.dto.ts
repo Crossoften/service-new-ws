@@ -152,6 +152,20 @@ export class ResponseTransportationListItemDto {
     type: ResponseTransportationListOwnerDto,
   })
   user: ResponseTransportationListOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas do transporte.',
+    example: 11,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas do transporte.',
+    example: 1,
+    type: Number,
+  })
+  negativeReviews: number;
 }
 
 export class ResponseTransportationDto {
@@ -251,6 +265,20 @@ export class ResponseTransportationDto {
     type: ResponseTransportationOwnerDto,
   })
   user: ResponseTransportationOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas do transporte.',
+    example: 11,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas do transporte.',
+    example: 1,
+    type: Number,
+  })
+  negativeReviews: number;
 
   @ApiProperty({
     description: 'Data de criação do transporte em formato ISO 8601.',

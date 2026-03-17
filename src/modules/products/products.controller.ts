@@ -24,6 +24,8 @@ import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { CreateProductResponseDto } from './dto/create-product-response.dto';
+import { CreateProductReviewResponseDto } from './dto/create-product-review-response.dto';
+import { CreateProductReviewDto } from './dto/create-product-review.dto';
 import { CreateProductDto } from './dto/create-product.dto';
 import { QueryProductDto } from './dto/query-product.dto';
 import { ResponseFindAllProductDto } from './dto/response-find-all-product.dto';
@@ -114,6 +116,24 @@ export class ProductsController {
     @Body() payload: UpdateProductDto,
   ): Promise<ResponseProductDto> {
     return this.productsService.update(user, id, payload);
+  }
+
+  @Post(':id/reviews')
+  @ApiOperation({
+    summary: 'Rota para registrar ou atualizar a avaliação de um produto.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: CreateProductReviewResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async review(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateProductReviewDto,
+  ): Promise<CreateProductReviewResponseDto> {
+    return this.productsService.review(user, id, payload);
   }
 
   @Delete(':id')

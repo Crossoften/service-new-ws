@@ -8,6 +8,8 @@ import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateTransportationResponseDto } from './dto/create-transportation-response.dto';
+import { CreateTransportationReviewResponseDto } from './dto/create-transportation-review-response.dto';
+import { CreateTransportationReviewDto } from './dto/create-transportation-review.dto';
 import { CreateTransportationDto } from './dto/create-transportation.dto';
 import { QueryTransportationDto } from './dto/query-transportation.dto';
 import { ResponseFindAllTransportationDto } from './dto/response-find-all-transportation.dto';
@@ -18,6 +20,8 @@ import { TransportationAccessDeniedException } from './exceptions/transportation
 import { TransportationCategoryNotFoundException } from './exceptions/transportation-category-not-found.exception';
 import { TransportationNotFoundException } from './exceptions/transportation-not-found.exception';
 import { TransportationPersistenceException } from './exceptions/transportation-persistence.exception';
+import { TransportationSelfReviewNotAllowedException } from './exceptions/transportation-self-review-not-allowed.exception';
+import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class TransportationsService {
@@ -155,6 +159,8 @@ export class TransportationsService {
             email: transportation.user.email,
             phone: transportation.user.phone || undefined,
           },
+          positiveReviews: 0,
+          negativeReviews: 0,
           createdAt: transportation.createdAt,
           updatedAt: transportation.updatedAt,
         },
@@ -215,6 +221,19 @@ export class TransportationsService {
       }),
       this.prisma.transportation.count({ where }),
     ]);
+    const transportationIds = transportations.map((transportation) => transportation.id);
+    const reviewCounts =
+      transportationIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              transportationId: { in: transportationIds },
+            },
+            select: {
+              transportationId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       transportations: transportations.map((transportation) => ({
@@ -239,6 +258,18 @@ export class TransportationsService {
           name: transportation.user.name,
           phone: transportation.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.transportationId === transportation.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.transportationId === transportation.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -276,6 +307,19 @@ export class TransportationsService {
       }),
       this.prisma.transportation.count({ where }),
     ]);
+    const transportationIds = transportations.map((transportation) => transportation.id);
+    const reviewCounts =
+      transportationIds.length > 0
+        ? await this.prisma.review.findMany({
+            where: {
+              transportationId: { in: transportationIds },
+            },
+            select: {
+              transportationId: true,
+              type: true,
+            },
+          })
+        : [];
 
     return {
       transportations: transportations.map((transportation) => ({
@@ -300,6 +344,18 @@ export class TransportationsService {
           name: transportation.user.name,
           phone: transportation.user.phone || undefined,
         },
+        positiveReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.transportationId === transportation.id && review.type === ReviewType.Positive,
+          )
+          .reduce((total) => total + 1, 0),
+        negativeReviews: reviewCounts
+          .filter(
+            (review) =>
+              review.transportationId === transportation.id && review.type === ReviewType.Negative,
+          )
+          .reduce((total) => total + 1, 0),
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
@@ -308,10 +364,20 @@ export class TransportationsService {
   }
 
   async findById(id: number): Promise<ResponseTransportationDto> {
-    const transportation = await this.prisma.transportation.findUnique({
-      where: { id },
-      select: this.transportationSelect,
-    });
+    const [transportation, reviewCounts] = await Promise.all([
+      this.prisma.transportation.findUnique({
+        where: { id },
+        select: this.transportationSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          transportationId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!transportation) {
       throw new TransportationNotFoundException();
@@ -348,16 +414,32 @@ export class TransportationsService {
         email: transportation.user.email,
         phone: transportation.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: transportation.createdAt,
       updatedAt: transportation.updatedAt,
     };
   }
 
   async findPublicById(id: number): Promise<ResponseTransportationDto> {
-    const transportation = await this.prisma.transportation.findFirst({
-      where: { id, isActive: true },
-      select: this.transportationSelect,
-    });
+    const [transportation, reviewCounts] = await Promise.all([
+      this.prisma.transportation.findFirst({
+        where: { id, isActive: true },
+        select: this.transportationSelect,
+      }),
+      this.prisma.review.findMany({
+        where: {
+          transportationId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
+    ]);
 
     if (!transportation) {
       throw new TransportationNotFoundException();
@@ -394,8 +476,73 @@ export class TransportationsService {
         email: transportation.user.email,
         phone: transportation.user.phone || undefined,
       },
+      positiveReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Positive)
+        .reduce((total) => total + 1, 0),
+      negativeReviews: reviewCounts
+        .filter((review) => review.type === ReviewType.Negative)
+        .reduce((total) => total + 1, 0),
       createdAt: transportation.createdAt,
       updatedAt: transportation.updatedAt,
+    };
+  }
+
+  async review(
+    user: User,
+    id: number,
+    payload: CreateTransportationReviewDto,
+  ): Promise<CreateTransportationReviewResponseDto> {
+    const transportation = await this.prisma.transportation.findFirst({
+      where: {
+        id,
+        isActive: true,
+      },
+      select: {
+        id: true,
+        userId: true,
+      },
+    });
+
+    if (!transportation) {
+      throw new TransportationNotFoundException();
+    }
+
+    if (transportation.userId === user.id) {
+      throw new TransportationSelfReviewNotAllowedException();
+    }
+
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        transportationId: id,
+        requesterId: user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingReview) {
+      await this.prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+        },
+      });
+    } else {
+      await this.prisma.review.create({
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+          transportationId: id,
+          requesterId: user.id,
+        },
+      });
+    }
+
+    return {
+      message: 'Avaliação do transporte registrada com sucesso.',
+      transportation: await this.findPublicById(id),
     };
   }
 

@@ -143,6 +143,20 @@ export class ResponseAccommodationListItemDto {
     type: ResponseAccommodationListOwnerDto,
   })
   user: ResponseAccommodationListOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas da hospedagem.',
+    example: 18,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas da hospedagem.',
+    example: 2,
+    type: Number,
+  })
+  negativeReviews: number;
 }
 
 export class ResponseAccommodationDto {
@@ -251,6 +265,20 @@ export class ResponseAccommodationDto {
     type: ResponseAccommodationOwnerDto,
   })
   user: ResponseAccommodationOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas da hospedagem.',
+    example: 18,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas da hospedagem.',
+    example: 2,
+    type: Number,
+  })
+  negativeReviews: number;
 
   @ApiProperty({
     description: 'Data de criação da hospedagem em formato ISO 8601.',

@@ -178,12 +178,15 @@ export class ServicesService {
     const serviceIds = services.map((service) => service.id);
     const [reviewCounts, completedWorkCounts] = await Promise.all([
       serviceIds.length > 0
-        ? this.prisma.$queryRaw<Array<{ serviceId: number; type: string; total: bigint | number }>>`
-            SELECT serviceId, type, COUNT(*) AS total
-            FROM reviews
-            WHERE serviceId IN (${Prisma.join(serviceIds)})
-            GROUP BY serviceId, type
-          `
+        ? this.prisma.review.findMany({
+            where: {
+              serviceId: { in: serviceIds },
+            },
+            select: {
+              serviceId: true,
+              type: true,
+            },
+          })
         : Promise.resolve([]),
       serviceIds.length > 0
         ? this.prisma.work.groupBy({
@@ -220,10 +223,10 @@ export class ServicesService {
         },
         positiveReviews: reviewCounts
           .filter((review) => review.serviceId === service.id && review.type === 'Positive')
-          .reduce((total, review) => total + Number(review.total), 0),
+          .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter((review) => review.serviceId === service.id && review.type === 'Negative')
-          .reduce((total, review) => total + Number(review.total), 0),
+          .reduce((total) => total + 1, 0),
         completedWorks: completedWorkCounts
           .filter((work) => work.serviceId === service.id)
           .reduce((total, work) => total + work._count._all, 0),
@@ -265,12 +268,15 @@ export class ServicesService {
     const serviceIds = services.map((service) => service.id);
     const [reviewCounts, completedWorkCounts] = await Promise.all([
       serviceIds.length > 0
-        ? this.prisma.$queryRaw<Array<{ serviceId: number; type: string; total: bigint | number }>>`
-            SELECT serviceId, type, COUNT(*) AS total
-            FROM reviews
-            WHERE serviceId IN (${Prisma.join(serviceIds)})
-            GROUP BY serviceId, type
-          `
+        ? this.prisma.review.findMany({
+            where: {
+              serviceId: { in: serviceIds },
+            },
+            select: {
+              serviceId: true,
+              type: true,
+            },
+          })
         : Promise.resolve([]),
       serviceIds.length > 0
         ? this.prisma.work.groupBy({
@@ -307,10 +313,10 @@ export class ServicesService {
         },
         positiveReviews: reviewCounts
           .filter((review) => review.serviceId === service.id && review.type === 'Positive')
-          .reduce((total, review) => total + Number(review.total), 0),
+          .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter((review) => review.serviceId === service.id && review.type === 'Negative')
-          .reduce((total, review) => total + Number(review.total), 0),
+          .reduce((total) => total + 1, 0),
         completedWorks: completedWorkCounts
           .filter((work) => work.serviceId === service.id)
           .reduce((total, work) => total + work._count._all, 0),
@@ -327,12 +333,14 @@ export class ServicesService {
         where: { id },
         select: this.serviceSelect,
       }),
-      this.prisma.$queryRaw<Array<{ type: string; total: bigint | number }>>`
-        SELECT type, COUNT(*) AS total
-        FROM reviews
-        WHERE serviceId = ${id}
-        GROUP BY type
-      `,
+      this.prisma.review.findMany({
+        where: {
+          serviceId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
       this.prisma.work.count({
         where: {
           serviceId: id,
@@ -374,10 +382,10 @@ export class ServicesService {
       },
       positiveReviews: reviewCounts
         .filter((review) => review.type === 'Positive')
-        .reduce((total, review) => total + Number(review.total), 0),
+        .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
         .filter((review) => review.type === 'Negative')
-        .reduce((total, review) => total + Number(review.total), 0),
+        .reduce((total) => total + 1, 0),
       completedWorks,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
@@ -390,12 +398,14 @@ export class ServicesService {
         where: { id, isActive: true },
         select: this.serviceSelect,
       }),
-      this.prisma.$queryRaw<Array<{ type: string; total: bigint | number }>>`
-        SELECT type, COUNT(*) AS total
-        FROM reviews
-        WHERE serviceId = ${id}
-        GROUP BY type
-      `,
+      this.prisma.review.findMany({
+        where: {
+          serviceId: id,
+        },
+        select: {
+          type: true,
+        },
+      }),
       this.prisma.work.count({
         where: {
           serviceId: id,
@@ -437,10 +447,10 @@ export class ServicesService {
       },
       positiveReviews: reviewCounts
         .filter((review) => review.type === 'Positive')
-        .reduce((total, review) => total + Number(review.total), 0),
+        .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
         .filter((review) => review.type === 'Negative')
-        .reduce((total, review) => total + Number(review.total), 0),
+        .reduce((total) => total + 1, 0),
       completedWorks,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
@@ -486,14 +496,34 @@ export class ServicesService {
       throw new ServiceReviewNotAllowedException();
     }
 
-    await this.prisma.$executeRaw`
-      INSERT INTO reviews (type, comment, serviceId, requesterId, createdAt, updatedAt)
-      VALUES (${payload.type}, ${payload.comment ? payload.comment.trim() : null}, ${id}, ${user.id}, NOW(), NOW())
-      ON DUPLICATE KEY UPDATE
-        type = VALUES(type),
-        comment = VALUES(comment),
-        updatedAt = NOW()
-    `;
+    const existingReview = await this.prisma.review.findFirst({
+      where: {
+        serviceId: id,
+        requesterId: user.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingReview) {
+      await this.prisma.review.update({
+        where: { id: existingReview.id },
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+        },
+      });
+    } else {
+      await this.prisma.review.create({
+        data: {
+          type: payload.type,
+          comment: payload.comment ? payload.comment.trim() : null,
+          serviceId: id,
+          requesterId: user.id,
+        },
+      });
+    }
 
     return {
       message: 'Avaliação do serviço registrada com sucesso.',

@@ -24,6 +24,8 @@ import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { AccommodationsService } from './accommodations.service';
+import { CreateAccommodationReviewResponseDto } from './dto/create-accommodation-review-response.dto';
+import { CreateAccommodationReviewDto } from './dto/create-accommodation-review.dto';
 import { CreateAccommodationResponseDto } from './dto/create-accommodation-response.dto';
 import { CreateAccommodationDto } from './dto/create-accommodation.dto';
 import { QueryAccommodationDto } from './dto/query-accommodation.dto';
@@ -114,6 +116,24 @@ export class AccommodationsController {
     @Body() payload: UpdateAccommodationDto,
   ): Promise<ResponseAccommodationDto> {
     return this.accommodationsService.update(user, id, payload);
+  }
+
+  @Post(':id/reviews')
+  @ApiOperation({
+    summary: 'Rota para registrar ou atualizar a avaliação de uma hospedagem.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: CreateAccommodationReviewResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async review(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateAccommodationReviewDto,
+  ): Promise<CreateAccommodationReviewResponseDto> {
+    return this.accommodationsService.review(user, id, payload);
   }
 
   @Delete(':id')

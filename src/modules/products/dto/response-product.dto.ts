@@ -135,6 +135,20 @@ export class ResponseProductListItemDto {
     type: ResponseProductListOwnerDto,
   })
   user: ResponseProductListOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas do produto.',
+    example: 25,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas do produto.',
+    example: 4,
+    type: Number,
+  })
+  negativeReviews: number;
 }
 
 export class ResponseProductDto {
@@ -224,6 +238,20 @@ export class ResponseProductDto {
     type: ResponseProductOwnerDto,
   })
   user: ResponseProductOwnerDto;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações positivas do produto.',
+    example: 25,
+    type: Number,
+  })
+  positiveReviews: number;
+
+  @ApiProperty({
+    description: 'Quantidade total de avaliações negativas do produto.',
+    example: 4,
+    type: Number,
+  })
+  negativeReviews: number;
 
   @ApiProperty({
     description: 'Data de criação do produto em formato ISO 8601.',
