@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ResponseWorkDto } from './response-work.dto';
+import { ResponseWorkListItemDto } from './response-work.dto';
 
 export class ResponseFindAllWorkDto {
   @ApiProperty({
     description: 'Lista de trabalhos retornados na consulta paginada.',
-    type: [ResponseWorkDto],
+    type: [ResponseWorkListItemDto],
   })
-  works: ResponseWorkDto[];
+  works: ResponseWorkListItemDto[];
 
   @ApiProperty({
     description: 'Número da página atual da consulta paginada.',

@@ -1,10 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
@@ -21,6 +16,13 @@ import { UpdateWorkDto } from './dto/update-work.dto';
 import { WorkFileType } from './enums/work-file-type.enum';
 import { WorkScope } from './enums/work-scope.enum';
 import { WorkStatus } from './enums/work-status.enum';
+import { WorkAccessDeniedException } from './exceptions/work-access-denied.exception';
+import { WorkBudgetAlreadyHasWorkException } from './exceptions/work-budget-already-has-work.exception';
+import { WorkBudgetNotFoundException } from './exceptions/work-budget-not-found.exception';
+import { WorkBudgetNotRespondedException } from './exceptions/work-budget-not-responded.exception';
+import { WorkCreateFailedException } from './exceptions/work-create-failed.exception';
+import { WorkNotFoundException } from './exceptions/work-not-found.exception';
+import { WorkUpdateFailedException } from './exceptions/work-update-failed.exception';
 
 @Injectable()
 export class WorksService {
@@ -87,6 +89,43 @@ export class WorksService {
     },
   });
 
+  private readonly workListSelect = Prisma.validator<Prisma.WorkSelect>()({
+    id: true,
+    status: true,
+    serviceDate: true,
+    startedAt: true,
+    finishedAt: true,
+    cancelledAt: true,
+    serviceValue: true,
+    totalValue: true,
+    createdAt: true,
+    budget: {
+      select: {
+        id: true,
+      },
+    },
+    service: {
+      select: {
+        id: true,
+        name: true,
+      },
+    },
+    requester: {
+      select: {
+        id: true,
+        name: true,
+        fileUrl: true,
+      },
+    },
+    provider: {
+      select: {
+        id: true,
+        name: true,
+        fileUrl: true,
+      },
+    },
+  });
+
   async create(user: User, payload: CreateWorkDto): Promise<CreateWorkResponseDto> {
     const budgetId = parsePositiveInt(payload.budgetId, 'budgetId');
     const budget = await this.prisma.budget.findUnique({
@@ -113,21 +152,21 @@ export class WorksService {
     });
 
     if (!budget) {
-      throw new NotFoundException('Orçamento não encontrado.');
+      throw new WorkBudgetNotFoundException();
     }
 
     if (budget.status !== BudgetStatus.Responded) {
-      throw new BadRequestException('Somente orçamentos respondidos podem virar trabalho.');
+      throw new WorkBudgetNotRespondedException();
     }
 
     if (budget.work) {
-      throw new BadRequestException('Já existe trabalho cadastrado para esse orçamento.');
+      throw new WorkBudgetAlreadyHasWorkException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
 
     if (budget.providerId !== user.id && !isAdmin) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     try {
@@ -213,7 +252,7 @@ export class WorksService {
       };
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
-        throw new BadRequestException('Não foi possível cadastrar o trabalho.');
+        throw new WorkCreateFailedException();
       }
 
       throw error;
@@ -244,7 +283,7 @@ export class WorksService {
     const [works, totalRecords] = await Promise.all([
       this.prisma.work.findMany({
         where,
-        select: this.workSelect,
+        select: this.workListSelect,
         orderBy: [{ createdAt: 'desc' }],
         take,
         skip: (page - 1) * take,
@@ -256,39 +295,37 @@ export class WorksService {
       works: works.map((work) => ({
         id: work.id,
         status: work.status as WorkStatus,
-        details: work.details,
-        completionDescription: work.completionDescription,
-        cancelReason: work.cancelReason,
         serviceDate: work.serviceDate,
         startedAt: work.startedAt,
         finishedAt: work.finishedAt,
         cancelledAt: work.cancelledAt,
         serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
         totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
-        budgetId: work.budgetId,
         budget: work.budget,
-        serviceId: work.serviceId,
         service: work.service,
-        requesterId: work.requesterId,
-        requester: work.requester,
-        providerId: work.providerId,
-        provider: work.provider,
-        files: work.files.map((file) => ({
-          id: file.id,
-          fileName: file.fileName,
-          fileUrl: file.fileUrl,
-          fileKey: file.fileKey,
-          type: file.type as WorkFileType,
-          createdAt: file.createdAt,
-          updatedAt: file.updatedAt,
-        })),
+        requester: {
+          id: work.requester.id,
+          name: work.requester.name,
+          fileUrl: work.requester.fileUrl,
+        },
+        provider: {
+          id: work.provider.id,
+          name: work.provider.name,
+          fileUrl: work.provider.fileUrl,
+        },
         createdAt: work.createdAt,
-        updatedAt: work.updatedAt,
       })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
       totalRecords,
     };
+  }
+
+  async findMyRequests(user: User, query: QueryWorkDto): Promise<ResponseFindAllWorkDto> {
+    return this.findAll(user, {
+      ...query,
+      scope: WorkScope.Requested,
+    });
   }
 
   async findById(user: User, id: number): Promise<ResponseWorkDto> {
@@ -298,14 +335,14 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const canAccess = work.requesterId === user.id || work.providerId === user.id || isAdmin;
 
     if (!canAccess) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     return {
@@ -349,14 +386,14 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isProvider = work.providerId === user.id;
 
     if (!isProvider && !isAdmin) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     try {
@@ -437,7 +474,7 @@ export class WorksService {
       });
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
-        throw new BadRequestException('Não foi possível atualizar o trabalho.');
+        throw new WorkUpdateFailedException();
       }
 
       throw error;
@@ -453,13 +490,13 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
 
     if (work.providerId !== user.id && !isAdmin) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     await this.prisma.work.update({
@@ -481,13 +518,13 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
 
     if (work.providerId !== user.id && !isAdmin) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     await this.prisma.work.update({
@@ -523,14 +560,14 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const canCancel = work.requesterId === user.id || work.providerId === user.id || isAdmin;
 
     if (!canCancel) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     await this.prisma.work.update({
@@ -552,14 +589,14 @@ export class WorksService {
     });
 
     if (!work) {
-      throw new NotFoundException('Trabalho não encontrado.');
+      throw new WorkNotFoundException();
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const canDelete = work.requesterId === user.id || work.providerId === user.id || isAdmin;
 
     if (!canDelete) {
-      throw new ForbiddenException('Acesso não autorizado.');
+      throw new WorkAccessDeniedException();
     }
 
     await this.prisma.work.delete({ where: { id } });

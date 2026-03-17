@@ -70,6 +70,22 @@ export class WorksController {
     return this.worksService.findAll(user, query);
   }
 
+  @Get('my-requests')
+  @ApiOperation({
+    summary: 'Rota para listar as solicitações do cliente autenticado.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseFindAllWorkDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async findMyRequests(
+    @CurrentUser() user: User,
+    @Query() query: QueryWorkDto,
+  ): Promise<ResponseFindAllWorkDto> {
+    return this.worksService.findMyRequests(user, query);
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Rota para recuperar um trabalho pelo id.',

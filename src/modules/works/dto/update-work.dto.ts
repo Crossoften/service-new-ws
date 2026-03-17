@@ -1,5 +1,5 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsArray, IsDateString, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsOptional, IsString } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateWorkDto } from './create-work.dto';
 import { CreateWorkFileDto } from './create-work-file.dto';

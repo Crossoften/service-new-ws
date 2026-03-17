@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ResponseBudgetDto } from './response-budget.dto';
+import { ResponseBudgetListItemDto } from './response-budget.dto';
 
 export class ResponseFindAllBudgetDto {
   @ApiProperty({
     description: 'Lista de orçamentos retornados na consulta.',
-    type: [ResponseBudgetDto],
+    type: [ResponseBudgetListItemDto],
   })
-  budgets: ResponseBudgetDto[];
+  budgets: ResponseBudgetListItemDto[];
 
   @ApiProperty({ description: 'Página atual da consulta.', example: 1 })
   currentPage: number;
