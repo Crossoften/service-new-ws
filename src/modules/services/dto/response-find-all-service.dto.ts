@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ResponseServiceDto } from './response-service.dto';
+import { ResponseServiceListItemDto } from './response-service.dto';
 
 export class ResponseFindAllServiceDto {
   @ApiProperty({
     description: 'Lista de serviços retornados na consulta.',
-    type: [ResponseServiceDto],
+    type: [ResponseServiceListItemDto],
   })
-  services: ResponseServiceDto[];
+  services: ResponseServiceListItemDto[];
 
   @ApiProperty({ description: 'Página atual da consulta.', example: 1 })
   currentPage: number;

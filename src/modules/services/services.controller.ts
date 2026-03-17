@@ -24,6 +24,8 @@ import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { CreateServiceResponseDto } from './dto/create-service-response.dto';
+import { CreateServiceReviewDto } from './dto/create-service-review.dto';
+import { CreateServiceReviewResponseDto } from './dto/create-service-review-response.dto';
 import { CreateServiceDto } from './dto/create-service.dto';
 import { QueryServiceDto } from './dto/query-service.dto';
 import { ResponseFindAllServiceDto } from './dto/response-find-all-service.dto';
@@ -114,6 +116,24 @@ export class ServicesController {
     @Body() payload: UpdateServiceDto,
   ): Promise<ResponseServiceDto> {
     return this.servicesService.update(user, id, payload);
+  }
+
+  @Post(':id/reviews')
+  @ApiOperation({
+    summary: 'Rota para registrar ou atualizar a avaliação de um serviço.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: CreateServiceReviewResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async review(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateServiceReviewDto,
+  ): Promise<CreateServiceReviewResponseDto> {
+    return this.servicesService.review(user, id, payload);
   }
 
   @Delete(':id')
