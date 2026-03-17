@@ -43,6 +43,31 @@ export class ResponseWorkUserDto {
   fileUrl?: string;
 }
 
+export class ResponseWorkListUserDto {
+  @ApiProperty({
+    description: 'Identificador único do usuário relacionado ao trabalho.',
+    example: 10,
+    type: Number,
+  })
+  id: number;
+
+  @ApiProperty({
+    description: 'Nome completo do usuário relacionado ao trabalho.',
+    example: 'Susana Vieira',
+    type: String,
+  })
+  name: string;
+
+  @ApiProperty({
+    description: 'URL pública da foto de perfil do usuário, quando cadastrada.',
+    required: false,
+    nullable: true,
+    example: 'https://cdn.seudominio.com/users/profile.png',
+    type: String,
+  })
+  fileUrl?: string;
+}
+
 export class ResponseWorkServiceDto {
   @ApiProperty({
     description: 'Identificador do serviço vinculado ao trabalho.',
@@ -66,6 +91,104 @@ export class ResponseWorkBudgetDto {
     type: Number,
   })
   id: number;
+}
+
+export class ResponseWorkListItemDto {
+  @ApiProperty({ description: 'Identificador único do trabalho.', example: 1, type: Number })
+  id: number;
+
+  @ApiProperty({
+    description: 'Status atual do trabalho.',
+    enum: WorkStatus,
+    enumName: 'WorkStatus',
+    example: WorkStatus.InProgress,
+  })
+  status: WorkStatus;
+
+  @ApiProperty({
+    description: 'Data planejada ou efetiva do serviço em formato ISO 8601.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T14:00:00.000Z',
+    type: String,
+  })
+  serviceDate?: Date;
+
+  @ApiProperty({
+    description: 'Data e hora em que o trabalho foi iniciado, em formato ISO 8601.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T10:00:00.000Z',
+    type: String,
+  })
+  startedAt?: Date;
+
+  @ApiProperty({
+    description: 'Data e hora em que o trabalho foi finalizado, em formato ISO 8601.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T18:00:00.000Z',
+    type: String,
+  })
+  finishedAt?: Date;
+
+  @ApiProperty({
+    description: 'Data e hora em que o trabalho foi cancelado, em formato ISO 8601.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T12:00:00.000Z',
+    type: String,
+  })
+  cancelledAt?: Date;
+
+  @ApiProperty({
+    description: 'Valor principal do serviço armazenado como string decimal.',
+    required: false,
+    nullable: true,
+    example: '350.00',
+    type: String,
+  })
+  serviceValue?: string;
+
+  @ApiProperty({
+    description: 'Valor total do trabalho armazenado como string decimal.',
+    required: false,
+    nullable: true,
+    example: '350.00',
+    type: String,
+  })
+  totalValue?: string;
+
+  @ApiProperty({
+    description: 'Resumo do orçamento que originou o trabalho.',
+    type: ResponseWorkBudgetDto,
+  })
+  budget: ResponseWorkBudgetDto;
+
+  @ApiProperty({
+    description: 'Resumo do serviço vinculado ao trabalho.',
+    type: ResponseWorkServiceDto,
+  })
+  service: ResponseWorkServiceDto;
+
+  @ApiProperty({
+    description: 'Dados resumidos do cliente solicitante.',
+    type: ResponseWorkListUserDto,
+  })
+  requester: ResponseWorkListUserDto;
+
+  @ApiProperty({
+    description: 'Dados resumidos do fornecedor responsável.',
+    type: ResponseWorkListUserDto,
+  })
+  provider: ResponseWorkListUserDto;
+
+  @ApiProperty({
+    description: 'Data de criação do trabalho em formato ISO 8601.',
+    example: '2026-03-16T10:00:00.000Z',
+    type: String,
+  })
+  createdAt: Date;
 }
 
 export class ResponseWorkDto {

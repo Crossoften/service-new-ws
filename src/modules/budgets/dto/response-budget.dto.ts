@@ -31,12 +31,90 @@ export class ResponseBudgetUserDto {
   fileUrl?: string;
 }
 
+export class ResponseBudgetListUserDto {
+  @ApiProperty({ description: 'Identificador do usuário.', example: 10 })
+  id: number;
+
+  @ApiProperty({ description: 'Nome do usuário.', example: 'Susana Vieira' })
+  name: string;
+
+  @ApiProperty({
+    description: 'Foto do usuário.',
+    required: false,
+    nullable: true,
+    example: 'https://cdn.seudominio.com/users/profile.png',
+  })
+  fileUrl?: string;
+}
+
 export class ResponseBudgetServiceSummaryDto {
   @ApiProperty({ description: 'Identificador do serviço.', example: 3 })
   id: number;
 
   @ApiProperty({ description: 'Nome do serviço.', example: 'Consulta odontológica' })
   name: string;
+}
+
+export class ResponseBudgetListItemDto {
+  @ApiProperty({ description: 'Identificador do orçamento.', example: 1 })
+  id: number;
+
+  @ApiProperty({
+    description: 'Descrição resumida da solicitação.',
+    required: false,
+    nullable: true,
+    example: 'Preciso de orçamento para atendimento em domicílio.',
+  })
+  description?: string;
+
+  @ApiProperty({
+    description: 'Status atual do orçamento.',
+    enum: BudgetStatus,
+    enumName: 'BudgetStatus',
+    example: BudgetStatus.Pending,
+  })
+  status: BudgetStatus;
+
+  @ApiProperty({
+    description: 'Valor respondido do orçamento.',
+    required: false,
+    nullable: true,
+    example: '350.00',
+  })
+  responseValue?: string;
+
+  @ApiProperty({
+    description: 'Quantidade de tempo prevista.',
+    required: false,
+    nullable: true,
+    example: 3,
+  })
+  responseTimeQuantity?: number;
+
+  @ApiProperty({
+    description: 'Unidade da previsão.',
+    enum: BudgetTimeUnit,
+    enumName: 'BudgetTimeUnit',
+    required: false,
+    nullable: true,
+    example: BudgetTimeUnit.Day,
+  })
+  responseTimeUnit?: BudgetTimeUnit;
+
+  @ApiProperty({ type: ResponseBudgetServiceSummaryDto })
+  service: ResponseBudgetServiceSummaryDto;
+
+  @ApiProperty({ type: ResponseBudgetListUserDto })
+  requester: ResponseBudgetListUserDto;
+
+  @ApiProperty({ type: ResponseBudgetListUserDto })
+  provider: ResponseBudgetListUserDto;
+
+  @ApiProperty({
+    description: 'Data de criação do orçamento.',
+    example: '2026-03-15T10:00:00.000Z',
+  })
+  createdAt: Date;
 }
 
 export class ResponseBudgetDto {

@@ -6,7 +6,6 @@ import {
   Delete,
   Get,
   HttpStatus,
-  NotFoundException,
   Param,
   ParseFilePipeBuilder,
   ParseIntPipe,
@@ -34,6 +33,7 @@ import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { DeleteOneFileDto } from './dto/delete-one-file.dto';
 import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
+import { UploadFileNotFoundException } from './exceptions/upload-file-not-found.exception';
 import { UploadService } from './upload.service';
 
 @ApiTags('Upload de arquivos')
@@ -133,7 +133,7 @@ export class UploadController {
 
     const { Body, ContentType } = await s3Client.send(getObjectCommand);
 
-    if (!Body) throw new NotFoundException('Arquivo não encontrado');
+    if (!Body) throw new UploadFileNotFoundException();
 
     res.set({
       'Content-Type': ContentType || 'application/octet-stream',

@@ -7,11 +7,13 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { PrismaService } from '@database/PrismaService';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { File, User } from '@prisma/client';
 import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
+import { UploadFileNotFoundException } from './exceptions/upload-file-not-found.exception';
+import { UploadUserNotFoundException } from './exceptions/upload-user-not-found.exception';
 
 @Injectable()
 export class UploadService {
@@ -73,7 +75,7 @@ export class UploadService {
   async getFileById(id: number): Promise<File> {
     const file: File | null = await this.prisma.file.findFirst({ where: { id } });
 
-    if (!file) throw new NotFoundException('Arquivo não encontrado.');
+    if (!file) throw new UploadFileNotFoundException();
 
     return file;
   }
@@ -119,7 +121,7 @@ export class UploadService {
       select: { id: true, name: true, fileUrl: true, fileKey: true },
     });
 
-    if (!user) throw new NotFoundException();
+    if (!user) throw new UploadUserNotFoundException();
 
     return user;
   }
@@ -130,7 +132,7 @@ export class UploadService {
       select: { id: true, name: true, fileUrl: true, fileKey: true },
     });
 
-    if (!user) throw new NotFoundException();
+    if (!user) throw new UploadUserNotFoundException();
 
     return user;
   }

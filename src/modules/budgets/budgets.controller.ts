@@ -30,6 +30,7 @@ import { RequestBudgetInformationDto } from './dto/request-budget-information.dt
 import { ResponseFindAllBudgetDto } from './dto/response-find-all-budget.dto';
 import { ResponseBudgetDto } from './dto/response-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
+import { CreateWorkResponseDto } from '../works/dto/create-work-response.dto';
 
 @ApiTags('Orçamentos')
 @Controller('budgets')
@@ -119,6 +120,23 @@ export class BudgetsController {
     @Body() payload: RequestBudgetInformationDto,
   ): Promise<ResponseBudgetDto> {
     return this.budgetsService.requestMoreInformation(user, id, payload);
+  }
+
+  @Patch(':id/approve')
+  @ApiOperation({
+    summary: 'Rota para aprovar um orçamento respondido e gerar a solicitação do serviço.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: CreateWorkResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async approve(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<CreateWorkResponseDto> {
+    return this.budgetsService.approve(user, id);
   }
 
   @Delete(':id')
