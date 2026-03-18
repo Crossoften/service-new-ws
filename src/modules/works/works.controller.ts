@@ -29,6 +29,10 @@ import { FinishWorkDto } from './dto/finish-work.dto';
 import { PayWorkDto } from './dto/pay-work.dto';
 import { PayWorkResponseDto } from './dto/pay-work-response.dto';
 import { QueryWorkDto } from './dto/query-work.dto';
+import { RequestWorkExtraDto } from './dto/request-work-extra.dto';
+import { RequestWorkWarrantyDto } from './dto/request-work-warranty.dto';
+import { RespondWorkExtraDto } from './dto/respond-work-extra.dto';
+import { RespondWorkWarrantyDto } from './dto/respond-work-warranty.dto';
 import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
 import { ResponseWorkDto } from './dto/response-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
@@ -139,6 +143,22 @@ export class WorksController {
     return this.worksService.start(user, id);
   }
 
+  @Patch(':id/confirm-arrival')
+  @ApiOperation({
+    summary: 'Rota para o cliente confirmar a chegada do fornecedor.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseWorkDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async confirmArrival(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ResponseWorkDto> {
+    return this.worksService.confirmArrival(user, id);
+  }
+
   @Patch(':id/finish')
   @ApiOperation({
     summary: 'Rota para finalizar um trabalho.',
@@ -173,6 +193,78 @@ export class WorksController {
     @Body() payload: PayWorkDto,
   ): Promise<PayWorkResponseDto> {
     return this.worksService.pay(user, id, payload);
+  }
+
+  @Post(':id/request-warranty')
+  @ApiOperation({
+    summary: 'Rota para solicitar garantia de um trabalho concluído.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: ResponseWorkDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async requestWarranty(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RequestWorkWarrantyDto,
+  ): Promise<ResponseWorkDto> {
+    return this.worksService.requestWarranty(user, id, payload);
+  }
+
+  @Patch(':id/respond-warranty')
+  @ApiOperation({
+    summary: 'Rota para o fornecedor responder a uma solicitação de garantia.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseWorkDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async respondWarranty(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RespondWorkWarrantyDto,
+  ): Promise<ResponseWorkDto> {
+    return this.worksService.respondWarranty(user, id, payload);
+  }
+
+  @Patch(':id/request-extra')
+  @ApiOperation({
+    summary: 'Rota para o fornecedor solicitar acréscimo em um trabalho.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseWorkDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async requestExtra(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RequestWorkExtraDto,
+  ): Promise<ResponseWorkDto> {
+    return this.worksService.requestExtra(user, id, payload);
+  }
+
+  @Patch(':id/respond-extra')
+  @ApiOperation({
+    summary: 'Rota para o cliente responder ao acréscimo de um trabalho.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseWorkDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async respondExtra(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RespondWorkExtraDto,
+  ): Promise<ResponseWorkDto> {
+    return this.worksService.respondExtra(user, id, payload);
   }
 
   @Patch(':id/cancel')

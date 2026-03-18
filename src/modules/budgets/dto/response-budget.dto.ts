@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ExtraRequestStatus } from '@prisma/client';
 import { BudgetStatus } from '../enums/budget-status.enum';
 import { BudgetTimeUnit } from '../enums/budget-time-unit.enum';
 import { ResponseBudgetFileDto } from './response-budget-file.dto';
@@ -84,6 +85,16 @@ export class ResponseBudgetListItemDto {
   responseValue?: string;
 
   @ApiProperty({
+    description: 'Status do acréscimo solicitado no orçamento, quando houver.',
+    required: false,
+    nullable: true,
+    enum: ExtraRequestStatus,
+    enumName: 'ExtraRequestStatus',
+    example: ExtraRequestStatus.Pending,
+  })
+  extraRequestStatus?: ExtraRequestStatus;
+
+  @ApiProperty({
     description: 'Quantidade de tempo prevista.',
     required: false,
     nullable: true,
@@ -152,6 +163,48 @@ export class ResponseBudgetDto {
     example: '350.00',
   })
   responseValue?: string;
+
+  @ApiProperty({
+    description: 'Valor adicional solicitado no orçamento, quando houver.',
+    required: false,
+    nullable: true,
+    example: '50.00',
+  })
+  extraRequestValue?: string;
+
+  @ApiProperty({
+    description: 'Justificativa do acréscimo solicitado no orçamento.',
+    required: false,
+    nullable: true,
+    example: 'Será necessário material adicional para concluir o atendimento.',
+  })
+  extraRequestDescription?: string;
+
+  @ApiProperty({
+    description: 'Status do acréscimo solicitado no orçamento.',
+    required: false,
+    nullable: true,
+    enum: ExtraRequestStatus,
+    enumName: 'ExtraRequestStatus',
+    example: ExtraRequestStatus.Pending,
+  })
+  extraRequestStatus?: ExtraRequestStatus;
+
+  @ApiProperty({
+    description: 'Data em que o acréscimo foi solicitado.',
+    required: false,
+    nullable: true,
+    example: '2026-03-18T10:00:00.000Z',
+  })
+  extraRequestedAt?: Date;
+
+  @ApiProperty({
+    description: 'Data em que o acréscimo foi respondido pelo cliente.',
+    required: false,
+    nullable: true,
+    example: '2026-03-18T10:10:00.000Z',
+  })
+  extraRespondedAt?: Date;
 
   @ApiProperty({
     description: 'Quantidade de tempo prevista.',

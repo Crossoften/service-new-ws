@@ -53,6 +53,17 @@ export class FinishWorkDto {
   totalValue?: string;
 
   @ApiProperty({
+    description: 'Data final da garantia do trabalho em formato ISO 8601, quando houver garantia.',
+    required: false,
+    nullable: true,
+    example: '2026-06-16T23:59:59.000Z',
+    type: String,
+  })
+  @IsDateString()
+  @IsOptional()
+  warrantyExpiresAt?: string;
+
+  @ApiProperty({
     description:
       'Arquivos anexados no encerramento do trabalho, como fotos da entrega, laudos ou comprovantes.',
     required: false,

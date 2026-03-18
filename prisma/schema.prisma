@@ -11,17 +11,18 @@ model User {
   id Int @id @default(autoincrement())
 
   name          String
-  email         String    @unique
-  document      String?   @unique @db.VarChar(18)
-  biography     String?   @db.LongText()
-  phone         String?   @unique
+  email         String          @unique
+  document      String?         @unique @db.VarChar(18)
+  biography     String?         @db.LongText()
+  phone         String?         @unique
   password      String
-  code          String?   @db.VarChar(4)
+  code          String?         @db.VarChar(4)
   codeExpiresIn DateTime?
-  role          Role      @default(User)
-  status        Status    @default(Pending)
-  fileUrl       String?   @db.VarChar(1500)
-  fileKey       String?   @db.VarChar(1500)
+  role          Role            @default(User)
+  profileType   UserProfileType @default(Client)
+  status        Status          @default(Pending)
+  fileUrl       String?         @db.VarChar(1500)
+  fileKey       String?         @db.VarChar(1500)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -41,6 +42,9 @@ model User {
   financialTransactions FinancialTransaction[]
   providedWorks         Work[]                 @relation("WorkProvider")
   receivedPayments      Payment[]              @relation("PaymentReceiver")
+  chatParticipants      ChatParticipant[]
+  chatMessages          ChatMessage[]          @relation("ChatMessageSender")
+  createdChatRooms      ChatRoom[]             @relation("ChatRoomCreator")
 
   @@map("users")
 }
@@ -189,10 +193,7 @@ model Accommodation {
   id Int @id @default(autoincrement())
 
   name          String  @db.VarChar(160)
-  street        String? @db.VarChar(160)
-  neighborhood  String? @db.VarChar(120)
-  city          String? @db.VarChar(120)
-  state         String? @db.VarChar(120)
+  addressId     Int?    @unique
   roomsQuantity Int?
   price         Decimal @db.Decimal(10, 2)
   description   String? @db.LongText()
@@ -205,13 +206,31 @@ model Accommodation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  address  Address?              @relation(fields: [addressId], references: [id])
   category AccommodationCategory @relation(fields: [categoryId], references: [id])
   user     User                  @relation(fields: [userId], references: [id])
   reviews  Review[]
 
+  @@index([addressId])
   @@index([categoryId])
   @@index([userId])
   @@map("accommodations")
+}
+
+model Address {
+  id Int @id @default(autoincrement())
+
+  street       String? @db.VarChar(160)
+  neighborhood String? @db.VarChar(120)
+  city         String? @db.VarChar(120)
+  state        String? @db.VarChar(120)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accommodation Accommodation?
+
+  @@map("addresses")
 }
 
 model BankAccount {
@@ -264,7 +283,7 @@ model Review {
   id Int @id @default(autoincrement())
 
   type             ReviewType
-  comment          String?         @db.LongText()
+  comment          String?    @db.LongText()
   serviceId        Int?
   productId        Int?
   accommodationId  Int?
@@ -296,15 +315,20 @@ model Review {
 model Budget {
   id Int @id @default(autoincrement())
 
-  description          String?         @db.LongText()
-  status               BudgetStatus    @default(Pending)
-  responseDescription  String?         @db.LongText()
-  responseValue        Decimal?        @db.Decimal(10, 2)
-  responseTimeQuantity Int?
-  responseTimeUnit     BudgetTimeUnit?
-  serviceId            Int?
-  requesterId          Int
-  providerId           Int
+  description             String?             @db.LongText()
+  status                  BudgetStatus        @default(Pending)
+  responseDescription     String?             @db.LongText()
+  responseValue           Decimal?            @db.Decimal(10, 2)
+  extraRequestValue       Decimal?            @db.Decimal(10, 2)
+  extraRequestDescription String?             @db.LongText()
+  extraRequestStatus      ExtraRequestStatus?
+  extraRequestedAt        DateTime?
+  extraRespondedAt        DateTime?
+  responseTimeQuantity    Int?
+  responseTimeUnit        BudgetTimeUnit?
+  serviceId               Int?
+  requesterId             Int
+  providerId              Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -363,20 +387,32 @@ model BudgetInformation {
 model Work {
   id Int @id @default(autoincrement())
 
-  status                WorkStatus @default(InProgress)
-  details               String?    @db.LongText()
-  completionDescription String?    @db.LongText()
-  cancelReason          String?    @db.LongText()
-  serviceDate           DateTime?
-  startedAt             DateTime?
-  finishedAt            DateTime?
-  cancelledAt           DateTime?
-  serviceValue          Decimal?   @db.Decimal(10, 2)
-  totalValue            Decimal?   @db.Decimal(10, 2)
-  budgetId              Int        @unique
-  serviceId             Int
-  requesterId           Int
-  providerId            Int
+  status                      WorkStatus             @default(Pending)
+  details                     String?                @db.LongText()
+  completionDescription       String?                @db.LongText()
+  cancelReason                String?                @db.LongText()
+  serviceDate                 DateTime?
+  startedAt                   DateTime?
+  arrivalConfirmedAt          DateTime?
+  finishedAt                  DateTime?
+  cancelledAt                 DateTime?
+  warrantyExpiresAt           DateTime?
+  warrantyRequestedAt         DateTime?
+  warrantyRequestDescription  String?                @db.LongText()
+  warrantyRequestStatus       WarrantyRequestStatus?
+  warrantyResponseDescription String?                @db.LongText()
+  warrantyRespondedAt         DateTime?
+  extraRequestValue           Decimal?               @db.Decimal(10, 2)
+  extraRequestDescription     String?                @db.LongText()
+  extraRequestStatus          ExtraRequestStatus?
+  extraRequestedAt            DateTime?
+  extraRespondedAt            DateTime?
+  serviceValue                Decimal?               @db.Decimal(10, 2)
+  totalValue                  Decimal?               @db.Decimal(10, 2)
+  budgetId                    Int                    @unique
+  serviceId                   Int
+  requesterId                 Int
+  providerId                  Int
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -392,6 +428,65 @@ model Work {
   @@index([providerId])
   @@index([status])
   @@map("works")
+}
+
+model ChatRoom {
+  id            Int             @id @default(autoincrement())
+  contextType   ChatContextType
+  referenceId   Int
+  createdById   Int?
+  lastMessageAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdBy    User?             @relation("ChatRoomCreator", fields: [createdById], references: [id])
+  participants ChatParticipant[]
+  messages     ChatMessage[]
+
+  @@unique([contextType, referenceId])
+  @@index([createdById])
+  @@index([contextType, referenceId])
+  @@index([lastMessageAt])
+  @@map("chat_rooms")
+}
+
+model ChatParticipant {
+  id         Int       @id @default(autoincrement())
+  roomId     Int
+  userId     Int
+  lastReadAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room ChatRoom @relation(fields: [roomId], references: [id])
+  user User     @relation(fields: [userId], references: [id])
+
+  @@unique([roomId, userId])
+  @@index([roomId])
+  @@index([userId])
+  @@map("chat_participants")
+}
+
+model ChatMessage {
+  id       Int     @id @default(autoincrement())
+  roomId   Int
+  senderId Int
+  message  String? @db.LongText()
+  fileName String? @db.VarChar(191)
+  fileUrl  String? @db.VarChar(1500)
+  fileKey  String? @db.VarChar(1500)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  room   ChatRoom @relation(fields: [roomId], references: [id])
+  sender User     @relation("ChatMessageSender", fields: [senderId], references: [id])
+
+  @@index([roomId])
+  @@index([senderId])
+  @@map("chat_messages")
 }
 
 model Payment {
@@ -503,6 +598,13 @@ enum Role {
   Supplier
 }
 
+enum UserProfileType {
+  Client
+  Supplier
+  Partner
+  Delivery
+}
+
 enum Status {
   Active
   Pending
@@ -562,9 +664,15 @@ enum BudgetFileType {
 }
 
 enum WorkStatus {
+  Pending
   InProgress
   Finished
   Cancelled
+}
+
+enum ChatContextType {
+  Budget
+  Work
 }
 
 enum PaymentMethod {
@@ -600,6 +708,19 @@ enum WorkFileType {
   Requester
   Provider
   Completion
+  WarrantyRequest
+}
+
+enum WarrantyRequestStatus {
+  Pending
+  Approved
+  Rejected
+}
+
+enum ExtraRequestStatus {
+  Pending
+  Approved
+  Rejected
 }
 
 enum ReviewType {

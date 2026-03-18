@@ -1,6 +1,13 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { Prisma, Role, User } from '@prisma/client';
+import {
+  ChatContextType,
+  ExtraRequestStatus,
+  Prisma,
+  Role,
+  User,
+  WarrantyRequestStatus,
+} from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
@@ -12,6 +19,10 @@ import { FinishWorkDto } from './dto/finish-work.dto';
 import { PayWorkDto } from './dto/pay-work.dto';
 import { PayWorkResponseDto } from './dto/pay-work-response.dto';
 import { QueryWorkDto } from './dto/query-work.dto';
+import { RequestWorkExtraDto } from './dto/request-work-extra.dto';
+import { RequestWorkWarrantyDto } from './dto/request-work-warranty.dto';
+import { RespondWorkExtraDto } from './dto/respond-work-extra.dto';
+import { RespondWorkWarrantyDto } from './dto/respond-work-warranty.dto';
 import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
 import { ResponseWorkDto } from './dto/response-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
@@ -46,8 +57,20 @@ export class WorksService {
     cancelReason: true,
     serviceDate: true,
     startedAt: true,
+    arrivalConfirmedAt: true,
     finishedAt: true,
     cancelledAt: true,
+    warrantyExpiresAt: true,
+    warrantyRequestedAt: true,
+    warrantyRequestDescription: true,
+    warrantyRequestStatus: true,
+    warrantyResponseDescription: true,
+    warrantyRespondedAt: true,
+    extraRequestValue: true,
+    extraRequestDescription: true,
+    extraRequestStatus: true,
+    extraRequestedAt: true,
+    extraRespondedAt: true,
     serviceValue: true,
     totalValue: true,
     budgetId: true,
@@ -97,15 +120,20 @@ export class WorksService {
       },
       orderBy: { createdAt: 'asc' },
     },
-  });
+  } as Prisma.WorkSelect);
 
   private readonly workListSelect = Prisma.validator<Prisma.WorkSelect>()({
     id: true,
     status: true,
     serviceDate: true,
     startedAt: true,
+    arrivalConfirmedAt: true,
     finishedAt: true,
     cancelledAt: true,
+    warrantyExpiresAt: true,
+    warrantyRequestedAt: true,
+    warrantyRequestStatus: true,
+    extraRequestStatus: true,
     serviceValue: true,
     totalValue: true,
     createdAt: true,
@@ -135,6 +163,25 @@ export class WorksService {
       },
     },
   });
+
+  private async getWorkChatMap(workIds: number[]) {
+    if (workIds.length === 0) {
+      return new Map<number, { id: number }>();
+    }
+
+    const rooms = await this.prisma.chatRoom.findMany({
+      where: {
+        contextType: ChatContextType.Work,
+        referenceId: { in: workIds },
+      },
+      select: {
+        id: true,
+        referenceId: true,
+      },
+    });
+
+    return new Map(rooms.map((room) => [room.referenceId, { id: room.id }]));
+  }
 
   async create(user: User, payload: CreateWorkDto): Promise<CreateWorkResponseDto> {
     const budgetId = parsePositiveInt(payload.budgetId, 'budgetId');
@@ -180,44 +227,70 @@ export class WorksService {
     }
 
     try {
-      const work = await this.prisma.work.create({
-        data: {
-          details: payload.details ? payload.details.trim() : budget.description,
-          serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : null,
-          serviceValue: payload.serviceValue
-            ? parsePriceDecimal(payload.serviceValue)
-            : budget.responseValue,
-          totalValue: payload.totalValue
-            ? parsePriceDecimal(payload.totalValue)
-            : budget.responseValue,
-          budgetId: budget.id,
-          serviceId: budget.serviceId,
-          requesterId: budget.requesterId,
-          providerId: budget.providerId,
-          startedAt: new Date(),
-          files: {
-            create: [
-              ...budget.files.map((file) => ({
-                fileName: file.fileName,
-                fileUrl: file.fileUrl,
-                fileKey: file.fileKey,
-                type: WorkFileType.Requester,
-              })),
-              ...((payload.providerFiles || []).map((file) => ({
-                fileName: file.fileName,
-                fileUrl: file.fileUrl,
-                fileKey: file.fileKey,
-                type: WorkFileType.Provider,
-              })) as Array<{
-                fileName: string;
-                fileUrl: string;
-                fileKey: string;
-                type: WorkFileType;
-              }>),
-            ],
+      const work = await this.prisma.$transaction(async (tx) => {
+        const createdWork = await tx.work.create({
+          data: {
+            status: WorkStatus.Pending,
+            details: payload.details ? payload.details.trim() : budget.description,
+            serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : null,
+            warrantyExpiresAt: payload.warrantyExpiresAt
+              ? new Date(payload.warrantyExpiresAt)
+              : null,
+            serviceValue: payload.serviceValue
+              ? parsePriceDecimal(payload.serviceValue)
+              : budget.responseValue,
+            totalValue: payload.totalValue
+              ? parsePriceDecimal(payload.totalValue)
+              : budget.responseValue,
+            budgetId: budget.id,
+            serviceId: budget.serviceId,
+            requesterId: budget.requesterId,
+            providerId: budget.providerId,
+            files: {
+              create: [
+                ...budget.files.map((file) => ({
+                  fileName: file.fileName,
+                  fileUrl: file.fileUrl,
+                  fileKey: file.fileKey,
+                  type: WorkFileType.Requester,
+                })),
+                ...((payload.providerFiles || []).map((file) => ({
+                  fileName: file.fileName,
+                  fileUrl: file.fileUrl,
+                  fileKey: file.fileKey,
+                  type: WorkFileType.Provider,
+                })) as Array<{
+                  fileName: string;
+                  fileUrl: string;
+                  fileKey: string;
+                  type: WorkFileType;
+                }>),
+              ],
+            },
           },
-        },
-        select: this.workSelect,
+          select: this.workSelect,
+        });
+        await tx.chatRoom.create({
+          data: {
+            contextType: ChatContextType.Work,
+            referenceId: createdWork.id,
+            createdById: user.id,
+            participants: {
+              create: [
+                {
+                  userId: budget.requesterId,
+                  lastReadAt: budget.requesterId === user.id ? new Date() : null,
+                },
+                {
+                  userId: budget.providerId,
+                  lastReadAt: budget.providerId === user.id ? new Date() : null,
+                },
+              ],
+            },
+          },
+        });
+
+        return createdWork;
       });
 
       await this.prisma.budget.update({
@@ -231,6 +304,11 @@ export class WorksService {
           referenceId: work.id,
         },
       });
+      const chatMap = await this.getWorkChatMap([work.id]);
+      const workWithWarrantyResponse = work as typeof work & {
+        warrantyResponseDescription?: string | null;
+        warrantyRespondedAt?: Date | null;
+      };
 
       return {
         message: 'Trabalho cadastrado com sucesso.',
@@ -242,8 +320,25 @@ export class WorksService {
           cancelReason: work.cancelReason,
           serviceDate: work.serviceDate,
           startedAt: work.startedAt,
+          arrivalConfirmedAt: work.arrivalConfirmedAt || undefined,
           finishedAt: work.finishedAt,
           cancelledAt: work.cancelledAt,
+          warrantyExpiresAt: work.warrantyExpiresAt || undefined,
+          isUnderWarranty:
+            !!work.warrantyExpiresAt &&
+            work.status === WorkStatus.Finished &&
+            work.warrantyExpiresAt.getTime() >= Date.now(),
+          warrantyRequestStatus: work.warrantyRequestStatus || undefined,
+          warrantyRequestedAt: work.warrantyRequestedAt || undefined,
+          warrantyResponseDescription:
+            workWithWarrantyResponse.warrantyResponseDescription || undefined,
+          warrantyRespondedAt: workWithWarrantyResponse.warrantyRespondedAt || undefined,
+          extraRequestValue: work.extraRequestValue ? work.extraRequestValue.toFixed(2) : undefined,
+          extraRequestDescription: work.extraRequestDescription || undefined,
+          extraRequestStatus: work.extraRequestStatus || undefined,
+          extraRequestedAt: work.extraRequestedAt || undefined,
+          extraRespondedAt: work.extraRespondedAt || undefined,
+          chat: chatMap.get(work.id),
           serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
           totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
           budgetId: work.budgetId,
@@ -330,6 +425,7 @@ export class WorksService {
           })
         : [];
     const paymentMap = new Map(payments.map((payment) => [payment.referenceId, payment]));
+    const chatMap = await this.getWorkChatMap(works.map((work) => work.id));
 
     return {
       works: works.map((work) => ({
@@ -337,8 +433,18 @@ export class WorksService {
         status: work.status as WorkStatus,
         serviceDate: work.serviceDate,
         startedAt: work.startedAt,
+        arrivalConfirmedAt: work.arrivalConfirmedAt || undefined,
         finishedAt: work.finishedAt,
         cancelledAt: work.cancelledAt,
+        warrantyExpiresAt: work.warrantyExpiresAt || undefined,
+        isUnderWarranty:
+          !!work.warrantyExpiresAt &&
+          work.status === WorkStatus.Finished &&
+          work.warrantyExpiresAt.getTime() >= Date.now(),
+        warrantyRequestStatus: work.warrantyRequestStatus || undefined,
+        warrantyRequestedAt: work.warrantyRequestedAt || undefined,
+        extraRequestStatus: work.extraRequestStatus || undefined,
+        chat: chatMap.get(work.id),
         serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
         totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
         budget: work.budget,
@@ -403,6 +509,11 @@ export class WorksService {
         referenceId: work.id,
       },
     });
+    const chatMap = await this.getWorkChatMap([work.id]);
+    const workWithWarrantyResponse = work as typeof work & {
+      warrantyResponseDescription?: string | null;
+      warrantyRespondedAt?: Date | null;
+    };
 
     return {
       id: work.id,
@@ -412,8 +523,25 @@ export class WorksService {
       cancelReason: work.cancelReason,
       serviceDate: work.serviceDate,
       startedAt: work.startedAt,
+      arrivalConfirmedAt: work.arrivalConfirmedAt || undefined,
       finishedAt: work.finishedAt,
       cancelledAt: work.cancelledAt,
+      warrantyExpiresAt: work.warrantyExpiresAt || undefined,
+      warrantyRequestedAt: work.warrantyRequestedAt || undefined,
+      warrantyRequestDescription: work.warrantyRequestDescription || undefined,
+      warrantyRequestStatus: work.warrantyRequestStatus || undefined,
+      warrantyResponseDescription:
+        workWithWarrantyResponse.warrantyResponseDescription || undefined,
+      warrantyRespondedAt: workWithWarrantyResponse.warrantyRespondedAt || undefined,
+      extraRequestValue: work.extraRequestValue ? work.extraRequestValue.toFixed(2) : undefined,
+      extraRequestDescription: work.extraRequestDescription || undefined,
+      extraRequestStatus: work.extraRequestStatus || undefined,
+      extraRequestedAt: work.extraRequestedAt || undefined,
+      extraRespondedAt: work.extraRespondedAt || undefined,
+      isUnderWarranty:
+        !!work.warrantyExpiresAt &&
+        work.status === WorkStatus.Finished &&
+        work.warrantyExpiresAt.getTime() >= Date.now(),
       serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
       totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
       budgetId: work.budgetId,
@@ -435,6 +563,7 @@ export class WorksService {
       })),
       createdAt: work.createdAt,
       updatedAt: work.updatedAt,
+      chat: chatMap.get(work.id),
       payment: payment
         ? {
             id: payment.id,
@@ -453,7 +582,7 @@ export class WorksService {
   async update(user: User, id: number, payload: UpdateWorkDto): Promise<ResponseWorkDto> {
     const work = await this.prisma.work.findUnique({
       where: { id },
-      select: { id: true, requesterId: true, providerId: true },
+      select: { id: true, requesterId: true, providerId: true, status: true },
     });
 
     if (!work) {
@@ -461,9 +590,21 @@ export class WorksService {
     }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+    const isRequester = work.requesterId === user.id;
     const isProvider = work.providerId === user.id;
+    const requesterIsEditingOnlyRequesterFiles =
+      payload.requesterFiles !== undefined &&
+      payload.details === undefined &&
+      payload.serviceDate === undefined &&
+      payload.warrantyExpiresAt === undefined &&
+      payload.serviceValue === undefined &&
+      payload.totalValue === undefined &&
+      payload.providerFiles === undefined &&
+      payload.completionFiles === undefined &&
+      payload.completionDescription === undefined &&
+      payload.cancelReason === undefined;
 
-    if (!isProvider && !isAdmin) {
+    if (!isProvider && !isAdmin && !(isRequester && requesterIsEditingOnlyRequesterFiles)) {
       throw new WorkAccessDeniedException();
     }
 
@@ -490,6 +631,12 @@ export class WorksService {
                 : null
               : undefined,
           serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : undefined,
+          warrantyExpiresAt:
+            payload.warrantyExpiresAt !== undefined
+              ? payload.warrantyExpiresAt
+                ? new Date(payload.warrantyExpiresAt)
+                : null
+              : undefined,
           serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
           totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
           files:
@@ -499,8 +646,12 @@ export class WorksService {
                     type: {
                       in: [
                         ...(payload.requesterFiles ? [WorkFileType.Requester] : []),
-                        ...(payload.providerFiles ? [WorkFileType.Provider] : []),
-                        ...(payload.completionFiles ? [WorkFileType.Completion] : []),
+                        ...((payload.providerFiles && !isRequester) || isAdmin
+                          ? [WorkFileType.Provider]
+                          : []),
+                        ...((payload.completionFiles && !isRequester) || isAdmin
+                          ? [WorkFileType.Completion]
+                          : []),
                       ],
                     },
                   },
@@ -516,23 +667,27 @@ export class WorksService {
                       fileKey: string;
                       type: WorkFileType;
                     }>),
-                    ...((payload.providerFiles || []).map((file) => ({
-                      fileName: file.fileName,
-                      fileUrl: file.fileUrl,
-                      fileKey: file.fileKey,
-                      type: WorkFileType.Provider,
-                    })) as Array<{
+                    ...(((isRequester && !isAdmin ? [] : payload.providerFiles) || []).map(
+                      (file) => ({
+                        fileName: file.fileName,
+                        fileUrl: file.fileUrl,
+                        fileKey: file.fileKey,
+                        type: WorkFileType.Provider,
+                      }),
+                    ) as Array<{
                       fileName: string;
                       fileUrl: string;
                       fileKey: string;
                       type: WorkFileType;
                     }>),
-                    ...((payload.completionFiles || []).map((file) => ({
-                      fileName: file.fileName,
-                      fileUrl: file.fileUrl,
-                      fileKey: file.fileKey,
-                      type: WorkFileType.Completion,
-                    })) as Array<{
+                    ...(((isRequester && !isAdmin ? [] : payload.completionFiles) || []).map(
+                      (file) => ({
+                        fileName: file.fileName,
+                        fileUrl: file.fileUrl,
+                        fileKey: file.fileKey,
+                        type: WorkFileType.Completion,
+                      }),
+                    ) as Array<{
                       fileName: string;
                       fileUrl: string;
                       fileKey: string;
@@ -570,6 +725,10 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
+    if (work.status !== WorkStatus.Pending) {
+      throw new WorkUpdateFailedException();
+    }
+
     await this.prisma.work.update({
       where: { id },
       data: {
@@ -582,10 +741,46 @@ export class WorksService {
     return this.findById(user, id);
   }
 
+  async confirmArrival(user: User, id: number): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        requesterId: true,
+        status: true,
+        startedAt: true,
+        arrivalConfirmedAt: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.requesterId !== user.id && !isAdmin) {
+      throw new WorkAccessDeniedException();
+    }
+
+    if (work.status !== WorkStatus.InProgress || !work.startedAt || work.arrivalConfirmedAt) {
+      throw new WorkUpdateFailedException();
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        arrivalConfirmedAt: new Date(),
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
   async finish(user: User, id: number, payload: FinishWorkDto): Promise<ResponseWorkDto> {
     const work = await this.prisma.work.findUnique({
       where: { id },
-      select: { id: true, providerId: true },
+      select: { id: true, providerId: true, status: true },
     });
 
     if (!work) {
@@ -598,12 +793,22 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
+    if (work.status !== WorkStatus.InProgress) {
+      throw new WorkUpdateFailedException();
+    }
+
     await this.prisma.work.update({
       where: { id },
       data: {
         status: WorkStatus.Finished,
         completionDescription: payload.completionDescription.trim(),
         serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : undefined,
+        warrantyExpiresAt:
+          payload.warrantyExpiresAt !== undefined
+            ? payload.warrantyExpiresAt
+              ? new Date(payload.warrantyExpiresAt)
+              : null
+            : undefined,
         serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
         totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
         finishedAt: new Date(),
@@ -726,10 +931,218 @@ export class WorksService {
     };
   }
 
+  async requestWarranty(
+    user: User,
+    id: number,
+    payload: RequestWorkWarrantyDto,
+  ): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        requesterId: true,
+        status: true,
+        warrantyExpiresAt: true,
+        warrantyRequestStatus: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.requesterId !== user.id && !isAdmin) {
+      throw new WorkAccessDeniedException();
+    }
+
+    if (
+      work.status !== WorkStatus.Finished ||
+      !work.warrantyExpiresAt ||
+      work.warrantyExpiresAt.getTime() < Date.now() ||
+      work.warrantyRequestStatus === WarrantyRequestStatus.Pending
+    ) {
+      throw new WorkUpdateFailedException();
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        warrantyRequestedAt: new Date(),
+        warrantyRequestDescription: payload.description.trim(),
+        warrantyRequestStatus: WarrantyRequestStatus.Pending,
+        warrantyResponseDescription: null,
+        warrantyRespondedAt: null,
+        files: payload.files?.length
+          ? {
+              deleteMany: { type: WorkFileType.WarrantyRequest },
+              create: payload.files.map((file) => ({
+                fileName: file.fileName,
+                fileUrl: file.fileUrl,
+                fileKey: file.fileKey,
+                type: WorkFileType.WarrantyRequest,
+              })),
+            }
+          : undefined,
+      } as Prisma.WorkUncheckedUpdateInput,
+    });
+
+    return this.findById(user, id);
+  }
+
+  async respondWarranty(
+    user: User,
+    id: number,
+    payload: RespondWorkWarrantyDto,
+  ): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        providerId: true,
+        warrantyRequestStatus: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.providerId !== user.id && !isAdmin) {
+      throw new WorkAccessDeniedException();
+    }
+
+    if (
+      work.warrantyRequestStatus !== WarrantyRequestStatus.Pending ||
+      (payload.status !== WarrantyRequestStatus.Approved &&
+        payload.status !== WarrantyRequestStatus.Rejected)
+    ) {
+      throw new WorkUpdateFailedException();
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        warrantyRequestStatus: payload.status,
+        warrantyResponseDescription:
+          payload.description !== undefined
+            ? payload.description
+              ? payload.description.trim()
+              : null
+            : null,
+        warrantyRespondedAt: new Date(),
+      } as Prisma.WorkUncheckedUpdateInput,
+    });
+
+    return this.findById(user, id);
+  }
+
+  async requestExtra(
+    user: User,
+    id: number,
+    payload: RequestWorkExtraDto,
+  ): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        providerId: true,
+        status: true,
+        extraRequestStatus: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.providerId !== user.id && !isAdmin) {
+      throw new WorkAccessDeniedException();
+    }
+
+    if (
+      work.status === WorkStatus.Cancelled ||
+      work.extraRequestStatus === ExtraRequestStatus.Pending
+    ) {
+      throw new WorkUpdateFailedException();
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        extraRequestValue: parsePriceDecimal(payload.value),
+        extraRequestDescription: payload.description.trim(),
+        extraRequestStatus: ExtraRequestStatus.Pending,
+        extraRequestedAt: new Date(),
+        extraRespondedAt: null,
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
+  async respondExtra(
+    user: User,
+    id: number,
+    payload: RespondWorkExtraDto,
+  ): Promise<ResponseWorkDto> {
+    const work = await this.prisma.work.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        requesterId: true,
+        totalValue: true,
+        serviceValue: true,
+        extraRequestValue: true,
+        extraRequestStatus: true,
+      },
+    });
+
+    if (!work) {
+      throw new WorkNotFoundException();
+    }
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (work.requesterId !== user.id && !isAdmin) {
+      throw new WorkAccessDeniedException();
+    }
+
+    if (
+      work.extraRequestStatus !== ExtraRequestStatus.Pending ||
+      !work.extraRequestValue ||
+      (payload.status !== ExtraRequestStatus.Approved &&
+        payload.status !== ExtraRequestStatus.Rejected)
+    ) {
+      throw new WorkUpdateFailedException();
+    }
+
+    await this.prisma.work.update({
+      where: { id },
+      data: {
+        totalValue:
+          payload.status === ExtraRequestStatus.Approved
+            ? new Prisma.Decimal(work.totalValue || work.serviceValue || 0).plus(
+                work.extraRequestValue,
+              )
+            : undefined,
+        extraRequestStatus: payload.status,
+        extraRespondedAt: new Date(),
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
   async cancel(user: User, id: number, payload: CancelWorkDto): Promise<ResponseWorkDto> {
     const work = await this.prisma.work.findUnique({
       where: { id },
-      select: { id: true, requesterId: true, providerId: true },
+      select: { id: true, requesterId: true, providerId: true, status: true },
     });
 
     if (!work) {
@@ -741,6 +1154,10 @@ export class WorksService {
 
     if (!canCancel) {
       throw new WorkAccessDeniedException();
+    }
+
+    if (work.status === WorkStatus.Finished || work.status === WorkStatus.Cancelled) {
+      throw new WorkUpdateFailedException();
     }
 
     await this.prisma.work.update({

@@ -1,7 +1,7 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role, Status, UserProfileType } from '@prisma/client';
 
-export class ResponseAllUserDto {
+export class RegisterUserDto {
   @ApiProperty()
   id: number;
 
@@ -11,30 +11,31 @@ export class ResponseAllUserDto {
   @ApiProperty()
   email: string;
 
-  @ApiProperty()
-  phone: string;
-
-  @ApiProperty()
-  code: string;
+  @ApiPropertyOptional()
+  phone?: string;
 
   @ApiProperty({ enum: Role })
-  role: string;
+  role: Role;
 
   @ApiProperty({ enum: UserProfileType })
   profileType: UserProfileType;
 
   @ApiProperty({ enum: Status })
-  status: string;
-
-  @ApiProperty()
-  fileUrl: string;
-
-  @ApiProperty()
-  fileKey: string;
+  status: Status;
 
   @ApiProperty()
   createdAt: Date;
 
   @ApiProperty()
   updatedAt: Date;
+}
+
+export class RegisterUserResponseDto {
+  @ApiProperty({
+    example: 'Usuário cadastrado com sucesso.',
+  })
+  message: string;
+
+  @ApiProperty({ type: RegisterUserDto })
+  user: RegisterUserDto;
 }
