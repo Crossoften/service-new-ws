@@ -44,6 +44,17 @@ export class CreateWorkDto {
   serviceDate?: string;
 
   @ApiProperty({
+    description: 'Data final da garantia do trabalho em formato ISO 8601, quando aplicável.',
+    required: false,
+    nullable: true,
+    example: '2026-06-16T23:59:59.000Z',
+    type: String,
+  })
+  @IsDateString()
+  @IsOptional()
+  warrantyExpiresAt?: string;
+
+  @ApiProperty({
     description:
       'Valor principal do serviço, enviado como string decimal para preservar precisão monetária.',
     required: false,

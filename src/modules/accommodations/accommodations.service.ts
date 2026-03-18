@@ -30,10 +30,7 @@ export class AccommodationsService {
   private readonly accommodationSelect = Prisma.validator<Prisma.AccommodationSelect>()({
     id: true,
     name: true,
-    street: true,
-    neighborhood: true,
-    city: true,
-    state: true,
+    addressId: true,
     roomsQuantity: true,
     price: true,
     description: true,
@@ -44,6 +41,14 @@ export class AccommodationsService {
     userId: true,
     createdAt: true,
     updatedAt: true,
+    address: {
+      select: {
+        street: true,
+        neighborhood: true,
+        city: true,
+        state: true,
+      },
+    },
     category: {
       select: {
         id: true,
@@ -70,13 +75,17 @@ export class AccommodationsService {
   private readonly accommodationListSelect = Prisma.validator<Prisma.AccommodationSelect>()({
     id: true,
     name: true,
-    city: true,
-    state: true,
     roomsQuantity: true,
     price: true,
     description: true,
     imageUrl: true,
     isActive: true,
+    address: {
+      select: {
+        city: true,
+        state: true,
+      },
+    },
     category: {
       select: {
         id: true,
@@ -111,18 +120,30 @@ export class AccommodationsService {
       const accommodation = await this.prisma.accommodation.create({
         data: {
           name: capitalizeFirstLetter(payload.name.trim()),
-          street: payload.street ? payload.street.trim() : null,
-          neighborhood: payload.neighborhood ? payload.neighborhood.trim() : null,
-          city: payload.city ? payload.city.trim() : null,
-          state: payload.state ? payload.state.trim() : null,
+          address: [payload.street, payload.neighborhood, payload.city, payload.state].some(
+            (value) => value !== undefined && value.trim() !== '',
+          )
+            ? {
+                create: {
+                  street: payload.street ? payload.street.trim() : null,
+                  neighborhood: payload.neighborhood ? payload.neighborhood.trim() : null,
+                  city: payload.city ? payload.city.trim() : null,
+                  state: payload.state ? payload.state.trim() : null,
+                },
+              }
+            : undefined,
           roomsQuantity,
           price,
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
           isActive: isActive ?? true,
-          categoryId,
-          userId: user.id,
+          category: {
+            connect: { id: categoryId },
+          },
+          user: {
+            connect: { id: user.id },
+          },
         },
         select: this.accommodationSelect,
       });
@@ -132,10 +153,10 @@ export class AccommodationsService {
         accommodation: {
           id: accommodation.id,
           name: accommodation.name,
-          street: accommodation.street || undefined,
-          neighborhood: accommodation.neighborhood || undefined,
-          city: accommodation.city || undefined,
-          state: accommodation.state || undefined,
+          street: accommodation.address?.street || undefined,
+          neighborhood: accommodation.address?.neighborhood || undefined,
+          city: accommodation.address?.city || undefined,
+          state: accommodation.address?.state || undefined,
           roomsQuantity: accommodation.roomsQuantity || undefined,
           price: accommodation.price.toFixed(2),
           description: accommodation.description || undefined,
@@ -210,12 +231,19 @@ export class AccommodationsService {
 
     const where: Prisma.AccommodationWhereInput = {
       name: name ? { contains: name } : undefined,
-      city: city ? { contains: city } : undefined,
-      state: state ? { contains: state } : undefined,
       categoryId,
       userId,
       isActive,
     };
+
+    if (city || state) {
+      where.address = {
+        is: {
+          city: city ? { contains: city } : undefined,
+          state: state ? { contains: state } : undefined,
+        },
+      };
+    }
 
     const [accommodations, totalRecords] = await Promise.all([
       this.prisma.accommodation.findMany({
@@ -245,8 +273,8 @@ export class AccommodationsService {
       accommodations: accommodations.map((accommodation) => ({
         id: accommodation.id,
         name: accommodation.name,
-        city: accommodation.city || undefined,
-        state: accommodation.state || undefined,
+        city: accommodation.address?.city || undefined,
+        state: accommodation.address?.state || undefined,
         roomsQuantity: accommodation.roomsQuantity || undefined,
         price: accommodation.price.toFixed(2),
         description: accommodation.description || undefined,
@@ -299,12 +327,19 @@ export class AccommodationsService {
 
     const where: Prisma.AccommodationWhereInput = {
       name: name ? { contains: name } : undefined,
-      city: city ? { contains: city } : undefined,
-      state: state ? { contains: state } : undefined,
       categoryId,
       userId: user.id,
       isActive,
     };
+
+    if (city || state) {
+      where.address = {
+        is: {
+          city: city ? { contains: city } : undefined,
+          state: state ? { contains: state } : undefined,
+        },
+      };
+    }
 
     const [accommodations, totalRecords] = await Promise.all([
       this.prisma.accommodation.findMany({
@@ -334,8 +369,8 @@ export class AccommodationsService {
       accommodations: accommodations.map((accommodation) => ({
         id: accommodation.id,
         name: accommodation.name,
-        city: accommodation.city || undefined,
-        state: accommodation.state || undefined,
+        city: accommodation.address?.city || undefined,
+        state: accommodation.address?.state || undefined,
         roomsQuantity: accommodation.roomsQuantity || undefined,
         price: accommodation.price.toFixed(2),
         description: accommodation.description || undefined,
@@ -394,10 +429,10 @@ export class AccommodationsService {
     return {
       id: accommodation.id,
       name: accommodation.name,
-      street: accommodation.street || undefined,
-      neighborhood: accommodation.neighborhood || undefined,
-      city: accommodation.city || undefined,
-      state: accommodation.state || undefined,
+      street: accommodation.address?.street || undefined,
+      neighborhood: accommodation.address?.neighborhood || undefined,
+      city: accommodation.address?.city || undefined,
+      state: accommodation.address?.state || undefined,
       roomsQuantity: accommodation.roomsQuantity || undefined,
       price: accommodation.price.toFixed(2),
       description: accommodation.description || undefined,
@@ -457,10 +492,10 @@ export class AccommodationsService {
     return {
       id: accommodation.id,
       name: accommodation.name,
-      street: accommodation.street || undefined,
-      neighborhood: accommodation.neighborhood || undefined,
-      city: accommodation.city || undefined,
-      state: accommodation.state || undefined,
+      street: accommodation.address?.street || undefined,
+      neighborhood: accommodation.address?.neighborhood || undefined,
+      city: accommodation.address?.city || undefined,
+      state: accommodation.address?.state || undefined,
       roomsQuantity: accommodation.roomsQuantity || undefined,
       price: accommodation.price.toFixed(2),
       description: accommodation.description || undefined,
@@ -561,7 +596,7 @@ export class AccommodationsService {
     id: number,
     payload: UpdateAccommodationDto,
   ): Promise<ResponseAccommodationDto> {
-    const accommodation = await this.findById(id);
+    const accommodation = await this.findAccommodationById(id);
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isOwner = user.id === accommodation.userId;
 
@@ -578,44 +613,74 @@ export class AccommodationsService {
     }
 
     try {
-      await this.prisma.accommodation.update({
-        where: { id },
-        data: {
-          name: payload.name ? capitalizeFirstLetter(payload.name.trim()) : undefined,
-          street:
-            payload.street !== undefined
-              ? payload.street
-                ? payload.street.trim()
-                : null
-              : undefined,
-          neighborhood:
-            payload.neighborhood !== undefined
-              ? payload.neighborhood
-                ? payload.neighborhood.trim()
-                : null
-              : undefined,
-          city:
-            payload.city !== undefined ? (payload.city ? payload.city.trim() : null) : undefined,
-          state:
-            payload.state !== undefined ? (payload.state ? payload.state.trim() : null) : undefined,
-          roomsQuantity:
-            payload.roomsQuantity !== undefined
-              ? payload.roomsQuantity
-                ? parsePositiveInt(payload.roomsQuantity, 'roomsQuantity')
-                : null
-              : undefined,
-          price: payload.price ? parsePriceDecimal(payload.price) : undefined,
-          description:
-            payload.description !== undefined
-              ? payload.description
-                ? payload.description.trim()
-                : null
-              : undefined,
-          imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
-          imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
-          isActive: parseOptionalBooleanString(payload.isActive, 'isActive'),
-          categoryId,
-        },
+      await this.prisma.$transaction(async (tx) => {
+        const hasAddressField =
+          payload.street !== undefined ||
+          payload.neighborhood !== undefined ||
+          payload.city !== undefined ||
+          payload.state !== undefined;
+
+        if (hasAddressField) {
+          const mappedAddress = {
+            street: payload.street ? payload.street.trim() : null,
+            neighborhood: payload.neighborhood ? payload.neighborhood.trim() : null,
+            city: payload.city ? payload.city.trim() : null,
+            state: payload.state ? payload.state.trim() : null,
+          };
+          const hasAddressValues = Object.values(mappedAddress).some((value) => value !== null);
+
+          if (hasAddressValues) {
+            if (accommodation.addressId) {
+              await tx.address.update({
+                where: { id: accommodation.addressId },
+                data: mappedAddress,
+              });
+            } else {
+              const address = await tx.address.create({
+                data: mappedAddress,
+                select: { id: true },
+              });
+
+              await tx.accommodation.update({
+                where: { id },
+                data: { addressId: address.id },
+              });
+            }
+          } else if (accommodation.addressId) {
+            await tx.accommodation.update({
+              where: { id },
+              data: { addressId: null },
+            });
+
+            await tx.address.delete({
+              where: { id: accommodation.addressId },
+            });
+          }
+        }
+
+        await tx.accommodation.update({
+          where: { id },
+          data: {
+            name: payload.name ? capitalizeFirstLetter(payload.name.trim()) : undefined,
+            roomsQuantity:
+              payload.roomsQuantity !== undefined
+                ? payload.roomsQuantity
+                  ? parsePositiveInt(payload.roomsQuantity, 'roomsQuantity')
+                  : null
+                : undefined,
+            price: payload.price ? parsePriceDecimal(payload.price) : undefined,
+            description:
+              payload.description !== undefined
+                ? payload.description
+                  ? payload.description.trim()
+                  : null
+                : undefined,
+            imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
+            imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
+            isActive: parseOptionalBooleanString(payload.isActive, 'isActive'),
+            categoryId,
+          },
+        });
       });
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
@@ -629,7 +694,7 @@ export class AccommodationsService {
   }
 
   async delete(user: User, id: number): Promise<ImessageEntity> {
-    const accommodation = await this.findById(id);
+    const accommodation = await this.findAccommodationById(id);
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isOwner = user.id === accommodation.userId;
 
@@ -637,7 +702,13 @@ export class AccommodationsService {
       throw new AccommodationAccessDeniedException();
     }
 
-    await this.prisma.accommodation.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      await tx.accommodation.delete({ where: { id } });
+
+      if (accommodation.addressId) {
+        await tx.address.delete({ where: { id: accommodation.addressId } });
+      }
+    });
 
     return { message: 'Hospedagem deletada com sucesso.' };
   }
@@ -652,5 +723,18 @@ export class AccommodationsService {
     }
 
     return category;
+  }
+
+  private async findAccommodationById(id: number) {
+    const accommodation = await this.prisma.accommodation.findUnique({
+      where: { id },
+      select: this.accommodationSelect,
+    });
+
+    if (!accommodation) {
+      throw new AccommodationNotFoundException();
+    }
+
+    return accommodation;
   }
 }

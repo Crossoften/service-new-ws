@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ExtraRequestStatus, WarrantyRequestStatus } from '@prisma/client';
 import { PaymentMethod } from '../enums/payment-method.enum';
 import { PaymentStatus } from '../enums/payment-status.enum';
 import { WorkStatus } from '../enums/work-status.enum';
@@ -95,6 +96,15 @@ export class ResponseWorkBudgetDto {
   id: number;
 }
 
+export class ResponseWorkChatDto {
+  @ApiProperty({
+    description: 'Identificador do chat associado ao trabalho.',
+    example: 4,
+    type: Number,
+  })
+  id: number;
+}
+
 export class ResponseWorkPaymentDto {
   @ApiProperty({ description: 'Identificador do pagamento.', example: 1, type: Number })
   id: number;
@@ -142,11 +152,7 @@ export class ResponseWorkPaymentDto {
   })
   cardLast4?: string;
 
-  @ApiProperty({
-    description: 'Valor pago em formato decimal.',
-    example: '350.00',
-    type: String,
-  })
+  @ApiProperty({ description: 'Valor pago em formato decimal.', example: '350.00', type: String })
   amount: string;
 
   @ApiProperty({
@@ -190,6 +196,15 @@ export class ResponseWorkListItemDto {
   startedAt?: Date;
 
   @ApiProperty({
+    description: 'Data e hora em que a chegada do fornecedor foi confirmada pelo cliente.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T10:15:00.000Z',
+    type: String,
+  })
+  arrivalConfirmedAt?: Date;
+
+  @ApiProperty({
     description: 'Data e hora em que o trabalho foi finalizado, em formato ISO 8601.',
     required: false,
     nullable: true,
@@ -206,6 +221,59 @@ export class ResponseWorkListItemDto {
     type: String,
   })
   cancelledAt?: Date;
+
+  @ApiProperty({
+    description: 'Data final da garantia do trabalho, quando houver garantia cadastrada.',
+    required: false,
+    nullable: true,
+    example: '2026-06-16T23:59:59.000Z',
+    type: String,
+  })
+  warrantyExpiresAt?: Date;
+
+  @ApiProperty({
+    description: 'Indica se o trabalho ainda está coberto por garantia na data atual.',
+    example: true,
+    type: Boolean,
+  })
+  isUnderWarranty: boolean;
+
+  @ApiProperty({
+    description: 'Status da solicitação de garantia, quando houver.',
+    required: false,
+    nullable: true,
+    enum: WarrantyRequestStatus,
+    enumName: 'WarrantyRequestStatus',
+    example: WarrantyRequestStatus.Pending,
+  })
+  warrantyRequestStatus?: WarrantyRequestStatus;
+
+  @ApiProperty({
+    description: 'Data da solicitação de garantia.',
+    required: false,
+    nullable: true,
+    example: '2026-03-20T10:00:00.000Z',
+    type: String,
+  })
+  warrantyRequestedAt?: Date;
+
+  @ApiProperty({
+    description: 'Status do acréscimo solicitado no serviço, quando houver.',
+    required: false,
+    nullable: true,
+    enum: ExtraRequestStatus,
+    enumName: 'ExtraRequestStatus',
+    example: ExtraRequestStatus.Pending,
+  })
+  extraRequestStatus?: ExtraRequestStatus;
+
+  @ApiProperty({
+    description: 'Resumo do chat associado ao trabalho, quando disponível.',
+    required: false,
+    nullable: true,
+    type: ResponseWorkChatDto,
+  })
+  chat?: ResponseWorkChatDto;
 
   @ApiProperty({
     description: 'Valor principal do serviço armazenado como string decimal.',
@@ -324,6 +392,15 @@ export class ResponseWorkDto {
   startedAt?: Date;
 
   @ApiProperty({
+    description: 'Data e hora em que a chegada do fornecedor foi confirmada pelo cliente.',
+    required: false,
+    nullable: true,
+    example: '2026-03-16T10:15:00.000Z',
+    type: String,
+  })
+  arrivalConfirmedAt?: Date;
+
+  @ApiProperty({
     description: 'Data e hora em que o trabalho foi finalizado, em formato ISO 8601.',
     required: false,
     nullable: true,
@@ -340,6 +417,122 @@ export class ResponseWorkDto {
     type: String,
   })
   cancelledAt?: Date;
+
+  @ApiProperty({
+    description: 'Data final da garantia do trabalho, quando houver garantia cadastrada.',
+    required: false,
+    nullable: true,
+    example: '2026-06-16T23:59:59.000Z',
+    type: String,
+  })
+  warrantyExpiresAt?: Date;
+
+  @ApiProperty({
+    description: 'Data da solicitação de garantia.',
+    required: false,
+    nullable: true,
+    example: '2026-03-20T10:00:00.000Z',
+    type: String,
+  })
+  warrantyRequestedAt?: Date;
+
+  @ApiProperty({
+    description: 'Descrição da solicitação de garantia, quando houver.',
+    required: false,
+    nullable: true,
+    example: 'O serviço apresentou falha após dois dias de uso.',
+    type: String,
+  })
+  warrantyRequestDescription?: string;
+
+  @ApiProperty({
+    description: 'Descrição da resposta da garantia, quando houver.',
+    required: false,
+    nullable: true,
+    example: 'Solicitação aprovada. Vamos realizar o ajuste sem custo adicional.',
+    type: String,
+  })
+  warrantyResponseDescription?: string;
+
+  @ApiProperty({
+    description: 'Data da resposta da garantia.',
+    required: false,
+    nullable: true,
+    example: '2026-03-21T10:00:00.000Z',
+    type: String,
+  })
+  warrantyRespondedAt?: Date;
+
+  @ApiProperty({
+    description: 'Status da solicitação de garantia, quando houver.',
+    required: false,
+    nullable: true,
+    enum: WarrantyRequestStatus,
+    enumName: 'WarrantyRequestStatus',
+    example: WarrantyRequestStatus.Pending,
+  })
+  warrantyRequestStatus?: WarrantyRequestStatus;
+
+  @ApiProperty({
+    description: 'Valor adicional solicitado no serviço, quando houver.',
+    required: false,
+    nullable: true,
+    example: '80.00',
+    type: String,
+  })
+  extraRequestValue?: string;
+
+  @ApiProperty({
+    description: 'Justificativa do acréscimo solicitado no serviço.',
+    required: false,
+    nullable: true,
+    example: 'Foi identificado um reparo adicional não previsto inicialmente.',
+    type: String,
+  })
+  extraRequestDescription?: string;
+
+  @ApiProperty({
+    description: 'Status do acréscimo solicitado no serviço, quando houver.',
+    required: false,
+    nullable: true,
+    enum: ExtraRequestStatus,
+    enumName: 'ExtraRequestStatus',
+    example: ExtraRequestStatus.Pending,
+  })
+  extraRequestStatus?: ExtraRequestStatus;
+
+  @ApiProperty({
+    description: 'Data em que o acréscimo foi solicitado.',
+    required: false,
+    nullable: true,
+    example: '2026-03-18T10:00:00.000Z',
+    type: String,
+  })
+  extraRequestedAt?: Date;
+
+  @ApiProperty({
+    description: 'Data em que o acréscimo foi respondido pelo cliente.',
+    required: false,
+    nullable: true,
+    example: '2026-03-18T10:10:00.000Z',
+    type: String,
+  })
+  extraRespondedAt?: Date;
+
+  @ApiProperty({
+    description: 'Indica se o trabalho ainda está coberto por garantia na data atual.',
+    example: true,
+    type: Boolean,
+  })
+  isUnderWarranty: boolean;
+
+  @ApiProperty({
+    description: 'Resumo do chat associado ao trabalho, quando disponível.',
+    required: false,
+    nullable: true,
+    type: ResponseWorkChatDto,
+  })
+  chat?: ResponseWorkChatDto;
 
   @ApiProperty({
     description: 'Valor principal do serviço armazenado como string decimal.',
@@ -409,7 +602,7 @@ export class ResponseWorkDto {
 
   @ApiProperty({
     description:
-      'Lista de arquivos anexados ao trabalho, incluindo anexos do cliente, fornecedor e conclusão.',
+      'Lista de arquivos anexados ao trabalho, incluindo anexos do cliente, fornecedor, conclusão e garantia.',
     type: [ResponseWorkFileDto],
   })
   files: ResponseWorkFileDto[];

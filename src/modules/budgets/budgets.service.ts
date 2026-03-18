@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { Prisma, Role, User } from '@prisma/client';
+import { ChatContextType, ExtraRequestStatus, Prisma, Role, User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
@@ -10,7 +10,9 @@ import { WorkStatus } from '../works/enums/work-status.enum';
 import { CreateBudgetResponseDto } from './dto/create-budget-response.dto';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { QueryBudgetDto } from './dto/query-budget.dto';
+import { RequestBudgetExtraDto } from './dto/request-budget-extra.dto';
 import { RequestBudgetInformationDto } from './dto/request-budget-information.dto';
+import { RespondBudgetExtraDto } from './dto/respond-budget-extra.dto';
 import { ResponseFindAllBudgetDto } from './dto/response-find-all-budget.dto';
 import { ResponseBudgetDto } from './dto/response-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
@@ -32,12 +34,31 @@ import { ServiceNotFoundException } from '../services/exceptions/service-not-fou
 export class BudgetsService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private async getWorkChat(id: number) {
+    const room = await this.prisma.chatRoom.findUnique({
+      where: {
+        contextType_referenceId: {
+          contextType: ChatContextType.Work,
+          referenceId: id,
+        },
+      },
+      select: { id: true },
+    });
+
+    return room ? { id: room.id } : undefined;
+  }
+
   private readonly budgetSelect = Prisma.validator<Prisma.BudgetSelect>()({
     id: true,
     description: true,
     status: true,
     responseDescription: true,
     responseValue: true,
+    extraRequestValue: true,
+    extraRequestDescription: true,
+    extraRequestStatus: true,
+    extraRequestedAt: true,
+    extraRespondedAt: true,
     responseTimeQuantity: true,
     responseTimeUnit: true,
     serviceId: true,
@@ -109,6 +130,7 @@ export class BudgetsService {
     description: true,
     status: true,
     responseValue: true,
+    extraRequestStatus: true,
     responseTimeQuantity: true,
     responseTimeUnit: true,
     createdAt: true,
@@ -142,8 +164,13 @@ export class BudgetsService {
     cancelReason: true,
     serviceDate: true,
     startedAt: true,
+    arrivalConfirmedAt: true,
     finishedAt: true,
     cancelledAt: true,
+    warrantyExpiresAt: true,
+    warrantyRequestedAt: true,
+    warrantyRequestDescription: true,
+    warrantyRequestStatus: true,
     serviceValue: true,
     totalValue: true,
     budgetId: true,
@@ -236,6 +263,13 @@ export class BudgetsService {
           status: budget.status as BudgetStatus,
           responseDescription: budget.responseDescription,
           responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+          extraRequestValue: budget.extraRequestValue
+            ? budget.extraRequestValue.toFixed(2)
+            : undefined,
+          extraRequestDescription: budget.extraRequestDescription || undefined,
+          extraRequestStatus: budget.extraRequestStatus || undefined,
+          extraRequestedAt: budget.extraRequestedAt || undefined,
+          extraRespondedAt: budget.extraRespondedAt || undefined,
           responseTimeQuantity: budget.responseTimeQuantity,
           responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
           serviceId: budget.serviceId,
@@ -319,6 +353,7 @@ export class BudgetsService {
         description: budget.description,
         status: budget.status as BudgetStatus,
         responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+        extraRequestStatus: budget.extraRequestStatus || undefined,
         responseTimeQuantity: budget.responseTimeQuantity,
         responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
         service: budget.service,
@@ -361,6 +396,11 @@ export class BudgetsService {
       status: budget.status as BudgetStatus,
       responseDescription: budget.responseDescription,
       responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+      extraRequestValue: budget.extraRequestValue ? budget.extraRequestValue.toFixed(2) : undefined,
+      extraRequestDescription: budget.extraRequestDescription || undefined,
+      extraRequestStatus: budget.extraRequestStatus || undefined,
+      extraRequestedAt: budget.extraRequestedAt || undefined,
+      extraRespondedAt: budget.extraRespondedAt || undefined,
       responseTimeQuantity: budget.responseTimeQuantity,
       responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
       serviceId: budget.serviceId,
@@ -409,16 +449,26 @@ export class BudgetsService {
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isRequester = budget.requesterId === user.id;
     const isProvider = budget.providerId === user.id;
+    const isUpdatingResponse =
+      payload.responseDescription !== undefined ||
+      payload.responseValue !== undefined ||
+      payload.responseTimeQuantity !== undefined ||
+      payload.responseTimeUnit !== undefined;
+    const isUpdatingRequest =
+      payload.description !== undefined ||
+      payload.serviceId !== undefined ||
+      payload.files !== undefined;
 
     if (!isRequester && !isProvider && !isAdmin) {
       throw new BudgetAccessDeniedException();
     }
 
-    if (
-      !isProvider &&
-      (payload.responseDescription || payload.responseValue || payload.responseTimeQuantity)
-    ) {
+    if (!isProvider && !isAdmin && isUpdatingResponse) {
       throw new BudgetProviderReplyNotAllowedException();
+    }
+
+    if (!isRequester && !isAdmin && isUpdatingRequest) {
+      throw new BudgetAccessDeniedException();
     }
 
     const serviceId = payload.serviceId
@@ -448,7 +498,15 @@ export class BudgetsService {
                 : null
               : undefined,
           serviceId,
-          status: payload.status,
+          status:
+            payload.status ??
+            (isUpdatingResponse
+              ? BudgetStatus.Responded
+              : isRequester &&
+                  budget.status === BudgetStatus.WaitingInformation &&
+                  isUpdatingRequest
+                ? BudgetStatus.Pending
+                : undefined),
           responseDescription:
             payload.responseDescription !== undefined
               ? payload.responseDescription
@@ -529,6 +587,98 @@ export class BudgetsService {
     return this.findById(user, id);
   }
 
+  async requestExtra(
+    user: User,
+    id: number,
+    payload: RequestBudgetExtraDto,
+  ): Promise<ResponseBudgetDto> {
+    const budget = await this.prisma.budget.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        providerId: true,
+        status: true,
+        extraRequestStatus: true,
+      },
+    });
+
+    if (!budget) throw new BudgetNotFoundException();
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (budget.providerId !== user.id && !isAdmin) {
+      throw new BudgetAccessDeniedException();
+    }
+
+    if (
+      budget.status === BudgetStatus.Cancelled ||
+      budget.extraRequestStatus === ExtraRequestStatus.Pending
+    ) {
+      throw new BudgetUpdateFailedException();
+    }
+
+    await this.prisma.budget.update({
+      where: { id },
+      data: {
+        extraRequestValue: parsePriceDecimal(payload.value),
+        extraRequestDescription: payload.description.trim(),
+        extraRequestStatus: ExtraRequestStatus.Pending,
+        extraRequestedAt: new Date(),
+        extraRespondedAt: null,
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
+  async respondExtra(
+    user: User,
+    id: number,
+    payload: RespondBudgetExtraDto,
+  ): Promise<ResponseBudgetDto> {
+    const budget = await this.prisma.budget.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        requesterId: true,
+        responseValue: true,
+        extraRequestValue: true,
+        extraRequestStatus: true,
+      },
+    });
+
+    if (!budget) throw new BudgetNotFoundException();
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    if (budget.requesterId !== user.id && !isAdmin) {
+      throw new BudgetAccessDeniedException();
+    }
+
+    if (
+      budget.extraRequestStatus !== ExtraRequestStatus.Pending ||
+      !budget.extraRequestValue ||
+      (payload.status !== ExtraRequestStatus.Approved &&
+        payload.status !== ExtraRequestStatus.Rejected)
+    ) {
+      throw new BudgetUpdateFailedException();
+    }
+
+    await this.prisma.budget.update({
+      where: { id },
+      data: {
+        responseValue:
+          payload.status === ExtraRequestStatus.Approved
+            ? new Prisma.Decimal(budget.responseValue || 0).plus(budget.extraRequestValue)
+            : undefined,
+        extraRequestStatus: payload.status,
+        extraRespondedAt: new Date(),
+      },
+    });
+
+    return this.findById(user, id);
+  }
+
   async approve(user: User, id: number): Promise<CreateWorkResponseDto> {
     const budget = await this.prisma.budget.findUnique({
       where: { id },
@@ -574,28 +724,53 @@ export class BudgetsService {
       throw new BudgetAlreadyApprovedException();
     }
 
-    const work = await this.prisma.work.create({
-      data: {
-        details: budget.description,
-        serviceValue: budget.responseValue,
-        totalValue: budget.responseValue,
-        budgetId: budget.id,
-        serviceId: budget.serviceId,
-        requesterId: budget.requesterId,
-        providerId: budget.providerId,
-        files: budget.files.length
-          ? {
-              create: budget.files.map((file) => ({
-                fileName: file.fileName,
-                fileUrl: file.fileUrl,
-                fileKey: file.fileKey,
-                type: WorkFileType.Requester,
-              })),
-            }
-          : undefined,
-      },
-      select: this.workSelect,
+    const work = await this.prisma.$transaction(async (tx) => {
+      const createdWork = await tx.work.create({
+        data: {
+          status: WorkStatus.Pending,
+          details: budget.description,
+          serviceValue: budget.responseValue,
+          totalValue: budget.responseValue,
+          budgetId: budget.id,
+          serviceId: budget.serviceId,
+          requesterId: budget.requesterId,
+          providerId: budget.providerId,
+          files: budget.files.length
+            ? {
+                create: budget.files.map((file) => ({
+                  fileName: file.fileName,
+                  fileUrl: file.fileUrl,
+                  fileKey: file.fileKey,
+                  type: WorkFileType.Requester,
+                })),
+              }
+            : undefined,
+        },
+        select: this.workSelect,
+      });
+
+      await tx.chatRoom.create({
+        data: {
+          contextType: ChatContextType.Work,
+          referenceId: createdWork.id,
+          createdById: user.id,
+          participants: {
+            create: [
+              {
+                userId: budget.requesterId,
+                lastReadAt: new Date(),
+              },
+              {
+                userId: budget.providerId,
+              },
+            ],
+          },
+        },
+      });
+
+      return createdWork;
     });
+    const chat = await this.getWorkChat(work.id);
 
     return {
       message: 'Orçamento aprovado com sucesso.',
@@ -607,8 +782,17 @@ export class BudgetsService {
         cancelReason: work.cancelReason,
         serviceDate: work.serviceDate,
         startedAt: work.startedAt,
+        arrivalConfirmedAt: work.arrivalConfirmedAt || undefined,
         finishedAt: work.finishedAt,
         cancelledAt: work.cancelledAt,
+        warrantyExpiresAt: work.warrantyExpiresAt || undefined,
+        warrantyRequestedAt: work.warrantyRequestedAt || undefined,
+        warrantyRequestDescription: work.warrantyRequestDescription || undefined,
+        warrantyRequestStatus: work.warrantyRequestStatus || undefined,
+        isUnderWarranty:
+          !!work.warrantyExpiresAt &&
+          work.status === WorkStatus.Finished &&
+          work.warrantyExpiresAt.getTime() >= Date.now(),
         serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
         totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
         budgetId: work.budgetId,
@@ -630,6 +814,7 @@ export class BudgetsService {
         })),
         createdAt: work.createdAt,
         updatedAt: work.updatedAt,
+        chat,
       },
     };
   }

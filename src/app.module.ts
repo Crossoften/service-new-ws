@@ -20,6 +20,7 @@ import { ServicesModule } from './modules/services/services.module';
 import { TransportationsModule } from './modules/transportations/transportations.module';
 import { WebModule } from './modules/web/web.module';
 import { WorksModule } from './modules/works/works.module';
+import { ChatsModule } from './modules/chats/chats.module';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { WorksModule } from './modules/works/works.module';
     ServicesModule,
     TransportationsModule,
     WorksModule,
+    ChatsModule,
 
     //
     WebModule,

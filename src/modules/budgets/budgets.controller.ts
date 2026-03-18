@@ -26,7 +26,9 @@ import { BudgetsService } from './budgets.service';
 import { CreateBudgetResponseDto } from './dto/create-budget-response.dto';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { QueryBudgetDto } from './dto/query-budget.dto';
+import { RequestBudgetExtraDto } from './dto/request-budget-extra.dto';
 import { RequestBudgetInformationDto } from './dto/request-budget-information.dto';
+import { RespondBudgetExtraDto } from './dto/respond-budget-extra.dto';
 import { ResponseFindAllBudgetDto } from './dto/response-find-all-budget.dto';
 import { ResponseBudgetDto } from './dto/response-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
@@ -120,6 +122,42 @@ export class BudgetsController {
     @Body() payload: RequestBudgetInformationDto,
   ): Promise<ResponseBudgetDto> {
     return this.budgetsService.requestMoreInformation(user, id, payload);
+  }
+
+  @Patch(':id/request-extra')
+  @ApiOperation({
+    summary: 'Rota para o fornecedor solicitar acréscimo em um orçamento.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseBudgetDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async requestExtra(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RequestBudgetExtraDto,
+  ): Promise<ResponseBudgetDto> {
+    return this.budgetsService.requestExtra(user, id, payload);
+  }
+
+  @Patch(':id/respond-extra')
+  @ApiOperation({
+    summary: 'Rota para o cliente responder ao acréscimo de um orçamento.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseBudgetDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async respondExtra(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RespondBudgetExtraDto,
+  ): Promise<ResponseBudgetDto> {
+    return this.budgetsService.respondExtra(user, id, payload);
   }
 
   @Patch(':id/approve')

@@ -1,16 +1,20 @@
 import { PrismaService } from '@database/PrismaService';
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { User } from '@prisma/client';
+import { Role, Status, User, UserProfileType } from '@prisma/client';
 import generateCode from '@utils/generateCode';
+import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
+import { CreateUserDto } from './dto/create-user.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 
 @Injectable()
@@ -19,6 +23,69 @@ export class NoAuthService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
   ) {}
+
+  async register(payload: CreateUserDto): Promise<RegisterUserResponseDto> {
+    const { name, email, phone, password, confirmPassword, acceptedTerms, profileType } = payload;
+
+    if (!acceptedTerms) {
+      throw new BadRequestException('É necessário aceitar os termos para concluir o cadastro.');
+    }
+
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Senhas devem ser iguais.');
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: email.trim() }, ...(phone ? [{ phone: phone.trim() }] : [])],
+      },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
+    }
+
+    const role = profileType === UserProfileType.Client ? Role.User : Role.Supplier;
+
+    const user = await this.prisma.user.create({
+      data: {
+        name: capitalizeFirstLetter(name.trim()),
+        email: email.trim(),
+        phone: phone ? phone.trim() : null,
+        password: hashSync(password, 10),
+        role,
+        profileType,
+        status: Status.Active,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        profileType: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    return {
+      message: 'Usuário cadastrado com sucesso.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || undefined,
+        role: user.role,
+        profileType: user.profileType,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+    };
+  }
 
   async forgot(email: string): Promise<void> {
     const user: User | null = await this.prisma.user.findFirst({ where: { email } });
@@ -88,6 +155,7 @@ export class NoAuthService {
         phone: true,
         code: true,
         role: true,
+        profileType: true,
         status: true,
         fileUrl: true,
         fileKey: true,
@@ -107,6 +175,7 @@ export class NoAuthService {
         phone: true,
         code: true,
         role: true,
+        profileType: true,
         status: true,
         fileUrl: true,
         fileKey: true,

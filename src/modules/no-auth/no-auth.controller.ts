@@ -14,8 +14,10 @@ import { ResponseAllUserDto } from '../admin/admin-settings/dto/response-all-use
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
+import { CreateUserDto } from './dto/create-user.dto';
 import { ForgotDto } from './dto/forgot.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { ResponseTextDto } from './dto/response-text.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
@@ -24,6 +26,17 @@ import { NoAuthService } from './no-auth.service';
 @Controller()
 export class NoAuthController {
   constructor(private readonly noAuthService: NoAuthService) {}
+
+  @IsPublic()
+  @Post('no-auth/register')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Rota para cadastro público de usuário.' })
+  @ApiOkResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async register(@Body() body: CreateUserDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body);
+  }
 
   @IsPublic()
   @Post('no-auth/forgot')
