@@ -6,7 +6,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ChatContextType, Prisma, User } from '@prisma/client';
+import { parsePositiveInt } from 'src/utils/parsePositiveInt';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
+import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
 import { ResponseChatDto, ResponseChatMessageDto } from './dto/response-chat.dto';
 
 @Injectable()
@@ -54,6 +57,28 @@ export class ChatsService {
     },
   });
 
+  private readonly roomDetailsSelect = Prisma.validator<Prisma.ChatRoomSelect>()({
+    id: true,
+    contextType: true,
+    referenceId: true,
+    lastMessageAt: true,
+    createdAt: true,
+    updatedAt: true,
+    participants: {
+      select: {
+        lastReadAt: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            fileUrl: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'asc' },
+    },
+  });
+
   async openByContext(
     user: User,
     contextType: ChatContextType,
@@ -79,6 +104,81 @@ export class ChatsService {
   async findById(user: User, id: number): Promise<ResponseChatDto> {
     const room = await this.findAuthorizedRoomById(user, id);
     return this.toResponse(room);
+  }
+
+  async findMessages(
+    user: User,
+    roomId: number,
+    query: QueryChatMessagesDto,
+  ): Promise<ResponseFindChatMessagesDto> {
+    const take = query.take ? parsePositiveInt(query.take, 'take') : 20;
+    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const room = await this.findAuthorizedRoomDetailsById(user, roomId);
+
+    const [messages, totalRecords] = await Promise.all([
+      this.prisma.chatMessage.findMany({
+        where: { roomId: room.id },
+        select: {
+          id: true,
+          message: true,
+          fileName: true,
+          fileUrl: true,
+          fileKey: true,
+          createdAt: true,
+          updatedAt: true,
+          sender: {
+            select: {
+              id: true,
+              name: true,
+              fileUrl: true,
+            },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+        take,
+        skip: (page - 1) * take,
+      }),
+      this.prisma.chatMessage.count({
+        where: { roomId: room.id },
+      }),
+    ]);
+
+    const otherUser = room.participants.find(
+      (participant) => participant.user.id !== user.id,
+    )?.user;
+
+    return {
+      id: room.id,
+      contextType: room.contextType,
+      referenceId: room.referenceId,
+      lastMessageAt: room.lastMessageAt || undefined,
+      otherUser: otherUser
+        ? {
+            id: otherUser.id,
+            name: otherUser.name,
+            fileUrl: otherUser.fileUrl || undefined,
+          }
+        : undefined,
+      messages: messages.map((message) => ({
+        id: message.id,
+        message: message.message || undefined,
+        fileName: message.fileName || undefined,
+        fileUrl: message.fileUrl || undefined,
+        fileKey: message.fileKey || undefined,
+        sender: {
+          id: message.sender.id,
+          name: message.sender.name,
+          fileUrl: message.sender.fileUrl || undefined,
+        },
+        createdAt: message.createdAt,
+        updatedAt: message.updatedAt,
+      })),
+      currentPage: page,
+      totalPages: Math.max(1, Math.ceil(totalRecords / take)),
+      totalRecords,
+      createdAt: room.createdAt,
+      updatedAt: room.updatedAt,
+    };
   }
 
   async sendMessage(
@@ -136,6 +236,21 @@ export class ChatsService {
     const room = await this.prisma.chatRoom.findUnique({
       where: { id },
       select: this.roomSelect,
+    });
+
+    if (!room) {
+      throw new NotFoundException('Chat não encontrado.');
+    }
+
+    this.assertParticipantAccess(user, room.participants);
+
+    return room;
+  }
+
+  private async findAuthorizedRoomDetailsById(user: User, id: number) {
+    const room = await this.prisma.chatRoom.findUnique({
+      where: { id },
+      select: this.roomDetailsSelect,
     });
 
     if (!room) {

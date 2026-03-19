@@ -7,6 +7,7 @@ import {
   ParseIntPipe,
   Patch,
   Post,
+  Query,
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
@@ -19,6 +20,8 @@ import {
 import { ChatContextType, User } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
+import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
+import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
 import { ResponseChatDto } from './dto/response-chat.dto';
 import { ChatsService } from './chats.service';
 
@@ -57,6 +60,23 @@ export class ChatsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ResponseChatDto> {
     return this.chatsService.findById(user, id);
+  }
+
+  @Get(':id/messages')
+  @ApiOperation({
+    summary: 'Rota para listar mensagens de um chat com paginação.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseFindChatMessagesDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  async findMessages(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Query() query: QueryChatMessagesDto,
+  ): Promise<ResponseFindChatMessagesDto> {
+    return this.chatsService.findMessages(user, id, query);
   }
 
   @Post(':id/messages')
