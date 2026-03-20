@@ -50,14 +50,27 @@ export class AdminSettingsService {
   }
 
   async findAll(query: QueryAdminDto): Promise<ResponseFindAllAdminDto> {
-    const { name, status, take, skip } = query;
+    const { status, take, skip } = query;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
+    const where = {
+      OR: [{ role: Role.Master }, { role: Role.Admin }],
+      status,
+      AND: search
+        ? [
+            {
+              OR: [
+                { name: { contains: search } },
+                { email: { contains: search } },
+                { phone: { contains: search } },
+                { document: { contains: search } },
+              ],
+            },
+          ]
+        : undefined,
+    };
 
     const admins: Partial<User>[] = await this._prisma.user.findMany({
-      where: {
-        OR: [{ role: Role.Master }, { role: Role.Admin }],
-        name: { contains: name },
-        status,
-      },
+      where,
       select: {
         id: true,
         name: true,
@@ -76,11 +89,7 @@ export class AdminSettingsService {
     });
 
     const count: number = await this._prisma.user.count({
-      where: {
-        OR: [{ role: Role.Master }, { role: Role.Admin }],
-        name: { contains: name },
-        status,
-      },
+      where,
     });
 
     const pages: number = skip ? Math.ceil(count / take) : 1;
