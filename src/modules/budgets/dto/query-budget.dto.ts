@@ -11,7 +11,7 @@ export class QueryBudgetDto {
     required: false,
     example: BudgetScope.Received,
   })
-  @IsEnum(BudgetScope)
+  @IsEnum(BudgetScope, { message: 'O escopo informado é inválido.' })
   @IsOptional()
   scope?: BudgetScope;
 
@@ -22,7 +22,7 @@ export class QueryBudgetDto {
     required: false,
     example: BudgetStatus.Pending,
   })
-  @IsEnum(BudgetStatus)
+  @IsEnum(BudgetStatus, { message: 'O status do orçamento é inválido.' })
   @IsOptional()
   status?: BudgetStatus;
 
@@ -32,7 +32,7 @@ export class QueryBudgetDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo serviceId deve conter apenas números.' })
   @IsOptional()
   serviceId?: number;
 
@@ -42,7 +42,7 @@ export class QueryBudgetDto {
     example: 'Susana',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O termo de busca deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -52,7 +52,7 @@ export class QueryBudgetDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -62,7 +62,7 @@ export class QueryBudgetDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

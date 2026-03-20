@@ -7,7 +7,7 @@ export class CancelWorkDto {
     example: 'Cliente desistiu do serviço.',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'O motivo do cancelamento deve ser um texto.' })
+  @IsNotEmpty({ message: 'O motivo do cancelamento é obrigatório.' })
   cancelReason: string;
 }

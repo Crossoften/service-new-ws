@@ -9,7 +9,7 @@ export class QueryServiceDto {
     example: 'consulta',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -19,7 +19,7 @@ export class QueryServiceDto {
     example: 'consulta',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo name deve ser um texto.' })
   @IsOptional()
   name?: string;
 
@@ -29,7 +29,7 @@ export class QueryServiceDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo categoryId deve conter apenas números.' })
   @IsOptional()
   categoryId?: number;
 
@@ -40,7 +40,7 @@ export class QueryServiceDto {
     required: false,
     example: ServiceType.Online,
   })
-  @IsEnum(ServiceType)
+  @IsEnum(ServiceType, { message: 'O tipo de serviço informado é inválido.' })
   @IsOptional()
   type?: ServiceType;
 
@@ -50,7 +50,7 @@ export class QueryServiceDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo userId deve conter apenas números.' })
   @IsOptional()
   userId?: number;
 
@@ -60,7 +60,7 @@ export class QueryServiceDto {
     example: 'true',
     type: String,
   })
-  @IsBooleanString()
+  @IsBooleanString({ message: 'O campo isActive deve ser true ou false.' })
   @IsOptional()
   isActive?: boolean;
 
@@ -70,7 +70,7 @@ export class QueryServiceDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -80,7 +80,7 @@ export class QueryServiceDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

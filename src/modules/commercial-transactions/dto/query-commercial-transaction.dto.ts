@@ -10,7 +10,7 @@ export class QueryCommercialTransactionDto {
     example: CommercialTransactionStatus.Requested,
   })
   @IsOptional()
-  @IsEnum(CommercialTransactionStatus)
+  @IsEnum(CommercialTransactionStatus, { message: 'O status da negociação é inválido.' })
   status?: CommercialTransactionStatus;
 
   @ApiPropertyOptional({
@@ -19,7 +19,9 @@ export class QueryCommercialTransactionDto {
     example: CommercialTransactionParticipantRole.All,
   })
   @IsOptional()
-  @IsEnum(CommercialTransactionParticipantRole)
+  @IsEnum(CommercialTransactionParticipantRole, {
+    message: 'O papel do participante informado é inválido.',
+  })
   participantRole?: CommercialTransactionParticipantRole;
 
   @ApiPropertyOptional({
@@ -28,7 +30,7 @@ export class QueryCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O termo de busca deve ser um texto.' })
   search?: string;
 
   @ApiPropertyOptional({
@@ -37,7 +39,7 @@ export class QueryCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   take?: string;
 
   @ApiPropertyOptional({
@@ -46,6 +48,6 @@ export class QueryCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   skip?: string;
 }

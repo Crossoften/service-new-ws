@@ -8,9 +8,9 @@ export class CreateBankAccountDto {
     example: 'Caixa Econômica Federal',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(120)
+  @IsString({ message: 'O nome do banco deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome do banco é obrigatório.' })
+  @MaxLength(120, { message: 'O nome do banco deve ter no máximo 120 caracteres.' })
   bankName: string;
 
   @ApiProperty({
@@ -19,7 +19,7 @@ export class CreateBankAccountDto {
     enumName: 'BankAccountType',
     example: BankAccountType.Checking,
   })
-  @IsEnum(BankAccountType)
+  @IsEnum(BankAccountType, { message: 'O tipo de conta bancária informado é inválido.' })
   accountType: BankAccountType;
 
   @ApiProperty({
@@ -27,9 +27,9 @@ export class CreateBankAccountDto {
     example: '00000',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(30)
+  @IsString({ message: 'A agência deve ser um texto.' })
+  @IsNotEmpty({ message: 'A agência é obrigatória.' })
+  @MaxLength(30, { message: 'A agência deve ter no máximo 30 caracteres.' })
   agency: string;
 
   @ApiProperty({
@@ -37,9 +37,9 @@ export class CreateBankAccountDto {
     example: '00000',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(30)
+  @IsString({ message: 'A conta deve ser um texto.' })
+  @IsNotEmpty({ message: 'A conta é obrigatória.' })
+  @MaxLength(30, { message: 'A conta deve ter no máximo 30 caracteres.' })
   account: string;
 
   @ApiProperty({
@@ -47,8 +47,8 @@ export class CreateBankAccountDto {
     example: '12345678901',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(14)
+  @IsString({ message: 'O CPF deve ser um texto.' })
+  @IsNotEmpty({ message: 'O CPF é obrigatório.' })
+  @MaxLength(14, { message: 'O CPF deve ter no máximo 14 caracteres.' })
   cpf: string;
 }

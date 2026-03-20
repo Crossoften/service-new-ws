@@ -15,7 +15,7 @@ export class CreateProductDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O id da categoria deve conter apenas números.' })
   categoryId: number;
 
   @ApiProperty({
@@ -24,7 +24,7 @@ export class CreateProductDto {
     enumName: 'ProductTransactionType',
     example: ProductTransactionType.Sale,
   })
-  @IsEnum(ProductTransactionType)
+  @IsEnum(ProductTransactionType, { message: 'O tipo de negociação informado é inválido.' })
   transactionType: ProductTransactionType;
 
   @ApiProperty({
@@ -32,9 +32,9 @@ export class CreateProductDto {
     example: 'Fiat Bravo',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
+  @IsString({ message: 'O nome do produto deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome do produto é obrigatório.' })
+  @MaxLength(160, { message: 'O nome do produto deve ter no máximo 160 caracteres.' })
   name: string;
 
   @ApiProperty({
@@ -44,9 +44,9 @@ export class CreateProductDto {
     example: 'Essence 1.8',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O modelo do produto deve ser um texto.' })
   @IsOptional()
-  @MaxLength(160)
+  @MaxLength(160, { message: 'O modelo deve ter no máximo 160 caracteres.' })
   model?: string;
 
   @ApiProperty({
@@ -56,7 +56,7 @@ export class CreateProductDto {
     example: '2016',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O ano do produto deve conter apenas números.' })
   @IsOptional()
   year?: number;
 
@@ -65,7 +65,7 @@ export class CreateProductDto {
     example: '45000.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O preço do produto deve conter apenas números.' })
   price: string;
 
   @ApiProperty({
@@ -75,7 +75,7 @@ export class CreateProductDto {
     example: 'Veículo em ótimo estado, revisado e com baixa quilometragem.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição do produto deve ser um texto.' })
   @IsOptional()
   description?: string;
 
@@ -86,7 +86,7 @@ export class CreateProductDto {
     example: 'https://cdn.seudominio.com/products/fiat-bravo.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A URL da imagem deve ser um texto.' })
   @IsOptional()
   imageUrl?: string;
 
@@ -97,7 +97,7 @@ export class CreateProductDto {
     example: 'products/fiat-bravo.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A chave da imagem deve ser um texto.' })
   @IsOptional()
   imageKey?: string;
 
@@ -107,7 +107,7 @@ export class CreateProductDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser um texto.' })
   @IsOptional()
   isActive?: boolean | string;
 }

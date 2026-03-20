@@ -7,7 +7,7 @@ export class CreateChatMessageDto {
     example: 'Preciso alinhar um detalhe antes de iniciar.',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A mensagem deve ser um texto.' })
   message?: string;
 
   @ApiPropertyOptional({
@@ -15,7 +15,7 @@ export class CreateChatMessageDto {
     example: 'foto-servico.jpg',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O nome do arquivo deve ser um texto.' })
   fileName?: string;
 
   @ApiPropertyOptional({
@@ -23,7 +23,7 @@ export class CreateChatMessageDto {
     example: 'https://cdn.seudominio.com/chats/foto-servico.jpg',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A URL do arquivo deve ser um texto.' })
   fileUrl?: string;
 
   @ApiPropertyOptional({
@@ -31,6 +31,6 @@ export class CreateChatMessageDto {
     example: 'chats/foto-servico.jpg',
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A chave do arquivo deve ser um texto.' })
   fileKey?: string;
 }

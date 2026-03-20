@@ -8,7 +8,7 @@ export class RespondCommercialTransactionDto {
     enum: [CommercialTransactionStatus.Accepted, CommercialTransactionStatus.Rejected],
     example: CommercialTransactionStatus.Accepted,
   })
-  @IsEnum(CommercialTransactionStatus)
+  @IsEnum(CommercialTransactionStatus, { message: 'O status da resposta é inválido.' })
   status: CommercialTransactionStatus;
 
   @ApiPropertyOptional({
@@ -17,7 +17,7 @@ export class RespondCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O valor acordado deve ser um texto.' })
   agreedAmount?: string;
 
   @ApiPropertyOptional({
@@ -26,6 +26,6 @@ export class RespondCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A mensagem da resposta deve ser um texto.' })
   message?: string;
 }

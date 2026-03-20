@@ -8,7 +8,7 @@ export class QueryAccommodationDto {
     example: 'Uberlândia',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -18,7 +18,7 @@ export class QueryAccommodationDto {
     example: 'Novo Leste',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo name deve ser um texto.' })
   @IsOptional()
   name?: string;
 
@@ -28,7 +28,7 @@ export class QueryAccommodationDto {
     example: 'Uberlândia',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo city deve ser um texto.' })
   @IsOptional()
   city?: string;
 
@@ -38,7 +38,7 @@ export class QueryAccommodationDto {
     example: 'Minas Gerais',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo state deve ser um texto.' })
   @IsOptional()
   state?: string;
 
@@ -48,7 +48,7 @@ export class QueryAccommodationDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo categoryId deve conter apenas números.' })
   @IsOptional()
   categoryId?: number;
 
@@ -58,7 +58,7 @@ export class QueryAccommodationDto {
     example: '15',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo userId deve conter apenas números.' })
   @IsOptional()
   userId?: number;
 
@@ -68,7 +68,7 @@ export class QueryAccommodationDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser um texto.' })
   @IsOptional()
   isActive?: boolean | string;
 
@@ -78,7 +78,7 @@ export class QueryAccommodationDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -89,7 +89,7 @@ export class QueryAccommodationDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

@@ -10,7 +10,7 @@ export class CreateAccommodationReviewDto {
     enumName: 'ReviewType',
     example: ReviewType.Positive,
   })
-  @IsEnum(ReviewType)
+  @IsEnum(ReviewType, { message: 'O tipo de avaliação informado é inválido.' })
   type: ReviewType;
 
   @ApiProperty({
@@ -20,8 +20,8 @@ export class CreateAccommodationReviewDto {
     example: 'Hospedagem limpa, organizada e com ótimo atendimento.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O comentário da avaliação deve ser um texto.' })
   @IsOptional()
-  @MaxLength(2000)
+  @MaxLength(2000, { message: 'O comentário deve ter no máximo 2000 caracteres.' })
   comment?: string;
 }

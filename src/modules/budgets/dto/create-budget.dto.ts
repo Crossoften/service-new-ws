@@ -9,7 +9,7 @@ export class CreateBudgetDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O id do serviço deve conter apenas números.' })
   serviceId: number;
 
   @ApiProperty({
@@ -19,7 +19,7 @@ export class CreateBudgetDto {
     example: 'Preciso de um orçamento para atendimento residencial.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição do orçamento deve ser um texto.' })
   @IsOptional()
   description?: string;
 
@@ -28,8 +28,8 @@ export class CreateBudgetDto {
     required: false,
     type: [CreateBudgetFileDto],
   })
-  @IsArray()
-  @ArrayMaxSize(10)
+  @IsArray({ message: 'Os arquivos devem ser enviados em lista.' })
+  @ArrayMaxSize(10, { message: 'É permitido enviar no máximo 10 arquivos.' })
   @Type(() => CreateBudgetFileDto)
   @IsOptional()
   files?: CreateBudgetFileDto[];

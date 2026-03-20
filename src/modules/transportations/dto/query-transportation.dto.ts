@@ -8,7 +8,7 @@ export class QueryTransportationDto {
     example: 'Caminhão',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -18,7 +18,7 @@ export class QueryTransportationDto {
     example: 'Caminhão',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo name deve ser um texto.' })
   @IsOptional()
   name?: string;
 
@@ -28,7 +28,7 @@ export class QueryTransportationDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo categoryId deve conter apenas números.' })
   @IsOptional()
   categoryId?: number;
 
@@ -38,7 +38,7 @@ export class QueryTransportationDto {
     example: '15',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo userId deve conter apenas números.' })
   @IsOptional()
   userId?: number;
 
@@ -48,7 +48,7 @@ export class QueryTransportationDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser um texto.' })
   @IsOptional()
   isActive?: boolean | string;
 
@@ -58,7 +58,7 @@ export class QueryTransportationDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -69,7 +69,7 @@ export class QueryTransportationDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

@@ -12,7 +12,7 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
     required: false,
     example: BudgetStatus.Responded,
   })
-  @IsEnum(BudgetStatus)
+  @IsEnum(BudgetStatus, { message: 'O status do orçamento é inválido.' })
   @IsOptional()
   status?: BudgetStatus;
 
@@ -23,7 +23,7 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
     example: 'Consigo realizar o serviço em até 3 dias.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição da resposta deve ser um texto.' })
   @IsOptional()
   responseDescription?: string;
 
@@ -33,7 +33,7 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
     example: '350.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O valor da resposta deve conter apenas números.' })
   @IsOptional()
   responseValue?: string;
 
@@ -43,7 +43,7 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'A quantidade de tempo deve conter apenas números.' })
   @IsOptional()
   responseTimeQuantity?: number;
 
@@ -54,7 +54,7 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
     required: false,
     example: BudgetTimeUnit.Day,
   })
-  @IsEnum(BudgetTimeUnit)
+  @IsEnum(BudgetTimeUnit, { message: 'A unidade de tempo informada é inválida.' })
   @IsOptional()
   responseTimeUnit?: BudgetTimeUnit;
 }

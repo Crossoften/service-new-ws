@@ -12,7 +12,7 @@ export class QueryWorkDto {
     required: false,
     example: WorkScope.Received,
   })
-  @IsEnum(WorkScope)
+  @IsEnum(WorkScope, { message: 'O escopo informado é inválido.' })
   @IsOptional()
   scope?: WorkScope;
 
@@ -23,7 +23,7 @@ export class QueryWorkDto {
     required: false,
     example: WorkStatus.InProgress,
   })
-  @IsEnum(WorkStatus)
+  @IsEnum(WorkStatus, { message: 'O status do trabalho é inválido.' })
   @IsOptional()
   status?: WorkStatus;
 
@@ -34,7 +34,7 @@ export class QueryWorkDto {
     example: 'Susana',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O termo de busca deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -44,7 +44,7 @@ export class QueryWorkDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo serviceId deve conter apenas números.' })
   @IsOptional()
   serviceId?: number;
 
@@ -54,7 +54,7 @@ export class QueryWorkDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -65,7 +65,7 @@ export class QueryWorkDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

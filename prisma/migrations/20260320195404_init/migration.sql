@@ -177,6 +177,7 @@ CREATE TABLE `addresses` (
     `neighborhood` VARCHAR(120) NULL,
     `city` VARCHAR(120) NULL,
     `state` VARCHAR(120) NULL,
+    `zipCode` VARCHAR(20) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
@@ -253,6 +254,11 @@ CREATE TABLE `budgets` (
     `status` ENUM('Pending', 'Responded', 'WaitingInformation', 'Cancelled') NOT NULL DEFAULT 'Pending',
     `responseDescription` LONGTEXT NULL,
     `responseValue` DECIMAL(10, 2) NULL,
+    `extraRequestValue` DECIMAL(10, 2) NULL,
+    `extraRequestDescription` LONGTEXT NULL,
+    `extraRequestStatus` ENUM('Pending', 'Approved', 'Rejected') NULL,
+    `extraRequestedAt` DATETIME(3) NULL,
+    `extraRespondedAt` DATETIME(3) NULL,
     `responseTimeQuantity` INTEGER NULL,
     `responseTimeUnit` ENUM('Hour', 'Day', 'Week', 'Month') NULL,
     `serviceId` INTEGER NULL,
@@ -306,9 +312,20 @@ CREATE TABLE `works` (
     `cancelReason` LONGTEXT NULL,
     `serviceDate` DATETIME(3) NULL,
     `startedAt` DATETIME(3) NULL,
+    `arrivalConfirmedAt` DATETIME(3) NULL,
     `finishedAt` DATETIME(3) NULL,
     `cancelledAt` DATETIME(3) NULL,
     `warrantyExpiresAt` DATETIME(3) NULL,
+    `warrantyRequestedAt` DATETIME(3) NULL,
+    `warrantyRequestDescription` LONGTEXT NULL,
+    `warrantyRequestStatus` ENUM('Pending', 'Approved', 'Rejected') NULL,
+    `warrantyResponseDescription` LONGTEXT NULL,
+    `warrantyRespondedAt` DATETIME(3) NULL,
+    `extraRequestValue` DECIMAL(10, 2) NULL,
+    `extraRequestDescription` LONGTEXT NULL,
+    `extraRequestStatus` ENUM('Pending', 'Approved', 'Rejected') NULL,
+    `extraRequestedAt` DATETIME(3) NULL,
+    `extraRespondedAt` DATETIME(3) NULL,
     `serviceValue` DECIMAL(10, 2) NULL,
     `totalValue` DECIMAL(10, 2) NULL,
     `budgetId` INTEGER NOT NULL,
@@ -329,7 +346,7 @@ CREATE TABLE `works` (
 -- CreateTable
 CREATE TABLE `chat_rooms` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
-    `contextType` ENUM('Budget', 'Work') NOT NULL,
+    `contextType` ENUM('Budget', 'Work', 'CommercialTransaction') NOT NULL,
     `referenceId` INTEGER NOT NULL,
     `createdById` INTEGER NULL,
     `lastMessageAt` DATETIME(3) NULL,
@@ -376,11 +393,38 @@ CREATE TABLE `chat_messages` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `commercial_transactions` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `referenceType` ENUM('Product') NOT NULL,
+    `referenceId` INTEGER NOT NULL,
+    `status` ENUM('Requested', 'Accepted', 'Rejected', 'Cancelled', 'Paid', 'Completed') NOT NULL DEFAULT 'Requested',
+    `title` VARCHAR(191) NULL,
+    `description` LONGTEXT NULL,
+    `requestedAmount` DECIMAL(10, 2) NOT NULL,
+    `agreedAmount` DECIMAL(10, 2) NULL,
+    `buyerId` INTEGER NOT NULL,
+    `sellerId` INTEGER NOT NULL,
+    `acceptedAt` DATETIME(3) NULL,
+    `rejectedAt` DATETIME(3) NULL,
+    `cancelledAt` DATETIME(3) NULL,
+    `paidAt` DATETIME(3) NULL,
+    `completedAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `commercial_transactions_referenceType_referenceId_idx`(`referenceType`, `referenceId`),
+    INDEX `commercial_transactions_buyerId_idx`(`buyerId`),
+    INDEX `commercial_transactions_sellerId_idx`(`sellerId`),
+    INDEX `commercial_transactions_status_idx`(`status`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `payments` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `method` ENUM('CreditCard', 'Pix', 'BankSlip') NOT NULL,
     `status` ENUM('Pending', 'Paid', 'Cancelled') NOT NULL DEFAULT 'Paid',
-    `referenceType` ENUM('Work') NOT NULL,
+    `referenceType` ENUM('Work', 'CommercialTransaction', 'Subscription') NOT NULL,
     `referenceId` INTEGER NOT NULL,
     `holderName` VARCHAR(160) NULL,
     `cardBrand` VARCHAR(60) NULL,
@@ -400,15 +444,62 @@ CREATE TABLE `payments` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `plans` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(120) NOT NULL,
+    `slug` VARCHAR(120) NOT NULL,
+    `description` LONGTEXT NULL,
+    `price` DECIMAL(10, 2) NOT NULL,
+    `interval` ENUM('Month', 'Year') NOT NULL,
+    `intervalCount` INTEGER NOT NULL DEFAULT 1,
+    `benefits` JSON NULL,
+    `isActive` BOOLEAN NOT NULL DEFAULT true,
+    `sortOrder` INTEGER NOT NULL DEFAULT 0,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `plans_slug_key`(`slug`),
+    INDEX `plans_isActive_idx`(`isActive`),
+    INDEX `plans_sortOrder_idx`(`sortOrder`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `subscriptions` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `status` ENUM('Active', 'Cancelled', 'Expired') NOT NULL DEFAULT 'Active',
+    `amount` DECIMAL(10, 2) NOT NULL,
+    `planName` VARCHAR(120) NOT NULL,
+    `planInterval` ENUM('Month', 'Year') NOT NULL,
+    `intervalCount` INTEGER NOT NULL DEFAULT 1,
+    `startedAt` DATETIME(3) NULL,
+    `currentPeriodStart` DATETIME(3) NULL,
+    `currentPeriodEnd` DATETIME(3) NULL,
+    `cancelledAt` DATETIME(3) NULL,
+    `userId` INTEGER NOT NULL,
+    `planId` INTEGER NOT NULL,
+    `addressId` INTEGER NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    INDEX `subscriptions_userId_idx`(`userId`),
+    INDEX `subscriptions_planId_idx`(`planId`),
+    INDEX `subscriptions_addressId_idx`(`addressId`),
+    INDEX `subscriptions_status_idx`(`status`),
+    INDEX `subscriptions_currentPeriodEnd_idx`(`currentPeriodEnd`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `financial_transactions` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `type` ENUM('Credit', 'Debit') NOT NULL,
-    `category` ENUM('WorkPayment', 'Fee', 'Withdrawal', 'Refund', 'Adjustment') NOT NULL,
+    `category` ENUM('WorkPayment', 'CommercialTransaction', 'Subscription', 'Fee', 'Withdrawal', 'Refund', 'Adjustment') NOT NULL,
     `status` ENUM('Pending', 'Paid', 'Cancelled') NOT NULL DEFAULT 'Paid',
     `amount` DECIMAL(10, 2) NOT NULL,
     `description` VARCHAR(255) NULL,
     `availableAt` DATETIME(3) NULL,
-    `referenceType` ENUM('Work') NOT NULL,
+    `referenceType` ENUM('Work', 'CommercialTransaction', 'Subscription') NOT NULL,
     `referenceId` INTEGER NOT NULL,
     `userId` INTEGER NOT NULL,
     `paymentId` INTEGER NULL,
@@ -428,7 +519,7 @@ CREATE TABLE `work_files` (
     `fileName` VARCHAR(191) NOT NULL,
     `fileUrl` VARCHAR(1500) NOT NULL,
     `fileKey` VARCHAR(1500) NOT NULL,
-    `type` ENUM('Requester', 'Provider', 'Completion') NOT NULL DEFAULT 'Requester',
+    `type` ENUM('Requester', 'Provider', 'Completion', 'WarrantyRequest') NOT NULL DEFAULT 'Requester',
     `workId` INTEGER NOT NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
@@ -561,10 +652,28 @@ ALTER TABLE `chat_messages` ADD CONSTRAINT `chat_messages_roomId_fkey` FOREIGN K
 ALTER TABLE `chat_messages` ADD CONSTRAINT `chat_messages_senderId_fkey` FOREIGN KEY (`senderId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `commercial_transactions` ADD CONSTRAINT `commercial_transactions_buyerId_fkey` FOREIGN KEY (`buyerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `commercial_transactions` ADD CONSTRAINT `commercial_transactions_sellerId_fkey` FOREIGN KEY (`sellerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `commercial_transactions` ADD CONSTRAINT `commercial_transactions_referenceId_fkey` FOREIGN KEY (`referenceId`) REFERENCES `products`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `payments` ADD CONSTRAINT `payments_payerId_fkey` FOREIGN KEY (`payerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `payments` ADD CONSTRAINT `payments_receiverId_fkey` FOREIGN KEY (`receiverId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `subscriptions` ADD CONSTRAINT `subscriptions_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `subscriptions` ADD CONSTRAINT `subscriptions_planId_fkey` FOREIGN KEY (`planId`) REFERENCES `plans`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `subscriptions` ADD CONSTRAINT `subscriptions_addressId_fkey` FOREIGN KEY (`addressId`) REFERENCES `addresses`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `financial_transactions` ADD CONSTRAINT `financial_transactions_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

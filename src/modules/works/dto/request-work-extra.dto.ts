@@ -7,8 +7,8 @@ export class RequestWorkExtraDto {
     example: 'Foi identificado um reparo adicional não previsto inicialmente.',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'A descrição do acréscimo deve ser um texto.' })
+  @IsNotEmpty({ message: 'A descrição do acréscimo é obrigatória.' })
   description: string;
 
   @ApiProperty({
@@ -16,6 +16,6 @@ export class RequestWorkExtraDto {
     example: '80.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O valor adicional deve conter apenas números.' })
   value: string;
 }

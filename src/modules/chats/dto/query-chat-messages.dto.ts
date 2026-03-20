@@ -8,7 +8,7 @@ export class QueryChatMessagesDto {
     example: 'cheguei',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -18,7 +18,7 @@ export class QueryChatMessagesDto {
     example: '20',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -28,7 +28,7 @@ export class QueryChatMessagesDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

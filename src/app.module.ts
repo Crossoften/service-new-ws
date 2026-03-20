@@ -15,6 +15,7 @@ import { BudgetsModule } from './modules/budgets/budgets.module';
 import { BankAccountsModule } from './modules/bank-accounts/bank-accounts.module';
 import { MobileModule } from './modules/mobile/mobile.module';
 import { ProductsModule } from './modules/products/products.module';
+import { PlansModule } from './modules/plans/plans.module';
 import { ProfileModule } from './modules/profile/profile.module';
 import { ServicesModule } from './modules/services/services.module';
 import { TransportationsModule } from './modules/transportations/transportations.module';
@@ -49,6 +50,7 @@ import { CommercialTransactionsModule } from './modules/commercial-transactions/
     BankAccountsModule,
     BudgetsModule,
     MobileModule,
+    PlansModule,
     ProductsModule,
     ProfileModule,
     ServicesModule,
