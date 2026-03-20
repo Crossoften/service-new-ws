@@ -35,16 +35,18 @@ model User {
   transportations       Transportation[]
   services              Service[]
   reviews               Review[]
-  requestedBudgets      Budget[]               @relation("BudgetRequester")
-  providedBudgets       Budget[]               @relation("BudgetProvider")
-  requestedWorks        Work[]                 @relation("WorkRequester")
-  sentPayments          Payment[]              @relation("PaymentPayer")
+  requestedBudgets      Budget[]                @relation("BudgetRequester")
+  providedBudgets       Budget[]                @relation("BudgetProvider")
+  requestedWorks        Work[]                  @relation("WorkRequester")
+  sentPayments          Payment[]               @relation("PaymentPayer")
   financialTransactions FinancialTransaction[]
-  providedWorks         Work[]                 @relation("WorkProvider")
-  receivedPayments      Payment[]              @relation("PaymentReceiver")
+  providedWorks         Work[]                  @relation("WorkProvider")
+  receivedPayments      Payment[]               @relation("PaymentReceiver")
+  purchases             CommercialTransaction[] @relation("CommercialTransactionBuyer")
+  sales                 CommercialTransaction[] @relation("CommercialTransactionSeller")
   chatParticipants      ChatParticipant[]
-  chatMessages          ChatMessage[]          @relation("ChatMessageSender")
-  createdChatRooms      ChatRoom[]             @relation("ChatRoomCreator")
+  chatMessages          ChatMessage[]           @relation("ChatMessageSender")
+  createdChatRooms      ChatRoom[]              @relation("ChatRoomCreator")
 
   @@map("users")
 }
@@ -152,9 +154,10 @@ model Product {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  category ProductCategory @relation(fields: [categoryId], references: [id])
-  user     User            @relation(fields: [userId], references: [id])
-  reviews  Review[]
+  category               ProductCategory         @relation(fields: [categoryId], references: [id])
+  user                   User                    @relation(fields: [userId], references: [id])
+  reviews                Review[]
+  commercialTransactions CommercialTransaction[]
 
   @@index([categoryId])
   @@index([userId])
@@ -489,6 +492,38 @@ model ChatMessage {
   @@map("chat_messages")
 }
 
+model CommercialTransaction {
+  id Int @id @default(autoincrement())
+
+  referenceType   CommercialTransactionReferenceType
+  referenceId     Int
+  status          CommercialTransactionStatus        @default(Requested)
+  title           String?                            @db.VarChar(191)
+  description     String?                            @db.LongText()
+  requestedAmount Decimal                            @db.Decimal(10, 2)
+  agreedAmount    Decimal?                           @db.Decimal(10, 2)
+  buyerId         Int
+  sellerId        Int
+  acceptedAt      DateTime?
+  rejectedAt      DateTime?
+  cancelledAt     DateTime?
+  paidAt          DateTime?
+  completedAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  buyer   User    @relation("CommercialTransactionBuyer", fields: [buyerId], references: [id])
+  seller  User    @relation("CommercialTransactionSeller", fields: [sellerId], references: [id])
+  product Product @relation(fields: [referenceId], references: [id])
+
+  @@index([referenceType, referenceId])
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([status])
+  @@map("commercial_transactions")
+}
+
 model Payment {
   id Int @id @default(autoincrement())
 
@@ -673,6 +708,7 @@ enum WorkStatus {
 enum ChatContextType {
   Budget
   Work
+  CommercialTransaction
 }
 
 enum PaymentMethod {
@@ -689,6 +725,20 @@ enum PaymentStatus {
 
 enum PaymentReferenceType {
   Work
+  CommercialTransaction
+}
+
+enum CommercialTransactionReferenceType {
+  Product
+}
+
+enum CommercialTransactionStatus {
+  Requested
+  Accepted
+  Rejected
+  Cancelled
+  Paid
+  Completed
 }
 
 enum FinancialTransactionType {
@@ -698,6 +748,7 @@ enum FinancialTransactionType {
 
 enum FinancialTransactionCategory {
   WorkPayment
+  CommercialTransaction
   Fee
   Withdrawal
   Refund

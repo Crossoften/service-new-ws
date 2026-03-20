@@ -21,6 +21,7 @@ import { TransportationsModule } from './modules/transportations/transportations
 import { WebModule } from './modules/web/web.module';
 import { WorksModule } from './modules/works/works.module';
 import { ChatsModule } from './modules/chats/chats.module';
+import { CommercialTransactionsModule } from './modules/commercial-transactions/commercial-transactions.module';
 
 @Module({
   imports: [
@@ -54,6 +55,7 @@ import { ChatsModule } from './modules/chats/chats.module';
     TransportationsModule,
     WorksModule,
     ChatsModule,
+    CommercialTransactionsModule,
 
     //
     WebModule,
