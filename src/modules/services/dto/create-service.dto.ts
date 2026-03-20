@@ -18,10 +18,10 @@ export class CreateServiceDto {
     example: 'Consulta odontológica',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MinLength(3)
-  @MaxLength(160)
+  @IsString({ message: 'O nome do serviço deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome do serviço é obrigatório.' })
+  @MinLength(3, { message: 'O nome do serviço deve ter no mínimo 3 caracteres.' })
+  @MaxLength(160, { message: 'O nome do serviço deve ter no máximo 160 caracteres.' })
   name: string;
 
   @ApiProperty({
@@ -30,7 +30,7 @@ export class CreateServiceDto {
     enumName: 'ServiceType',
     example: ServiceType.Online,
   })
-  @IsEnum(ServiceType)
+  @IsEnum(ServiceType, { message: 'O tipo de serviço informado é inválido.' })
   type: ServiceType;
 
   @ApiProperty({
@@ -40,9 +40,9 @@ export class CreateServiceDto {
     example: 'CRO 12345',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O registro profissional deve ser um texto.' })
   @IsOptional()
-  @MaxLength(80)
+  @MaxLength(80, { message: 'O registro profissional deve ter no máximo 80 caracteres.' })
   registrationCode?: string;
 
   @ApiProperty({
@@ -50,7 +50,7 @@ export class CreateServiceDto {
     example: '150.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O preço do serviço deve conter apenas números.' })
   price: string;
 
   @ApiProperty({
@@ -60,7 +60,7 @@ export class CreateServiceDto {
     example: 'Atendimento clínico com avaliação inicial e orientação.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição do serviço deve ser um texto.' })
   @IsOptional()
   description?: string;
 
@@ -71,9 +71,9 @@ export class CreateServiceDto {
     example: 'https://cdn.seudominio.com/services/consulta-odontologica.png',
     type: String,
   })
-  @IsUrl()
+  @IsUrl({}, { message: 'A URL da imagem do serviço é inválida.' })
   @IsOptional()
-  @MaxLength(1500)
+  @MaxLength(1500, { message: 'A URL da imagem deve ter no máximo 1500 caracteres.' })
   imageUrl?: string;
 
   @ApiProperty({
@@ -83,9 +83,9 @@ export class CreateServiceDto {
     example: 'services/consulta-odontologica.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A chave da imagem do serviço deve ser um texto.' })
   @IsOptional()
-  @MaxLength(1500)
+  @MaxLength(1500, { message: 'A chave da imagem deve ter no máximo 1500 caracteres.' })
   imageKey?: string;
 
   @ApiProperty({
@@ -93,7 +93,7 @@ export class CreateServiceDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O id da categoria deve conter apenas números.' })
   categoryId: number;
 
   @ApiProperty({
@@ -102,7 +102,7 @@ export class CreateServiceDto {
     example: 'true',
     type: String,
   })
-  @IsBooleanString()
+  @IsBooleanString({ message: 'O campo isActive deve ser true ou false.' })
   @IsOptional()
   isActive?: boolean;
 }

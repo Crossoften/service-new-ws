@@ -7,7 +7,7 @@ export class CreateAccommodationDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O id da categoria deve conter apenas números.' })
   categoryId: number;
 
   @ApiProperty({
@@ -15,9 +15,9 @@ export class CreateAccommodationDto {
     example: 'Novo Leste Hotel',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
+  @IsString({ message: 'O nome da hospedagem deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome da hospedagem é obrigatório.' })
+  @MaxLength(160, { message: 'O nome da hospedagem deve ter no máximo 160 caracteres.' })
   name: string;
 
   @ApiProperty({
@@ -27,9 +27,9 @@ export class CreateAccommodationDto {
     example: 'Rua das Palmeiras, 120',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A rua da hospedagem deve ser um texto.' })
   @IsOptional()
-  @MaxLength(160)
+  @MaxLength(160, { message: 'A rua deve ter no máximo 160 caracteres.' })
   street?: string;
 
   @ApiProperty({
@@ -39,9 +39,9 @@ export class CreateAccommodationDto {
     example: 'Centro',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O bairro da hospedagem deve ser um texto.' })
   @IsOptional()
-  @MaxLength(120)
+  @MaxLength(120, { message: 'O bairro deve ter no máximo 120 caracteres.' })
   neighborhood?: string;
 
   @ApiProperty({
@@ -51,9 +51,9 @@ export class CreateAccommodationDto {
     example: 'Uberlândia',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A cidade da hospedagem deve ser um texto.' })
   @IsOptional()
-  @MaxLength(120)
+  @MaxLength(120, { message: 'A cidade deve ter no máximo 120 caracteres.' })
   city?: string;
 
   @ApiProperty({
@@ -63,9 +63,9 @@ export class CreateAccommodationDto {
     example: 'Minas Gerais',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O estado da hospedagem deve ser um texto.' })
   @IsOptional()
-  @MaxLength(120)
+  @MaxLength(120, { message: 'O estado deve ter no máximo 120 caracteres.' })
   state?: string;
 
   @ApiProperty({
@@ -75,7 +75,7 @@ export class CreateAccommodationDto {
     example: '200',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'A quantidade de quartos deve conter apenas números.' })
   @IsOptional()
   roomsQuantity?: number;
 
@@ -84,7 +84,7 @@ export class CreateAccommodationDto {
     example: '320.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O preço da hospedagem deve conter apenas números.' })
   price: string;
 
   @ApiProperty({
@@ -94,7 +94,7 @@ export class CreateAccommodationDto {
     example: 'Hospedagem com café da manhã incluso e estacionamento privativo.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição da hospedagem deve ser um texto.' })
   @IsOptional()
   description?: string;
 
@@ -105,7 +105,7 @@ export class CreateAccommodationDto {
     example: 'https://cdn.seudominio.com/accommodations/novo-leste-hotel.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A URL da imagem deve ser um texto.' })
   @IsOptional()
   imageUrl?: string;
 
@@ -116,7 +116,7 @@ export class CreateAccommodationDto {
     example: 'accommodations/novo-leste-hotel.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A chave da imagem deve ser um texto.' })
   @IsOptional()
   imageKey?: string;
 
@@ -126,7 +126,7 @@ export class CreateAccommodationDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser enviado como texto.' })
   @IsOptional()
   isActive?: boolean | string;
 }

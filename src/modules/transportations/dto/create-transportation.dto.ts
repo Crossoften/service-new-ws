@@ -1,11 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import {
-  IsNotEmpty,
-  IsNumberString,
-  IsOptional,
-  IsString,
-  MaxLength,
-} from 'class-validator';
+import { IsNotEmpty, IsNumberString, IsOptional, IsString, MaxLength } from 'class-validator';
 
 export class CreateTransportationDto {
   @ApiProperty({
@@ -13,7 +7,7 @@ export class CreateTransportationDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O id da categoria deve conter apenas números.' })
   categoryId: number;
 
   @ApiProperty({
@@ -21,9 +15,9 @@ export class CreateTransportationDto {
     example: 'Caminhão baú',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(160)
+  @IsString({ message: 'O nome do transporte deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome do transporte é obrigatório.' })
+  @MaxLength(160, { message: 'O nome do transporte deve ter no máximo 160 caracteres.' })
   name: string;
 
   @ApiProperty({
@@ -33,9 +27,9 @@ export class CreateTransportationDto {
     example: 'Volkswagen Delivery 11.180',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O modelo do transporte deve ser um texto.' })
   @IsOptional()
-  @MaxLength(160)
+  @MaxLength(160, { message: 'O modelo deve ter no máximo 160 caracteres.' })
   model?: string;
 
   @ApiProperty({
@@ -45,7 +39,7 @@ export class CreateTransportationDto {
     example: '41000',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'A quilometragem deve conter apenas números.' })
   @IsOptional()
   mileageKm?: number;
 
@@ -56,7 +50,7 @@ export class CreateTransportationDto {
     example: '8',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'A capacidade deve conter apenas números.' })
   @IsOptional()
   capacity?: number;
 
@@ -67,7 +61,7 @@ export class CreateTransportationDto {
     example: '2016',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O ano do transporte deve conter apenas números.' })
   @IsOptional()
   year?: number;
 
@@ -76,7 +70,7 @@ export class CreateTransportationDto {
     example: '85000.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O preço do transporte deve conter apenas números.' })
   price: string;
 
   @ApiProperty({
@@ -86,7 +80,7 @@ export class CreateTransportationDto {
     example: 'Transporte revisado, pronto para operação e com documentação em dia.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição do transporte deve ser um texto.' })
   @IsOptional()
   description?: string;
 
@@ -97,7 +91,7 @@ export class CreateTransportationDto {
     example: 'https://cdn.seudominio.com/transportations/caminhao-bau.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A URL da imagem deve ser um texto.' })
   @IsOptional()
   imageUrl?: string;
 
@@ -108,7 +102,7 @@ export class CreateTransportationDto {
     example: 'transportations/caminhao-bau.png',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A chave da imagem deve ser um texto.' })
   @IsOptional()
   imageKey?: string;
 
@@ -118,7 +112,7 @@ export class CreateTransportationDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser um texto.' })
   @IsOptional()
   isActive?: boolean | string;
 }

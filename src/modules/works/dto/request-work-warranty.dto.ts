@@ -9,8 +9,8 @@ export class RequestWorkWarrantyDto {
     example: 'O serviço apresentou falha após dois dias de uso.',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'A descrição da garantia deve ser um texto.' })
+  @IsNotEmpty({ message: 'A descrição da garantia é obrigatória.' })
   description: string;
 
   @ApiProperty({
@@ -18,8 +18,8 @@ export class RequestWorkWarrantyDto {
     required: false,
     type: [CreateWorkFileDto],
   })
-  @IsArray()
-  @ArrayMaxSize(10)
+  @IsArray({ message: 'Os arquivos da garantia devem ser enviados em lista.' })
+  @ArrayMaxSize(10, { message: 'É permitido enviar no máximo 10 arquivos.' })
   @Type(() => CreateWorkFileDto)
   @IsOptional()
   files?: CreateWorkFileDto[];

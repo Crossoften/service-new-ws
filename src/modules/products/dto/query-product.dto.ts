@@ -9,7 +9,7 @@ export class QueryProductDto {
     example: 'Fiat',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
   search?: string;
 
@@ -19,7 +19,7 @@ export class QueryProductDto {
     example: 'Fiat',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo name deve ser um texto.' })
   @IsOptional()
   name?: string;
 
@@ -29,7 +29,7 @@ export class QueryProductDto {
     example: '3',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo categoryId deve conter apenas números.' })
   @IsOptional()
   categoryId?: number;
 
@@ -39,7 +39,7 @@ export class QueryProductDto {
     example: '15',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo userId deve conter apenas números.' })
   @IsOptional()
   userId?: number;
 
@@ -50,7 +50,7 @@ export class QueryProductDto {
     enumName: 'ProductTransactionType',
     example: ProductTransactionType.Rent,
   })
-  @IsEnum(ProductTransactionType)
+  @IsEnum(ProductTransactionType, { message: 'O tipo de negociação informado é inválido.' })
   @IsOptional()
   transactionType?: ProductTransactionType;
 
@@ -60,7 +60,7 @@ export class QueryProductDto {
     example: 'true',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O campo isActive deve ser um texto.' })
   @IsOptional()
   isActive?: boolean | string;
 
@@ -70,7 +70,7 @@ export class QueryProductDto {
     example: '10',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
   @IsOptional()
   take?: number;
 
@@ -81,7 +81,7 @@ export class QueryProductDto {
     example: '1',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
   @IsOptional()
   skip?: number;
 }

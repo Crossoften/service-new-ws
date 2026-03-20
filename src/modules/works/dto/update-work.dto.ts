@@ -13,7 +13,7 @@ export class UpdateWorkDto extends PartialType(CreateWorkDto) {
     example: 'Serviço concluído com sucesso.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição de conclusão deve ser um texto.' })
   @IsOptional()
   completionDescription?: string;
 
@@ -25,7 +25,7 @@ export class UpdateWorkDto extends PartialType(CreateWorkDto) {
     example: 'Cliente desistiu do atendimento.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O motivo do cancelamento deve ser um texto.' })
   @IsOptional()
   cancelReason?: string;
 
@@ -41,7 +41,7 @@ export class UpdateWorkDto extends PartialType(CreateWorkDto) {
       },
     ],
   })
-  @IsArray()
+  @IsArray({ message: 'Os arquivos do cliente devem ser enviados em lista.' })
   @Type(() => CreateWorkFileDto)
   @IsOptional()
   requesterFiles?: CreateWorkFileDto[];
@@ -59,7 +59,7 @@ export class UpdateWorkDto extends PartialType(CreateWorkDto) {
       },
     ],
   })
-  @IsArray()
+  @IsArray({ message: 'Os arquivos de conclusão devem ser enviados em lista.' })
   @Type(() => CreateWorkFileDto)
   @IsOptional()
   completionFiles?: CreateWorkFileDto[];

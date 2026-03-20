@@ -7,9 +7,9 @@ export class CreateWorkFileDto {
     example: 'arquivo.pdf',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(191)
+  @IsString({ message: 'O nome do arquivo deve ser um texto.' })
+  @IsNotEmpty({ message: 'O nome do arquivo é obrigatório.' })
+  @MaxLength(191, { message: 'O nome do arquivo deve ter no máximo 191 caracteres.' })
   fileName: string;
 
   @ApiProperty({
@@ -18,8 +18,8 @@ export class CreateWorkFileDto {
     example: 'https://cdn.seudominio.com/works/arquivo.pdf',
     type: String,
   })
-  @IsUrl()
-  @MaxLength(1500)
+  @IsUrl({}, { message: 'A URL do arquivo é inválida.' })
+  @MaxLength(1500, { message: 'A URL do arquivo deve ter no máximo 1500 caracteres.' })
   fileUrl: string;
 
   @ApiProperty({
@@ -28,8 +28,8 @@ export class CreateWorkFileDto {
     example: 'works/arquivo.pdf',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
-  @MaxLength(1500)
+  @IsString({ message: 'A chave do arquivo deve ser um texto.' })
+  @IsNotEmpty({ message: 'A chave do arquivo é obrigatória.' })
+  @MaxLength(1500, { message: 'A chave do arquivo deve ter no máximo 1500 caracteres.' })
   fileKey: string;
 }

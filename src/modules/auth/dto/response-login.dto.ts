@@ -3,15 +3,32 @@ import { Role } from '@prisma/client';
 import { PermissionResponseDto } from 'src/modules/admin/admin-settings/dto/permission-response.dto';
 
 export class ResponseLoginDto {
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    description: 'Token JWT retornado no login.',
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    required: false,
+  })
   token: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    description: 'Identificador do usuário autenticado.',
+    example: 1,
+    required: false,
+  })
   id: number;
 
-  @ApiProperty({ enum: [Role.Master, Role.Admin], required: false })
+  @ApiProperty({
+    description: 'Perfil administrativo retornado no login do portal gerencial.',
+    enum: [Role.Master, Role.Admin],
+    example: Role.Admin,
+    required: false,
+  })
   role: Role;
 
-  @ApiProperty({ type: [PermissionResponseDto], required: false })
+  @ApiProperty({
+    description: 'Lista de permissões administrativas do usuário autenticado.',
+    type: [PermissionResponseDto],
+    required: false,
+  })
   adminPermissions: PermissionResponseDto[];
 }

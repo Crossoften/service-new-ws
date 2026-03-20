@@ -9,6 +9,6 @@ export class RespondWorkExtraDto {
     enumName: 'ExtraRequestStatus',
     example: ExtraRequestStatus.Approved,
   })
-  @IsEnum(ExtraRequestStatus)
+  @IsEnum(ExtraRequestStatus, { message: 'O status do acréscimo é inválido.' })
   status: ExtraRequestStatus;
 }

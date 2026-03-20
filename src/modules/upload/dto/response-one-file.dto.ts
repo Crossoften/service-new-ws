@@ -1,9 +1,15 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class ResponseOneFileDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: 'URL pública do arquivo enviado.',
+    example: 'https://cdn.example.com/arquivo.pdf',
+  })
   fileUrl: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Chave do arquivo no storage.',
+    example: 'uploads/arquivo.pdf',
+  })
   fileKey: string;
 }

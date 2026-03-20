@@ -8,7 +8,9 @@ export class CreateCommercialTransactionDto {
     enum: CommercialTransactionReferenceType,
     example: CommercialTransactionReferenceType.Product,
   })
-  @IsEnum(CommercialTransactionReferenceType)
+  @IsEnum(CommercialTransactionReferenceType, {
+    message: 'O tipo de referência da negociação é inválido.',
+  })
   referenceType: CommercialTransactionReferenceType;
 
   @ApiProperty({
@@ -16,7 +18,7 @@ export class CreateCommercialTransactionDto {
     example: '1',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O id do item negociado deve ser um texto.' })
   referenceId: string;
 
   @ApiProperty({
@@ -24,7 +26,7 @@ export class CreateCommercialTransactionDto {
     example: '1500.00',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O valor solicitado deve ser um texto.' })
   requestedAmount: string;
 
   @ApiPropertyOptional({
@@ -33,7 +35,7 @@ export class CreateCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O título da solicitação deve ser um texto.' })
   title?: string;
 
   @ApiPropertyOptional({
@@ -42,7 +44,7 @@ export class CreateCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A descrição da negociação deve ser um texto.' })
   description?: string;
 
   @ApiPropertyOptional({
@@ -51,7 +53,7 @@ export class CreateCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O nome do arquivo deve ser um texto.' })
   fileName?: string;
 
   @ApiPropertyOptional({
@@ -60,7 +62,7 @@ export class CreateCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A URL do arquivo deve ser um texto.' })
   fileUrl?: string;
 
   @ApiPropertyOptional({
@@ -69,6 +71,6 @@ export class CreateCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A chave do arquivo deve ser um texto.' })
   fileKey?: string;
 }

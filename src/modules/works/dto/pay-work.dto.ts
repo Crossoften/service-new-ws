@@ -9,7 +9,7 @@ export class PayWorkDto {
     enumName: 'PaymentMethod',
     example: PaymentMethod.CreditCard,
   })
-  @IsEnum(PaymentMethod)
+  @IsEnum(PaymentMethod, { message: 'O método de pagamento informado é inválido.' })
   method: PaymentMethod;
 
   @ApiProperty({
@@ -19,9 +19,9 @@ export class PayWorkDto {
     example: 'Lynna Rossy',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O nome do titular deve ser um texto.' })
   @IsOptional()
-  @MaxLength(160)
+  @MaxLength(160, { message: 'O nome do titular deve ter no máximo 160 caracteres.' })
   holderName?: string;
 
   @ApiProperty({
@@ -31,9 +31,9 @@ export class PayWorkDto {
     example: 'VISA',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A bandeira do cartão deve ser um texto.' })
   @IsOptional()
-  @MaxLength(60)
+  @MaxLength(60, { message: 'A bandeira do cartão deve ter no máximo 60 caracteres.' })
   cardBrand?: string;
 
   @ApiProperty({
@@ -44,8 +44,8 @@ export class PayWorkDto {
     example: '2421572879112354',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'O número do cartão deve ser um texto.' })
   @IsOptional()
-  @IsNotEmpty()
+  @IsNotEmpty({ message: 'O número do cartão não pode ser vazio.' })
   cardNumber?: string;
 }

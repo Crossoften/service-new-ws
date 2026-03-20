@@ -1,0 +1,34 @@
+import { PrismaClient } from '@prisma/client';
+import { parsePriceDecimal } from '../../src/utils/parsePriceDecimal';
+import { planDefinitions } from '../../src/modules/plans/plans/constants/plan.constants';
+
+export async function seedPlan(prisma: PrismaClient) {
+  for (const plan of planDefinitions) {
+    await prisma.plan.upsert({
+      where: { slug: plan.slug },
+      create: {
+        name: plan.name,
+        slug: plan.slug,
+        description: plan.description,
+        price: parsePriceDecimal(plan.price),
+        interval: plan.interval,
+        intervalCount: plan.intervalCount,
+        benefits: plan.benefits,
+        isActive: true,
+        sortOrder: plan.sortOrder,
+      },
+      update: {
+        name: plan.name,
+        description: plan.description,
+        price: parsePriceDecimal(plan.price),
+        interval: plan.interval,
+        intervalCount: plan.intervalCount,
+        benefits: plan.benefits,
+        isActive: true,
+        sortOrder: plan.sortOrder,
+      },
+    });
+  }
+
+  console.log('Plans seed added successfully.');
+}

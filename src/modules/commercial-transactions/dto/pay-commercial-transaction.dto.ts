@@ -8,7 +8,7 @@ export class PayCommercialTransactionDto {
     enum: PaymentMethod,
     example: PaymentMethod.Pix,
   })
-  @IsEnum(PaymentMethod)
+  @IsEnum(PaymentMethod, { message: 'O método de pagamento informado é inválido.' })
   method: PaymentMethod;
 
   @ApiPropertyOptional({
@@ -17,7 +17,7 @@ export class PayCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O nome do titular deve ser um texto.' })
   holderName?: string;
 
   @ApiPropertyOptional({
@@ -26,7 +26,7 @@ export class PayCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'A bandeira do cartão deve ser um texto.' })
   cardBrand?: string;
 
   @ApiPropertyOptional({
@@ -35,6 +35,6 @@ export class PayCommercialTransactionDto {
     type: String,
   })
   @IsOptional()
-  @IsString()
+  @IsString({ message: 'O número do cartão deve ser um texto.' })
   cardNumber?: string;
 }

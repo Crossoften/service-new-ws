@@ -9,7 +9,7 @@ export class RespondWorkWarrantyDto {
     enumName: 'WarrantyRequestStatus',
     example: WarrantyRequestStatus.Approved,
   })
-  @IsEnum(WarrantyRequestStatus)
+  @IsEnum(WarrantyRequestStatus, { message: 'O status da garantia é inválido.' })
   status: WarrantyRequestStatus;
 
   @ApiProperty({
@@ -19,7 +19,7 @@ export class RespondWorkWarrantyDto {
     example: 'Solicitação aprovada. Vamos realizar o ajuste sem custo adicional.',
     type: String,
   })
-  @IsString()
+  @IsString({ message: 'A descrição da resposta da garantia deve ser um texto.' })
   @IsOptional()
   description?: string;
 }

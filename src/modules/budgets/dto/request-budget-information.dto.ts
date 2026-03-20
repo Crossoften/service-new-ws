@@ -9,8 +9,8 @@ export class RequestBudgetInformationDto {
     example: 'Preciso de mais detalhes sobre o local e metragem.',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'A mensagem deve ser um texto.' })
+  @IsNotEmpty({ message: 'A mensagem é obrigatória.' })
   message: string;
 
   @ApiProperty({
@@ -18,8 +18,8 @@ export class RequestBudgetInformationDto {
     required: false,
     type: [CreateBudgetFileDto],
   })
-  @IsArray()
-  @ArrayMaxSize(10)
+  @IsArray({ message: 'Os arquivos devem ser enviados em lista.' })
+  @ArrayMaxSize(10, { message: 'É permitido enviar no máximo 10 arquivos.' })
   @Type(() => CreateBudgetFileDto)
   @IsOptional()
   files?: CreateBudgetFileDto[];

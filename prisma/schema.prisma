@@ -44,6 +44,7 @@ model User {
   receivedPayments      Payment[]               @relation("PaymentReceiver")
   purchases             CommercialTransaction[] @relation("CommercialTransactionBuyer")
   sales                 CommercialTransaction[] @relation("CommercialTransactionSeller")
+  subscriptions         Subscription[]
   chatParticipants      ChatParticipant[]
   chatMessages          ChatMessage[]           @relation("ChatMessageSender")
   createdChatRooms      ChatRoom[]              @relation("ChatRoomCreator")
@@ -227,11 +228,13 @@ model Address {
   neighborhood String? @db.VarChar(120)
   city         String? @db.VarChar(120)
   state        String? @db.VarChar(120)
+  zipCode      String? @db.VarChar(20)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accommodation Accommodation?
+  subscriptions Subscription[]
 
   @@map("addresses")
 }
@@ -553,6 +556,58 @@ model Payment {
   @@map("payments")
 }
 
+model Plan {
+  id            Int                  @id @default(autoincrement())
+  name          String               @db.VarChar(120)
+  slug          String               @unique @db.VarChar(120)
+  description   String?              @db.LongText()
+  price         Decimal              @db.Decimal(10, 2)
+  interval      SubscriptionInterval
+  intervalCount Int                  @default(1)
+  benefits      Json?
+  isActive      Boolean              @default(true)
+  sortOrder     Int                  @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@index([isActive])
+  @@index([sortOrder])
+  @@map("plans")
+}
+
+model Subscription {
+  id                  Int                @id @default(autoincrement())
+  status              SubscriptionStatus @default(Active)
+  amount              Decimal            @db.Decimal(10, 2)
+  planName            String             @db.VarChar(120)
+  planInterval        SubscriptionInterval
+  intervalCount       Int                @default(1)
+  startedAt           DateTime?
+  currentPeriodStart  DateTime?
+  currentPeriodEnd    DateTime?
+  cancelledAt         DateTime?
+  userId              Int
+  planId              Int
+  addressId           Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+  address Address? @relation(fields: [addressId], references: [id])
+
+  @@index([userId])
+  @@index([planId])
+  @@index([addressId])
+  @@index([status])
+  @@index([currentPeriodEnd])
+  @@map("subscriptions")
+}
+
 model FinancialTransaction {
   id Int @id @default(autoincrement())
 
@@ -726,6 +781,7 @@ enum PaymentStatus {
 enum PaymentReferenceType {
   Work
   CommercialTransaction
+  Subscription
 }
 
 enum CommercialTransactionReferenceType {
@@ -749,10 +805,22 @@ enum FinancialTransactionType {
 enum FinancialTransactionCategory {
   WorkPayment
   CommercialTransaction
+  Subscription
   Fee
   Withdrawal
   Refund
   Adjustment
+}
+
+enum SubscriptionInterval {
+  Month
+  Year
+}
+
+enum SubscriptionStatus {
+  Active
+  Cancelled
+  Expired
 }
 
 enum WorkFileType {

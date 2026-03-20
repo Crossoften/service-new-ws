@@ -18,8 +18,8 @@ export class FinishWorkDto {
     example: 'Serviço concluído conforme combinado.',
     type: String,
   })
-  @IsString()
-  @IsNotEmpty()
+  @IsString({ message: 'A descrição da conclusão deve ser um texto.' })
+  @IsNotEmpty({ message: 'A descrição da conclusão é obrigatória.' })
   completionDescription: string;
 
   @ApiProperty({
@@ -28,7 +28,7 @@ export class FinishWorkDto {
     example: '2026-03-16T18:00:00.000Z',
     type: String,
   })
-  @IsDateString()
+  @IsDateString({}, { message: 'A data do serviço deve estar em formato ISO 8601.' })
   @IsOptional()
   serviceDate?: string;
 
@@ -38,7 +38,7 @@ export class FinishWorkDto {
     example: '350.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O valor do serviço deve conter apenas números.' })
   @IsOptional()
   serviceValue?: string;
 
@@ -48,7 +48,7 @@ export class FinishWorkDto {
     example: '350.00',
     type: String,
   })
-  @IsNumberString()
+  @IsNumberString({}, { message: 'O valor total deve conter apenas números.' })
   @IsOptional()
   totalValue?: string;
 
@@ -59,7 +59,7 @@ export class FinishWorkDto {
     example: '2026-06-16T23:59:59.000Z',
     type: String,
   })
-  @IsDateString()
+  @IsDateString({}, { message: 'A data da garantia deve estar em formato ISO 8601.' })
   @IsOptional()
   warrantyExpiresAt?: string;
 
@@ -76,8 +76,8 @@ export class FinishWorkDto {
       },
     ],
   })
-  @IsArray()
-  @ArrayMaxSize(10)
+  @IsArray({ message: 'Os arquivos de conclusão devem ser enviados em lista.' })
+  @ArrayMaxSize(10, { message: 'É permitido enviar no máximo 10 arquivos.' })
   @Type(() => CreateWorkFileDto)
   @IsOptional()
   completionFiles?: CreateWorkFileDto[];
