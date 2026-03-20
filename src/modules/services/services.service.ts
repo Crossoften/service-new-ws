@@ -149,7 +149,7 @@ export class ServicesService {
   async findAll(query: QueryServiceDto): Promise<ResponseFindAllServiceDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const categoryId = query.categoryId
       ? parsePositiveInt(query.categoryId, 'categoryId')
       : undefined;
@@ -158,11 +158,17 @@ export class ServicesService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
 
     const where: Prisma.ServiceWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       type: query.type,
       userId,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+          ]
+        : undefined,
     };
 
     const [services, totalRecords] = await Promise.all([
@@ -240,7 +246,7 @@ export class ServicesService {
   async findMyServices(user: User, query: QueryServiceDto): Promise<ResponseFindAllServiceDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const categoryId = query.categoryId
       ? parsePositiveInt(query.categoryId, 'categoryId')
       : undefined;
@@ -248,11 +254,17 @@ export class ServicesService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.ServiceWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       type: query.type,
       userId: user.id,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+          ]
+        : undefined,
     };
 
     const [services, totalRecords] = await Promise.all([

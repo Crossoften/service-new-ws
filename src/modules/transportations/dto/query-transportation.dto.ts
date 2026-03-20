@@ -3,6 +3,16 @@ import { IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class QueryTransportationDto {
   @ApiProperty({
+    description: 'Busca textual por nome, modelo, categoria ou nome do anunciante.',
+    required: false,
+    example: 'Caminhão',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiProperty({
     description: 'Filtro textual aplicado sobre o nome do transporte.',
     required: false,
     example: 'Caminhão',

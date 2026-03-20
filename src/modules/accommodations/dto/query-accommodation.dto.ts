@@ -3,6 +3,16 @@ import { IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class QueryAccommodationDto {
   @ApiProperty({
+    description: 'Busca textual por nome, cidade, estado, categoria ou nome do anunciante.',
+    required: false,
+    example: 'Uberlândia',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiProperty({
     description: 'Filtro textual aplicado sobre o nome da hospedagem.',
     required: false,
     example: 'Novo Leste',

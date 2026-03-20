@@ -188,7 +188,7 @@ export class ProductsService {
   async findAll(query: QueryProductDto): Promise<ResponseFindAllProductDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const categoryId = query.categoryId
       ? parsePositiveInt(query.categoryId, 'categoryId')
       : undefined;
@@ -198,11 +198,18 @@ export class ProductsService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
 
     const where: Prisma.ProductWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       userId,
       transactionType,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { model: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+          ]
+        : undefined,
     };
 
     const [products, totalRecords] = await Promise.all([
@@ -271,7 +278,7 @@ export class ProductsService {
   async findMyProducts(user: User, query: QueryProductDto): Promise<ResponseFindAllProductDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const categoryId = query.categoryId
       ? parsePositiveInt(query.categoryId, 'categoryId')
       : undefined;
@@ -280,11 +287,18 @@ export class ProductsService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.ProductWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       userId: user.id,
       transactionType,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { model: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+          ]
+        : undefined,
     };
 
     const [products, totalRecords] = await Promise.all([
