@@ -1,3 +1,4 @@
 export enum PaymentReferenceType {
   Work = 'Work',
+  CommercialTransaction = 'CommercialTransaction',
 }
