@@ -1,7 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumberString, IsOptional } from 'class-validator';
+import { IsNumberString, IsOptional, IsString } from 'class-validator';
 
 export class QueryChatMessagesDto {
+  @ApiProperty({
+    description: 'Busca textual aplicada sobre o conteúdo da mensagem e nome do remetente.',
+    required: false,
+    example: 'cheguei',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
   @ApiProperty({
     description: 'Quantidade de mensagens por página.',
     required: false,

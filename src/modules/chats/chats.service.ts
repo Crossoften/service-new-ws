@@ -113,11 +113,17 @@ export class ChatsService {
   ): Promise<ResponseFindChatMessagesDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 20;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const search = query.search?.trim() || undefined;
     const room = await this.findAuthorizedRoomDetailsById(user, roomId);
 
     const [messages, totalRecords] = await Promise.all([
       this.prisma.chatMessage.findMany({
-        where: { roomId: room.id },
+        where: {
+          roomId: room.id,
+          OR: search
+            ? [{ message: { contains: search } }, { sender: { name: { contains: search } } }]
+            : undefined,
+        },
         select: {
           id: true,
           message: true,
@@ -139,7 +145,12 @@ export class ChatsService {
         skip: (page - 1) * take,
       }),
       this.prisma.chatMessage.count({
-        where: { roomId: room.id },
+        where: {
+          roomId: room.id,
+          OR: search
+            ? [{ message: { contains: search } }, { sender: { name: { contains: search } } }]
+            : undefined,
+        },
       }),
     ]);
 
