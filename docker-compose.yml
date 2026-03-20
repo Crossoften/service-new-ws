@@ -21,7 +21,7 @@ services:
 
   db:
     image: mysql:8.0
-    container_name: database_application
+    container_name: service_new_database_application
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: ${DB_DATABASE}
