@@ -4,6 +4,16 @@ import { ProductTransactionType } from '../enums/product-transaction-type.enum';
 
 export class QueryProductDto {
   @ApiProperty({
+    description: 'Busca textual por nome, modelo, categoria ou nome do anunciante.',
+    required: false,
+    example: 'Fiat',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiProperty({
     description: 'Filtro textual aplicado sobre o nome do produto.',
     required: false,
     example: 'Fiat',

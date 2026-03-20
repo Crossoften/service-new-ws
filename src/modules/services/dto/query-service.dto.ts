@@ -4,6 +4,16 @@ import { ServiceType } from '../enums/service-type.enum';
 
 export class QueryServiceDto {
   @ApiProperty({
+    description: 'Busca textual por nome do serviço, categoria ou nome do prestador.',
+    required: false,
+    example: 'consulta',
+    type: String,
+  })
+  @IsString()
+  @IsOptional()
+  search?: string;
+
+  @ApiProperty({
     description: 'Filtro por trecho do nome do serviço.',
     required: false,
     example: 'consulta',

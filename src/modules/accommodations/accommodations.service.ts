@@ -219,7 +219,7 @@ export class AccommodationsService {
   async findAll(query: QueryAccommodationDto): Promise<ResponseFindAllAccommodationDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const city = query.city ? query.city.trim() : undefined;
     const state = query.state ? query.state.trim() : undefined;
     const categoryId = query.categoryId
@@ -230,10 +230,18 @@ export class AccommodationsService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
 
     const where: Prisma.AccommodationWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       userId,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+            { address: { is: { city: { contains: search } } } },
+            { address: { is: { state: { contains: search } } } },
+          ]
+        : undefined,
     };
 
     if (city || state) {
@@ -316,7 +324,7 @@ export class AccommodationsService {
   ): Promise<ResponseFindAllAccommodationDto> {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const name = query.name ? query.name.trim() : undefined;
+    const search = query.search?.trim() || query.name?.trim() || undefined;
     const city = query.city ? query.city.trim() : undefined;
     const state = query.state ? query.state.trim() : undefined;
     const categoryId = query.categoryId
@@ -326,10 +334,18 @@ export class AccommodationsService {
       query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.AccommodationWhereInput = {
-      name: name ? { contains: name } : undefined,
       categoryId,
       userId: user.id,
       isActive,
+      OR: search
+        ? [
+            { name: { contains: search } },
+            { category: { name: { contains: search } } },
+            { user: { name: { contains: search } } },
+            { address: { is: { city: { contains: search } } } },
+            { address: { is: { state: { contains: search } } } },
+          ]
+        : undefined,
     };
 
     if (city || state) {
