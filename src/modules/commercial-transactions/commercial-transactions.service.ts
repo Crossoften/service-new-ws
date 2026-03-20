@@ -1,10 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import {
-  BadRequestException,
-  ForbiddenException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import {
   ChatContextType,
   CommercialTransactionReferenceType as PrismaCommercialTransactionReferenceType,
@@ -19,6 +14,7 @@ import {
 } from '@prisma/client';
 import { parsePositiveInt } from 'src/utils/parsePositiveInt';
 import { parsePriceDecimal } from 'src/utils/parsePriceDecimal';
+import { ProductNotFoundException } from '../products/exceptions/product-not-found.exception';
 import { FinancialTransactionType } from '../works/enums/financial-transaction-type.enum';
 import { PaymentMethod } from '../works/enums/payment-method.enum';
 import { PaymentStatus } from '../works/enums/payment-status.enum';
@@ -34,6 +30,21 @@ import { RespondCommercialTransactionDto } from './dto/respond-commercial-transa
 import { CommercialTransactionParticipantRole } from './enums/commercial-transaction-participant-role.enum';
 import { CommercialTransactionReferenceType } from './enums/commercial-transaction-reference-type.enum';
 import { CommercialTransactionStatus } from './enums/commercial-transaction-status.enum';
+import { CommercialTransactionAccessDeniedException } from './exceptions/commercial-transaction-access-denied.exception';
+import { CommercialTransactionAlreadyFinishedException } from './exceptions/commercial-transaction-already-finished.exception';
+import { CommercialTransactionBuyerCompletionNotAllowedException } from './exceptions/commercial-transaction-buyer-completion-not-allowed.exception';
+import { CommercialTransactionBuyerPaymentNotAllowedException } from './exceptions/commercial-transaction-buyer-payment-not-allowed.exception';
+import { CommercialTransactionChatNotFoundException } from './exceptions/commercial-transaction-chat-not-found.exception';
+import { CommercialTransactionInvalidResponseStatusException } from './exceptions/commercial-transaction-invalid-response-status.exception';
+import { CommercialTransactionNotFoundException } from './exceptions/commercial-transaction-not-found.exception';
+import { CommercialTransactionPaidCancelNotAllowedException } from './exceptions/commercial-transaction-paid-cancel-not-allowed.exception';
+import { CommercialTransactionPaymentAlreadyRegisteredException } from './exceptions/commercial-transaction-payment-already-registered.exception';
+import { CommercialTransactionPaymentBeforeAcceptanceException } from './exceptions/commercial-transaction-payment-before-acceptance.exception';
+import { CommercialTransactionPendingResponseOnlyException } from './exceptions/commercial-transaction-pending-response-only.exception';
+import { CommercialTransactionSelfRequestNotAllowedException } from './exceptions/commercial-transaction-self-request-not-allowed.exception';
+import { CommercialTransactionSellerResponseNotAllowedException } from './exceptions/commercial-transaction-seller-response-not-allowed.exception';
+import { CommercialTransactionUnpaidCompletionNotAllowedException } from './exceptions/commercial-transaction-unpaid-completion-not-allowed.exception';
+import { CommercialTransactionUnsupportedReferenceTypeException } from './exceptions/commercial-transaction-unsupported-reference-type.exception';
 
 @Injectable()
 export class CommercialTransactionsService {
@@ -87,7 +98,7 @@ export class CommercialTransactionsService {
     payload: CreateCommercialTransactionDto,
   ): Promise<CreateCommercialTransactionResponseDto> {
     if (payload.referenceType !== CommercialTransactionReferenceType.Product) {
-      throw new BadRequestException('O tipo de referência informado ainda não é suportado.');
+      throw new CommercialTransactionUnsupportedReferenceTypeException();
     }
 
     const referenceId = parsePositiveInt(payload.referenceId, 'referenceId');
@@ -104,11 +115,11 @@ export class CommercialTransactionsService {
     });
 
     if (!product || !product.isActive) {
-      throw new NotFoundException('Produto não encontrado.');
+      throw new ProductNotFoundException();
     }
 
     if (product.userId === user.id) {
-      throw new BadRequestException('Você não pode abrir uma negociação para o próprio produto.');
+      throw new CommercialTransactionSelfRequestNotAllowedException();
     }
 
     const title = payload.title?.trim() || `Solicitação para ${product.name}`;
@@ -227,7 +238,7 @@ export class CommercialTransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Negociação não encontrada.');
+      throw new CommercialTransactionNotFoundException();
     }
 
     this.assertAccess(user, transaction);
@@ -272,22 +283,22 @@ export class CommercialTransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Negociação não encontrada.');
+      throw new CommercialTransactionNotFoundException();
     }
 
     if (transaction.sellerId !== user.id) {
-      throw new ForbiddenException('Somente o vendedor pode responder a negociação.');
+      throw new CommercialTransactionSellerResponseNotAllowedException();
     }
 
     if (transaction.status !== PrismaCommercialTransactionStatus.Requested) {
-      throw new BadRequestException('Somente negociações pendentes podem ser respondidas.');
+      throw new CommercialTransactionPendingResponseOnlyException();
     }
 
     if (
       payload.status !== CommercialTransactionStatus.Accepted &&
       payload.status !== CommercialTransactionStatus.Rejected
     ) {
-      throw new BadRequestException('Status de resposta inválido.');
+      throw new CommercialTransactionInvalidResponseStatusException();
     }
 
     const agreedAmount =
@@ -334,15 +345,15 @@ export class CommercialTransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Negociação não encontrada.');
+      throw new CommercialTransactionNotFoundException();
     }
 
     if (transaction.buyerId !== user.id) {
-      throw new ForbiddenException('Somente o comprador pode registrar o pagamento.');
+      throw new CommercialTransactionBuyerPaymentNotAllowedException();
     }
 
     if (transaction.status !== PrismaCommercialTransactionStatus.Accepted) {
-      throw new BadRequestException('A negociação precisa estar aceita antes do pagamento.');
+      throw new CommercialTransactionPaymentBeforeAcceptanceException();
     }
 
     const existingPayment = await this.prisma.payment.findFirst({
@@ -354,7 +365,7 @@ export class CommercialTransactionsService {
     });
 
     if (existingPayment) {
-      throw new BadRequestException('Já existe um pagamento registrado para essa negociação.');
+      throw new CommercialTransactionPaymentAlreadyRegisteredException();
     }
 
     const amount = transaction.agreedAmount || transaction.requestedAmount;
@@ -434,15 +445,15 @@ export class CommercialTransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Negociação não encontrada.');
+      throw new CommercialTransactionNotFoundException();
     }
 
     if (transaction.buyerId !== user.id) {
-      throw new ForbiddenException('Somente o comprador pode concluir a negociação.');
+      throw new CommercialTransactionBuyerCompletionNotAllowedException();
     }
 
     if (transaction.status !== PrismaCommercialTransactionStatus.Paid) {
-      throw new BadRequestException('Somente negociações pagas podem ser concluídas.');
+      throw new CommercialTransactionUnpaidCompletionNotAllowedException();
     }
 
     await this.prisma.commercialTransaction.update({
@@ -468,7 +479,7 @@ export class CommercialTransactionsService {
     });
 
     if (!transaction) {
-      throw new NotFoundException('Negociação não encontrada.');
+      throw new CommercialTransactionNotFoundException();
     }
 
     const canAccess =
@@ -478,18 +489,18 @@ export class CommercialTransactionsService {
       user.role === Role.Master;
 
     if (!canAccess) {
-      throw new ForbiddenException('Acesso não autorizado à negociação.');
+      throw new CommercialTransactionAccessDeniedException();
     }
 
     if (
       transaction.status === CommercialTransactionStatus.Cancelled ||
       transaction.status === CommercialTransactionStatus.Completed
     ) {
-      throw new BadRequestException('Essa negociação já foi encerrada.');
+      throw new CommercialTransactionAlreadyFinishedException();
     }
 
     if (transaction.status === PrismaCommercialTransactionStatus.Paid) {
-      throw new BadRequestException('Negociações pagas não podem ser canceladas por essa rota.');
+      throw new CommercialTransactionPaidCancelNotAllowedException();
     }
 
     await this.prisma.commercialTransaction.update({
@@ -532,7 +543,7 @@ export class CommercialTransactionsService {
       user.role === Role.Master;
 
     if (!canAccess) {
-      throw new ForbiddenException('Acesso não autorizado à negociação.');
+      throw new CommercialTransactionAccessDeniedException();
     }
   }
 
@@ -596,7 +607,7 @@ export class CommercialTransactionsService {
     });
 
     if (!room) {
-      throw new NotFoundException('Chat da negociação não encontrado.');
+      throw new CommercialTransactionChatNotFoundException();
     }
 
     return room;
@@ -619,7 +630,7 @@ export class CommercialTransactionsService {
     });
 
     if (!room) {
-      throw new NotFoundException('Chat da negociação não encontrado.');
+      throw new CommercialTransactionChatNotFoundException();
     }
 
     await tx.chatMessage.create({
