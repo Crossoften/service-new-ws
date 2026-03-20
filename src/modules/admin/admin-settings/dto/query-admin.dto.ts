@@ -6,6 +6,11 @@ export class QueryAdminDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  search?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   name?: string;
 
   @ApiProperty({ enum: Status, required: false })
