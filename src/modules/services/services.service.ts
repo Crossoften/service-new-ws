@@ -21,7 +21,7 @@ import { ServiceNotFoundException } from './exceptions/service-not-found.excepti
 import { ServicePersistenceException } from './exceptions/service-persistence.exception';
 import { ServiceReviewNotAllowedException } from './exceptions/service-review-not-allowed.exception';
 import { ServiceSelfReviewNotAllowedException } from './exceptions/service-self-review-not-allowed.exception';
-import { ServiceType } from './enums/service-type.enum';
+import { ServiceTypeEnum } from './enums/service-type.enum';
 import { UpdateServiceDto } from './dto/update-service.dto';
 
 @Injectable()
@@ -211,7 +211,7 @@ export class ServicesService {
       services: services.map((service) => ({
         id: service.id,
         name: service.name,
-        type: service.type as ServiceType,
+        type: service.type as ServiceTypeEnum,
         price: service.price.toFixed(2),
         description: service.description,
         imageUrl: service.imageUrl,
@@ -307,7 +307,7 @@ export class ServicesService {
       services: services.map((service) => ({
         id: service.id,
         name: service.name,
-        type: service.type as ServiceType,
+        type: service.type as ServiceTypeEnum,
         price: service.price.toFixed(2),
         description: service.description,
         imageUrl: service.imageUrl,
@@ -366,7 +366,7 @@ export class ServicesService {
     return {
       id: service.id,
       name: service.name,
-      type: service.type as ServiceType,
+      type: service.type as ServiceTypeEnum,
       registrationCode: service.registrationCode,
       price: service.price.toFixed(2),
       description: service.description,
@@ -431,7 +431,7 @@ export class ServicesService {
     return {
       id: service.id,
       name: service.name,
-      type: service.type as ServiceType,
+      type: service.type as ServiceTypeEnum,
       registrationCode: service.registrationCode,
       price: service.price.toFixed(2),
       description: service.description,

@@ -12,9 +12,9 @@ import {
   User,
 } from '@prisma/client';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { FinancialTransactionType } from '../../works/enums/financial-transaction-type.enum';
-import { PaymentMethod } from '../../works/enums/payment-method.enum';
-import { PaymentStatus } from '../../works/enums/payment-status.enum';
+import { FinancialTransactionTypeEnum } from '../../works/enums/financial-transaction-type.enum';
+import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
+import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import {
   CreateSubscriptionResponseDto,
@@ -22,8 +22,8 @@ import {
   ResponseSubscriptionDto,
 } from './dto/response-subscription.dto';
 import { ResponsePlanDto } from '../plans/dto/response-plan.dto';
-import { SubscriptionInterval } from '../enums/subscription-interval.enum';
-import { SubscriptionStatus } from '../enums/subscription-status.enum';
+import { SubscriptionIntervalEnum } from '../enums/subscription-interval.enum';
+import { SubscriptionStatusEnum } from '../enums/subscription-status.enum';
 import { PlanNotFoundException } from '../plans/exceptions/plan-not-found.exception';
 import { SubscriptionAccessDeniedException } from './exceptions/subscription-access-denied.exception';
 import { SubscriptionActiveNotFoundException } from './exceptions/subscription-active-not-found.exception';
@@ -172,7 +172,7 @@ export class SubscriptionsService {
       await tx.financialTransaction.createMany({
         data: [
           {
-            type: FinancialTransactionType.Debit,
+            type: FinancialTransactionTypeEnum.Debit,
             category: PrismaFinancialTransactionCategory.Subscription,
             status: PrismaPaymentStatus.Paid,
             amount: plan.price,
@@ -184,7 +184,7 @@ export class SubscriptionsService {
             paymentId: payment.id,
           },
           {
-            type: FinancialTransactionType.Credit,
+            type: FinancialTransactionTypeEnum.Credit,
             category: PrismaFinancialTransactionCategory.Subscription,
             status: PrismaPaymentStatus.Paid,
             amount: plan.price,
@@ -318,7 +318,7 @@ export class SubscriptionsService {
   ): Date {
     const end = new Date(start);
 
-    if (interval === SubscriptionInterval.Year) {
+    if (interval === SubscriptionIntervalEnum.Year) {
       end.setFullYear(end.getFullYear() + intervalCount);
       return end;
     }
@@ -348,10 +348,10 @@ export class SubscriptionsService {
 
     return {
       id: subscription.id,
-      status: subscription.status as SubscriptionStatus,
+      status: subscription.status as SubscriptionStatusEnum,
       amount: subscription.amount.toFixed(2),
       planName: subscription.planName,
-      planInterval: subscription.planInterval as SubscriptionInterval,
+      planInterval: subscription.planInterval as SubscriptionIntervalEnum,
       intervalCount: subscription.intervalCount,
       plan: {
         id: subscription.plan.id,
@@ -359,7 +359,7 @@ export class SubscriptionsService {
         slug: subscription.plan.slug,
         description: subscription.plan.description || undefined,
         price: subscription.plan.price.toFixed(2),
-        interval: subscription.plan.interval as SubscriptionInterval,
+        interval: subscription.plan.interval as SubscriptionIntervalEnum,
         intervalCount: subscription.plan.intervalCount,
         benefits: Array.isArray(subscription.plan.benefits)
           ? subscription.plan.benefits.map((item: any) => String(item))
@@ -372,8 +372,8 @@ export class SubscriptionsService {
       payment: payment
         ? {
             id: payment.id,
-            method: payment.method as PaymentMethod,
-            status: payment.status as PaymentStatus,
+            method: payment.method as PaymentMethodEnum,
+            status: payment.status as PaymentStatusEnum,
             amount: payment.amount.toFixed(2),
             holderName: payment.holderName || undefined,
             cardBrand: payment.cardBrand || undefined,

@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ExtraRequestStatus } from '@prisma/client';
-import { BudgetStatus } from '../enums/budget-status.enum';
-import { BudgetTimeUnit } from '../enums/budget-time-unit.enum';
+import { BudgetStatusEnum } from '../enums/budget-status.enum';
+import { BudgetTimeUnitEnum } from '../enums/budget-time-unit.enum';
 import { ResponseBudgetFileDto } from './response-budget-file.dto';
 import { ResponseBudgetInformationDto } from './response-budget-information.dto';
 
@@ -70,11 +70,11 @@ export class ResponseBudgetListItemDto {
 
   @ApiProperty({
     description: 'Status atual do orçamento.',
-    enum: BudgetStatus,
-    enumName: 'BudgetStatus',
-    example: BudgetStatus.Pending,
+    enum: BudgetStatusEnum,
+    enumName: 'BudgetStatusEnum',
+    example: BudgetStatusEnum.Pending,
   })
-  status: BudgetStatus;
+  status: BudgetStatusEnum;
 
   @ApiProperty({
     description: 'Valor respondido do orçamento.',
@@ -104,13 +104,13 @@ export class ResponseBudgetListItemDto {
 
   @ApiProperty({
     description: 'Unidade da previsão.',
-    enum: BudgetTimeUnit,
-    enumName: 'BudgetTimeUnit',
+    enum: BudgetTimeUnitEnum,
+    enumName: 'BudgetTimeUnitEnum',
     required: false,
     nullable: true,
-    example: BudgetTimeUnit.Day,
+    example: BudgetTimeUnitEnum.Day,
   })
-  responseTimeUnit?: BudgetTimeUnit;
+  responseTimeUnit?: BudgetTimeUnitEnum;
 
   @ApiProperty({ type: ResponseBudgetServiceSummaryDto })
   service: ResponseBudgetServiceSummaryDto;
@@ -142,11 +142,11 @@ export class ResponseBudgetDto {
 
   @ApiProperty({
     description: 'Status atual do orçamento.',
-    enum: BudgetStatus,
-    enumName: 'BudgetStatus',
-    example: BudgetStatus.Pending,
+    enum: BudgetStatusEnum,
+    enumName: 'BudgetStatusEnum',
+    example: BudgetStatusEnum.Pending,
   })
-  status: BudgetStatus;
+  status: BudgetStatusEnum;
 
   @ApiProperty({
     description: 'Descrição da resposta do fornecedor.',
@@ -216,13 +216,13 @@ export class ResponseBudgetDto {
 
   @ApiProperty({
     description: 'Unidade da previsão.',
-    enum: BudgetTimeUnit,
-    enumName: 'BudgetTimeUnit',
+    enum: BudgetTimeUnitEnum,
+    enumName: 'BudgetTimeUnitEnum',
     required: false,
     nullable: true,
-    example: BudgetTimeUnit.Day,
+    example: BudgetTimeUnitEnum.Day,
   })
-  responseTimeUnit?: BudgetTimeUnit;
+  responseTimeUnit?: BudgetTimeUnitEnum;
 
   @ApiProperty({ description: 'Id do serviço vinculado.', example: 3 })
   serviceId: number;

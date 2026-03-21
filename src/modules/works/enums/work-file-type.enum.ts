@@ -1,4 +1,4 @@
-export enum WorkFileType {
+export enum WorkFileTypeEnum {
   Requester = 'Requester',
   Provider = 'Provider',
   Completion = 'Completion',

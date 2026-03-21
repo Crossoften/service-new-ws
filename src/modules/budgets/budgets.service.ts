@@ -5,8 +5,8 @@ import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateWorkResponseDto } from '../works/dto/create-work-response.dto';
-import { WorkFileType } from '../works/enums/work-file-type.enum';
-import { WorkStatus } from '../works/enums/work-status.enum';
+import { WorkFileTypeEnum } from '../works/enums/work-file-type.enum';
+import { WorkStatusEnum } from '../works/enums/work-status.enum';
 import { CreateBudgetResponseDto } from './dto/create-budget-response.dto';
 import { CreateBudgetDto } from './dto/create-budget.dto';
 import { QueryBudgetDto } from './dto/query-budget.dto';
@@ -16,10 +16,10 @@ import { RespondBudgetExtraDto } from './dto/respond-budget-extra.dto';
 import { ResponseFindAllBudgetDto } from './dto/response-find-all-budget.dto';
 import { ResponseBudgetDto } from './dto/response-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
-import { BudgetFileType } from './enums/budget-file-type.enum';
-import { BudgetScope } from './enums/budget-scope.enum';
-import { BudgetStatus } from './enums/budget-status.enum';
-import { BudgetTimeUnit } from './enums/budget-time-unit.enum';
+import { BudgetFileTypeEnum } from './enums/budget-file-type.enum';
+import { BudgetScopeEnum } from './enums/budget-scope.enum';
+import { BudgetStatusEnum } from './enums/budget-status.enum';
+import { BudgetTimeUnitEnum } from './enums/budget-time-unit.enum';
 import { BudgetAccessDeniedException } from './exceptions/budget-access-denied.exception';
 import { BudgetAlreadyApprovedException } from './exceptions/budget-already-approved.exception';
 import { BudgetApprovalNotAllowedException } from './exceptions/budget-approval-not-allowed.exception';
@@ -247,7 +247,7 @@ export class BudgetsService {
                     fileName: file.fileName,
                     fileUrl: file.fileUrl,
                     fileKey: file.fileKey,
-                    type: BudgetFileType.Request,
+                    type: BudgetFileTypeEnum.Request,
                   })),
                 }
               : undefined,
@@ -260,7 +260,7 @@ export class BudgetsService {
         budget: {
           id: budget.id,
           description: budget.description,
-          status: budget.status as BudgetStatus,
+          status: budget.status as BudgetStatusEnum,
           responseDescription: budget.responseDescription,
           responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
           extraRequestValue: budget.extraRequestValue
@@ -271,7 +271,7 @@ export class BudgetsService {
           extraRequestedAt: budget.extraRequestedAt || undefined,
           extraRespondedAt: budget.extraRespondedAt || undefined,
           responseTimeQuantity: budget.responseTimeQuantity,
-          responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
+          responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnitEnum,
           serviceId: budget.serviceId,
           service: budget.service,
           requesterId: budget.requesterId,
@@ -283,7 +283,7 @@ export class BudgetsService {
             fileName: file.fileName,
             fileUrl: file.fileUrl,
             fileKey: file.fileKey,
-            type: file.type as BudgetFileType,
+            type: file.type as BudgetFileTypeEnum,
             createdAt: file.createdAt,
             updatedAt: file.updatedAt,
           })),
@@ -295,7 +295,7 @@ export class BudgetsService {
               fileName: file.fileName,
               fileUrl: file.fileUrl,
               fileKey: file.fileKey,
-              type: file.type as BudgetFileType,
+              type: file.type as BudgetFileTypeEnum,
               createdAt: file.createdAt,
               updatedAt: file.updatedAt,
             })),
@@ -320,13 +320,13 @@ export class BudgetsService {
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
     const serviceId = query.serviceId ? parsePositiveInt(query.serviceId, 'serviceId') : undefined;
     const search = query.search ? query.search.trim() : undefined;
-    const scope = query.scope || BudgetScope.Received;
+    const scope = query.scope || BudgetScopeEnum.Received;
 
     const where: Prisma.BudgetWhereInput = {
       status: query.status,
       serviceId,
-      requesterId: scope === BudgetScope.Requested ? user.id : undefined,
-      providerId: scope === BudgetScope.Received ? user.id : undefined,
+      requesterId: scope === BudgetScopeEnum.Requested ? user.id : undefined,
+      providerId: scope === BudgetScopeEnum.Received ? user.id : undefined,
       OR: search
         ? [
             { requester: { name: { contains: search } } },
@@ -351,11 +351,11 @@ export class BudgetsService {
       budgets: budgets.map((budget) => ({
         id: budget.id,
         description: budget.description,
-        status: budget.status as BudgetStatus,
+        status: budget.status as BudgetStatusEnum,
         responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
         extraRequestStatus: budget.extraRequestStatus || undefined,
         responseTimeQuantity: budget.responseTimeQuantity,
-        responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
+        responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnitEnum,
         service: budget.service,
         requester: {
           id: budget.requester.id,
@@ -393,7 +393,7 @@ export class BudgetsService {
     return {
       id: budget.id,
       description: budget.description,
-      status: budget.status as BudgetStatus,
+      status: budget.status as BudgetStatusEnum,
       responseDescription: budget.responseDescription,
       responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
       extraRequestValue: budget.extraRequestValue ? budget.extraRequestValue.toFixed(2) : undefined,
@@ -402,7 +402,7 @@ export class BudgetsService {
       extraRequestedAt: budget.extraRequestedAt || undefined,
       extraRespondedAt: budget.extraRespondedAt || undefined,
       responseTimeQuantity: budget.responseTimeQuantity,
-      responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnit,
+      responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnitEnum,
       serviceId: budget.serviceId,
       service: budget.service,
       requesterId: budget.requesterId,
@@ -414,7 +414,7 @@ export class BudgetsService {
         fileName: file.fileName,
         fileUrl: file.fileUrl,
         fileKey: file.fileKey,
-        type: file.type as BudgetFileType,
+        type: file.type as BudgetFileTypeEnum,
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
       })),
@@ -426,7 +426,7 @@ export class BudgetsService {
           fileName: file.fileName,
           fileUrl: file.fileUrl,
           fileKey: file.fileKey,
-          type: file.type as BudgetFileType,
+          type: file.type as BudgetFileTypeEnum,
           createdAt: file.createdAt,
           updatedAt: file.updatedAt,
         })),
@@ -501,11 +501,11 @@ export class BudgetsService {
           status:
             payload.status ??
             (isUpdatingResponse
-              ? BudgetStatus.Responded
+              ? BudgetStatusEnum.Responded
               : isRequester &&
-                  budget.status === BudgetStatus.WaitingInformation &&
+                  budget.status === BudgetStatusEnum.WaitingInformation &&
                   isUpdatingRequest
-                ? BudgetStatus.Pending
+                ? BudgetStatusEnum.Pending
                 : undefined),
           responseDescription:
             payload.responseDescription !== undefined
@@ -520,12 +520,12 @@ export class BudgetsService {
           responseTimeUnit: payload.responseTimeUnit,
           files: payload.files
             ? {
-                deleteMany: { type: BudgetFileType.Request },
+                deleteMany: { type: BudgetFileTypeEnum.Request },
                 create: payload.files.map((file) => ({
                   fileName: file.fileName,
                   fileUrl: file.fileUrl,
                   fileKey: file.fileKey,
-                  type: BudgetFileType.Request,
+                  type: BudgetFileTypeEnum.Request,
                 })),
               }
             : undefined,
@@ -571,7 +571,7 @@ export class BudgetsService {
                   fileName: file.fileName,
                   fileUrl: file.fileUrl,
                   fileKey: file.fileKey,
-                  type: BudgetFileType.InformationRequest,
+                  type: BudgetFileTypeEnum.InformationRequest,
                   budgetId: id,
                 })),
               }
@@ -581,7 +581,7 @@ export class BudgetsService {
 
     await this.prisma.budget.update({
       where: { id },
-      data: { status: BudgetStatus.WaitingInformation },
+      data: { status: BudgetStatusEnum.WaitingInformation },
     });
 
     return this.findById(user, id);
@@ -611,7 +611,7 @@ export class BudgetsService {
     }
 
     if (
-      budget.status === BudgetStatus.Cancelled ||
+      budget.status === BudgetStatusEnum.Cancelled ||
       budget.extraRequestStatus === ExtraRequestStatus.Pending
     ) {
       throw new BudgetUpdateFailedException();
@@ -716,7 +716,7 @@ export class BudgetsService {
       throw new BudgetApprovalNotAllowedException();
     }
 
-    if (budget.status !== BudgetStatus.Responded) {
+    if (budget.status !== BudgetStatusEnum.Responded) {
       throw new BudgetNotRespondedException();
     }
 
@@ -727,7 +727,7 @@ export class BudgetsService {
     const work = await this.prisma.$transaction(async (tx) => {
       const createdWork = await tx.work.create({
         data: {
-          status: WorkStatus.Pending,
+          status: WorkStatusEnum.Pending,
           details: budget.description,
           serviceValue: budget.responseValue,
           totalValue: budget.responseValue,
@@ -741,7 +741,7 @@ export class BudgetsService {
                   fileName: file.fileName,
                   fileUrl: file.fileUrl,
                   fileKey: file.fileKey,
-                  type: WorkFileType.Requester,
+                  type: WorkFileTypeEnum.Requester,
                 })),
               }
             : undefined,
@@ -776,7 +776,7 @@ export class BudgetsService {
       message: 'Orçamento aprovado com sucesso.',
       work: {
         id: work.id,
-        status: work.status as WorkStatus,
+        status: work.status as WorkStatusEnum,
         details: work.details,
         completionDescription: work.completionDescription,
         cancelReason: work.cancelReason,
@@ -791,7 +791,7 @@ export class BudgetsService {
         warrantyRequestStatus: work.warrantyRequestStatus || undefined,
         isUnderWarranty:
           !!work.warrantyExpiresAt &&
-          work.status === WorkStatus.Finished &&
+          work.status === WorkStatusEnum.Finished &&
           work.warrantyExpiresAt.getTime() >= Date.now(),
         serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
         totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
@@ -808,7 +808,7 @@ export class BudgetsService {
           fileName: file.fileName,
           fileUrl: file.fileUrl,
           fileKey: file.fileKey,
-          type: file.type as WorkFileType,
+          type: file.type as WorkFileTypeEnum,
           createdAt: file.createdAt,
           updatedAt: file.updatedAt,
         })),

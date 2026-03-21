@@ -1,28 +1,28 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { CommercialTransactionParticipantRole } from '../enums/commercial-transaction-participant-role.enum';
-import { CommercialTransactionStatus } from '../enums/commercial-transaction-status.enum';
+import { CommercialTransactionParticipantRoleEnum } from '../enums/commercial-transaction-participant-role.enum';
+import { CommercialTransactionStatusEnum } from '../enums/commercial-transaction-status.enum';
 
 export class QueryCommercialTransactionDto {
   @ApiPropertyOptional({
     description: 'Filtro por status da negociação.',
-    enum: CommercialTransactionStatus,
-    example: CommercialTransactionStatus.Requested,
+    enum: CommercialTransactionStatusEnum,
+    example: CommercialTransactionStatusEnum.Requested,
   })
   @IsOptional()
-  @IsEnum(CommercialTransactionStatus, { message: 'O status da negociação é inválido.' })
-  status?: CommercialTransactionStatus;
+  @IsEnum(CommercialTransactionStatusEnum, { message: 'O status da negociação é inválido.' })
+  status?: CommercialTransactionStatusEnum;
 
   @ApiPropertyOptional({
     description: 'Filtra negociações como comprador, vendedor ou ambas.',
-    enum: CommercialTransactionParticipantRole,
-    example: CommercialTransactionParticipantRole.All,
+    enum: CommercialTransactionParticipantRoleEnum,
+    example: CommercialTransactionParticipantRoleEnum.All,
   })
   @IsOptional()
-  @IsEnum(CommercialTransactionParticipantRole, {
+  @IsEnum(CommercialTransactionParticipantRoleEnum, {
     message: 'O papel do participante informado é inválido.',
   })
-  participantRole?: CommercialTransactionParticipantRole;
+  participantRole?: CommercialTransactionParticipantRoleEnum;
 
   @ApiPropertyOptional({
     description: 'Busca textual por título, descrição, nome do produto ou contraparte.',

@@ -1,4 +1,4 @@
-export enum BudgetScope {
+export enum BudgetScopeEnum {
   Requested = 'Requested',
   Received = 'Received',
 }

@@ -1,4 +1,4 @@
-export enum ReviewType {
+export enum ReviewTypeEnum {
   Positive = 'Positive',
   Negative = 'Negative',
 }

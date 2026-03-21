@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BudgetFileType } from '../enums/budget-file-type.enum';
+import { BudgetFileTypeEnum } from '../enums/budget-file-type.enum';
 
 export class ResponseBudgetFileDto {
   @ApiProperty({ description: 'Identificador do arquivo.', example: 1 })
@@ -19,11 +19,11 @@ export class ResponseBudgetFileDto {
 
   @ApiProperty({
     description: 'Tipo do arquivo no fluxo do orçamento.',
-    enum: BudgetFileType,
-    enumName: 'BudgetFileType',
-    example: BudgetFileType.Request,
+    enum: BudgetFileTypeEnum,
+    enumName: 'BudgetFileTypeEnum',
+    example: BudgetFileTypeEnum.Request,
   })
-  type: BudgetFileType;
+  type: BudgetFileTypeEnum;
 
   @ApiProperty({ description: 'Data de criação do arquivo.', example: '2026-03-15T10:00:00.000Z' })
   createdAt: Date;

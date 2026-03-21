@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { CommercialTransactionReferenceType } from '../enums/commercial-transaction-reference-type.enum';
-import { CommercialTransactionStatus } from '../enums/commercial-transaction-status.enum';
-import { PaymentMethod } from 'src/modules/works/enums/payment-method.enum';
-import { PaymentStatus } from 'src/modules/works/enums/payment-status.enum';
+import { CommercialTransactionReferenceTypeEnum } from '../enums/commercial-transaction-reference-type.enum';
+import { CommercialTransactionStatusEnum } from '../enums/commercial-transaction-status.enum';
+import { PaymentMethodEnum } from 'src/modules/works/enums/payment-method.enum';
+import { PaymentStatusEnum } from 'src/modules/works/enums/payment-status.enum';
 
 export class ResponseCommercialTransactionUserDto {
   @ApiProperty()
@@ -36,11 +36,11 @@ export class ResponseCommercialTransactionPaymentDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty({ enum: PaymentMethod })
-  method: PaymentMethod;
+  @ApiProperty({ enum: PaymentMethodEnum })
+  method: PaymentMethodEnum;
 
-  @ApiProperty({ enum: PaymentStatus })
-  status: PaymentStatus;
+  @ApiProperty({ enum: PaymentStatusEnum })
+  status: PaymentStatusEnum;
 
   @ApiProperty()
   amount: string;
@@ -62,14 +62,14 @@ export class ResponseCommercialTransactionDto {
   @ApiProperty()
   id: number;
 
-  @ApiProperty({ enum: CommercialTransactionReferenceType })
-  referenceType: CommercialTransactionReferenceType;
+  @ApiProperty({ enum: CommercialTransactionReferenceTypeEnum })
+  referenceType: CommercialTransactionReferenceTypeEnum;
 
   @ApiProperty()
   referenceId: number;
 
-  @ApiProperty({ enum: CommercialTransactionStatus })
-  status: CommercialTransactionStatus;
+  @ApiProperty({ enum: CommercialTransactionStatusEnum })
+  status: CommercialTransactionStatusEnum;
 
   @ApiPropertyOptional()
   title?: string;

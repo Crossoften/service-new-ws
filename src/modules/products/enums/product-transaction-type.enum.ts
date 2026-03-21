@@ -1,4 +1,4 @@
-export enum ProductTransactionType {
+export enum ProductTransactionTypeEnum {
   Rent = 'Rent',
   Sale = 'Sale',
   RentAndSale = 'RentAndSale',

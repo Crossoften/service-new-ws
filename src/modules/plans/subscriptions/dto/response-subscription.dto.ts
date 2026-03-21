@@ -1,8 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PaymentMethod } from 'src/modules/works/enums/payment-method.enum';
-import { PaymentStatus } from 'src/modules/works/enums/payment-status.enum';
-import { SubscriptionInterval } from '../../enums/subscription-interval.enum';
-import { SubscriptionStatus } from '../../enums/subscription-status.enum';
+import { PaymentMethodEnum } from 'src/modules/works/enums/payment-method.enum';
+import { PaymentStatusEnum } from 'src/modules/works/enums/payment-status.enum';
+import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
+import { SubscriptionStatusEnum } from '../../enums/subscription-status.enum';
 import { ResponsePlanDto } from '../../plans/dto/response-plan.dto';
 
 export class ResponseSubscriptionPaymentDto {
@@ -11,17 +11,17 @@ export class ResponseSubscriptionPaymentDto {
 
   @ApiProperty({
     description: 'Método de pagamento utilizado.',
-    enum: PaymentMethod,
-    example: PaymentMethod.CreditCard,
+    enum: PaymentMethodEnum,
+    example: PaymentMethodEnum.CreditCard,
   })
-  method: PaymentMethod;
+  method: PaymentMethodEnum;
 
   @ApiProperty({
     description: 'Status do pagamento.',
-    enum: PaymentStatus,
-    example: PaymentStatus.Paid,
+    enum: PaymentStatusEnum,
+    example: PaymentStatusEnum.Paid,
   })
-  status: PaymentStatus;
+  status: PaymentStatusEnum;
 
   @ApiProperty({ description: 'Valor pago.', example: '39.90' })
   amount: string;
@@ -68,10 +68,10 @@ export class ResponseSubscriptionDto {
 
   @ApiProperty({
     description: 'Status atual da assinatura.',
-    enum: SubscriptionStatus,
-    example: SubscriptionStatus.Active,
+    enum: SubscriptionStatusEnum,
+    example: SubscriptionStatusEnum.Active,
   })
-  status: SubscriptionStatus;
+  status: SubscriptionStatusEnum;
 
   @ApiProperty({ description: 'Valor cobrado na assinatura.', example: '39.90' })
   amount: string;
@@ -81,10 +81,10 @@ export class ResponseSubscriptionDto {
 
   @ApiProperty({
     description: 'Intervalo da assinatura contratada.',
-    enum: SubscriptionInterval,
-    example: SubscriptionInterval.Month,
+    enum: SubscriptionIntervalEnum,
+    example: SubscriptionIntervalEnum.Month,
   })
-  planInterval: SubscriptionInterval;
+  planInterval: SubscriptionIntervalEnum;
 
   @ApiProperty({ description: 'Quantidade de intervalos por ciclo.', example: 1 })
   intervalCount: number;

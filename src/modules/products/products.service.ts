@@ -21,8 +21,8 @@ import { ProductCategoryNotFoundException } from './exceptions/product-category-
 import { ProductNotFoundException } from './exceptions/product-not-found.exception';
 import { ProductPersistenceException } from './exceptions/product-persistence.exception';
 import { ProductSelfReviewNotAllowedException } from './exceptions/product-self-review-not-allowed.exception';
-import { ProductTransactionType } from './enums/product-transaction-type.enum';
-import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
+import { ProductTransactionTypeEnum } from './enums/product-transaction-type.enum';
+import { ReviewTypeEnum } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class ProductsService {
@@ -124,7 +124,7 @@ export class ProductsService {
         product: {
           id: product.id,
           name: product.name,
-          transactionType: product.transactionType as ProductTransactionType,
+          transactionType: product.transactionType as ProductTransactionTypeEnum,
           model: product.model || undefined,
           year: product.year || undefined,
           price: product.price.toFixed(2),
@@ -240,7 +240,7 @@ export class ProductsService {
       products: products.map((product) => ({
         id: product.id,
         name: product.name,
-        transactionType: product.transactionType as ProductTransactionType,
+        transactionType: product.transactionType as ProductTransactionTypeEnum,
         model: product.model || undefined,
         year: product.year || undefined,
         price: product.price.toFixed(2),
@@ -260,12 +260,12 @@ export class ProductsService {
         },
         positiveReviews: reviewCounts
           .filter(
-            (review) => review.productId === product.id && review.type === ReviewType.Positive,
+            (review) => review.productId === product.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
-            (review) => review.productId === product.id && review.type === ReviewType.Negative,
+            (review) => review.productId === product.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -329,7 +329,7 @@ export class ProductsService {
       products: products.map((product) => ({
         id: product.id,
         name: product.name,
-        transactionType: product.transactionType as ProductTransactionType,
+        transactionType: product.transactionType as ProductTransactionTypeEnum,
         model: product.model || undefined,
         year: product.year || undefined,
         price: product.price.toFixed(2),
@@ -349,12 +349,12 @@ export class ProductsService {
         },
         positiveReviews: reviewCounts
           .filter(
-            (review) => review.productId === product.id && review.type === ReviewType.Positive,
+            (review) => review.productId === product.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
-            (review) => review.productId === product.id && review.type === ReviewType.Negative,
+            (review) => review.productId === product.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -387,7 +387,7 @@ export class ProductsService {
     return {
       id: product.id,
       name: product.name,
-      transactionType: product.transactionType as ProductTransactionType,
+      transactionType: product.transactionType as ProductTransactionTypeEnum,
       model: product.model || undefined,
       year: product.year || undefined,
       price: product.price.toFixed(2),
@@ -415,10 +415,10 @@ export class ProductsService {
         phone: product.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,
@@ -448,7 +448,7 @@ export class ProductsService {
     return {
       id: product.id,
       name: product.name,
-      transactionType: product.transactionType as ProductTransactionType,
+      transactionType: product.transactionType as ProductTransactionTypeEnum,
       model: product.model || undefined,
       year: product.year || undefined,
       price: product.price.toFixed(2),
@@ -476,10 +476,10 @@ export class ProductsService {
         phone: product.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: product.createdAt,
       updatedAt: product.updatedAt,

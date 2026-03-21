@@ -1,4 +1,4 @@
-export enum WorkScope {
+export enum WorkScopeEnum {
   Requested = 'Requested',
   Received = 'Received',
 }

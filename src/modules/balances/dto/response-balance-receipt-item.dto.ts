@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { PaymentMethod } from 'src/modules/works/enums/payment-method.enum';
+import { PaymentMethodEnum } from 'src/modules/works/enums/payment-method.enum';
 import { ResponseBalanceServiceDto } from './response-balance-service.dto';
 import { ResponseBalanceUserDto } from './response-balance-user.dto';
 
@@ -28,12 +28,12 @@ export class ResponseBalanceReceiptItemDto {
 
   @ApiProperty({
     description: 'Método utilizado no pagamento relacionado ao recebimento.',
-    enum: PaymentMethod,
-    enumName: 'PaymentMethod',
-    example: PaymentMethod.CreditCard,
+    enum: PaymentMethodEnum,
+    enumName: 'PaymentMethodEnum',
+    example: PaymentMethodEnum.CreditCard,
     nullable: true,
   })
-  method?: PaymentMethod;
+  method?: PaymentMethodEnum;
 
   @ApiProperty({
     description: 'Data em que o recebimento ficou disponível no saldo, em formato ISO 8601.',

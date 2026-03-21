@@ -15,9 +15,9 @@ import {
 import { parsePositiveInt } from 'src/utils/parsePositiveInt';
 import { parsePriceDecimal } from 'src/utils/parsePriceDecimal';
 import { ProductNotFoundException } from '../products/exceptions/product-not-found.exception';
-import { FinancialTransactionType } from '../works/enums/financial-transaction-type.enum';
-import { PaymentMethod } from '../works/enums/payment-method.enum';
-import { PaymentStatus } from '../works/enums/payment-status.enum';
+import { FinancialTransactionTypeEnum } from '../works/enums/financial-transaction-type.enum';
+import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
+import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
 import {
@@ -27,9 +27,9 @@ import {
 } from './dto/response-commercial-transaction.dto';
 import { QueryCommercialTransactionDto } from './dto/query-commercial-transaction.dto';
 import { RespondCommercialTransactionDto } from './dto/respond-commercial-transaction.dto';
-import { CommercialTransactionParticipantRole } from './enums/commercial-transaction-participant-role.enum';
-import { CommercialTransactionReferenceType } from './enums/commercial-transaction-reference-type.enum';
-import { CommercialTransactionStatus } from './enums/commercial-transaction-status.enum';
+import { CommercialTransactionParticipantRoleEnum } from './enums/commercial-transaction-participant-role.enum';
+import { CommercialTransactionReferenceTypeEnum } from './enums/commercial-transaction-reference-type.enum';
+import { CommercialTransactionStatusEnum } from './enums/commercial-transaction-status.enum';
 import { CommercialTransactionAccessDeniedException } from './exceptions/commercial-transaction-access-denied.exception';
 import { CommercialTransactionAlreadyFinishedException } from './exceptions/commercial-transaction-already-finished.exception';
 import { CommercialTransactionBuyerCompletionNotAllowedException } from './exceptions/commercial-transaction-buyer-completion-not-allowed.exception';
@@ -97,7 +97,7 @@ export class CommercialTransactionsService {
     user: User,
     payload: CreateCommercialTransactionDto,
   ): Promise<CreateCommercialTransactionResponseDto> {
-    if (payload.referenceType !== CommercialTransactionReferenceType.Product) {
+    if (payload.referenceType !== CommercialTransactionReferenceTypeEnum.Product) {
       throw new CommercialTransactionUnsupportedReferenceTypeException();
     }
 
@@ -191,7 +191,7 @@ export class CommercialTransactionsService {
     const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
     const search = query.search?.trim() || undefined;
-    const participantRole = query.participantRole || CommercialTransactionParticipantRole.All;
+    const participantRole = query.participantRole || CommercialTransactionParticipantRoleEnum.All;
 
     const accessFilter = this.buildAccessFilter(user, participantRole);
     const where: Prisma.CommercialTransactionWhereInput = {
@@ -295,14 +295,14 @@ export class CommercialTransactionsService {
     }
 
     if (
-      payload.status !== CommercialTransactionStatus.Accepted &&
-      payload.status !== CommercialTransactionStatus.Rejected
+      payload.status !== CommercialTransactionStatusEnum.Accepted &&
+      payload.status !== CommercialTransactionStatusEnum.Rejected
     ) {
       throw new CommercialTransactionInvalidResponseStatusException();
     }
 
     const agreedAmount =
-      payload.status === CommercialTransactionStatus.Accepted
+      payload.status === CommercialTransactionStatusEnum.Accepted
         ? payload.agreedAmount
           ? parsePriceDecimal(payload.agreedAmount)
           : transaction.requestedAmount
@@ -314,8 +314,10 @@ export class CommercialTransactionsService {
         data: {
           status: payload.status as PrismaCommercialTransactionStatus,
           agreedAmount,
-          acceptedAt: payload.status === CommercialTransactionStatus.Accepted ? new Date() : null,
-          rejectedAt: payload.status === CommercialTransactionStatus.Rejected ? new Date() : null,
+          acceptedAt:
+            payload.status === CommercialTransactionStatusEnum.Accepted ? new Date() : null,
+          rejectedAt:
+            payload.status === CommercialTransactionStatusEnum.Rejected ? new Date() : null,
         },
       });
 
@@ -395,7 +397,7 @@ export class CommercialTransactionsService {
       await tx.financialTransaction.createMany({
         data: [
           {
-            type: FinancialTransactionType.Debit,
+            type: FinancialTransactionTypeEnum.Debit,
             category: PrismaFinancialTransactionCategory.CommercialTransaction,
             status: PrismaPaymentStatus.Paid,
             amount,
@@ -407,7 +409,7 @@ export class CommercialTransactionsService {
             paymentId: payment.id,
           },
           {
-            type: FinancialTransactionType.Credit,
+            type: FinancialTransactionTypeEnum.Credit,
             category: PrismaFinancialTransactionCategory.CommercialTransaction,
             status: PrismaPaymentStatus.Paid,
             amount,
@@ -493,8 +495,8 @@ export class CommercialTransactionsService {
     }
 
     if (
-      transaction.status === CommercialTransactionStatus.Cancelled ||
-      transaction.status === CommercialTransactionStatus.Completed
+      transaction.status === CommercialTransactionStatusEnum.Cancelled ||
+      transaction.status === CommercialTransactionStatusEnum.Completed
     ) {
       throw new CommercialTransactionAlreadyFinishedException();
     }
@@ -516,17 +518,17 @@ export class CommercialTransactionsService {
 
   private buildAccessFilter(
     user: User,
-    participantRole: CommercialTransactionParticipantRole,
+    participantRole: CommercialTransactionParticipantRoleEnum,
   ): Prisma.CommercialTransactionWhereInput {
     if (user.role === Role.Admin || user.role === Role.Master) {
       return {};
     }
 
-    if (participantRole === CommercialTransactionParticipantRole.Buyer) {
+    if (participantRole === CommercialTransactionParticipantRoleEnum.Buyer) {
       return { buyerId: user.id };
     }
 
-    if (participantRole === CommercialTransactionParticipantRole.Seller) {
+    if (participantRole === CommercialTransactionParticipantRoleEnum.Seller) {
       return { sellerId: user.id };
     }
 
@@ -664,9 +666,9 @@ export class CommercialTransactionsService {
   ): ResponseCommercialTransactionDto {
     return {
       id: transaction.id,
-      referenceType: transaction.referenceType as CommercialTransactionReferenceType,
+      referenceType: transaction.referenceType as CommercialTransactionReferenceTypeEnum,
       referenceId: transaction.referenceId,
-      status: transaction.status as CommercialTransactionStatus,
+      status: transaction.status as CommercialTransactionStatusEnum,
       title: transaction.title || undefined,
       description: transaction.description || undefined,
       requestedAmount: transaction.requestedAmount.toFixed(2),
@@ -683,7 +685,7 @@ export class CommercialTransactionsService {
         fileUrl: transaction.seller.fileUrl || undefined,
       },
       product:
-        transaction.referenceType === CommercialTransactionReferenceType.Product &&
+        transaction.referenceType === CommercialTransactionReferenceTypeEnum.Product &&
         transaction.product
           ? {
               id: transaction.product.id,
@@ -696,8 +698,8 @@ export class CommercialTransactionsService {
       payment: payment
         ? {
             id: payment.id,
-            method: payment.method as PaymentMethod,
-            status: payment.status as PaymentStatus,
+            method: payment.method as PaymentMethodEnum,
+            status: payment.status as PaymentStatusEnum,
             amount: payment.amount.toFixed(2),
             holderName: payment.holderName || undefined,
             cardBrand: payment.cardBrand || undefined,

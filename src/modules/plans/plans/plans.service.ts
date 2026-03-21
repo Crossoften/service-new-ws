@@ -8,7 +8,7 @@ import { CreatePlanDto } from './dto/create-plan.dto';
 import { QueryPlanDto } from './dto/query-plan.dto';
 import { ResponseFindAllPlansDto, ResponsePlanDto } from './dto/response-plan.dto';
 import { UpdatePlanDto } from './dto/update-plan.dto';
-import { SubscriptionInterval } from '../enums/subscription-interval.enum';
+import { SubscriptionIntervalEnum } from '../enums/subscription-interval.enum';
 import { PlanNotFoundException } from './exceptions/plan-not-found.exception';
 
 @Injectable()
@@ -110,7 +110,7 @@ export class PlansService {
         description:
           payload.description !== undefined ? payload.description?.trim() || null : undefined,
         price: payload.price ? parsePriceDecimal(payload.price) : undefined,
-        interval: payload.interval as SubscriptionInterval | undefined,
+        interval: payload.interval as SubscriptionIntervalEnum | undefined,
         intervalCount: payload.intervalCount
           ? parsePositiveInt(payload.intervalCount, 'intervalCount')
           : undefined,
@@ -141,7 +141,7 @@ export class PlansService {
       slug: plan.slug,
       description: plan.description || undefined,
       price: plan.price.toFixed(2),
-      interval: plan.interval as SubscriptionInterval,
+      interval: plan.interval as SubscriptionIntervalEnum,
       intervalCount: plan.intervalCount,
       benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
       isActive: plan.isActive,

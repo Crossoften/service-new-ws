@@ -1,4 +1,4 @@
-import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
+import { SubscriptionIntervalEnum } from '../enums/subscription-interval.enum';
 
 export const planDefinitions = [
   {

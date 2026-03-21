@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsArray, IsBooleanString, IsEnum, IsOptional, IsString } from 'class-validator';
-import { SubscriptionInterval } from '../../enums/subscription-interval.enum';
+import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
 
 export class CreatePlanDto {
   @ApiProperty({
@@ -35,11 +35,11 @@ export class CreatePlanDto {
 
   @ApiProperty({
     description: 'Intervalo de renovação do plano.',
-    enum: SubscriptionInterval,
-    example: SubscriptionInterval.Month,
+    enum: SubscriptionIntervalEnum,
+    example: SubscriptionIntervalEnum.Month,
   })
-  @IsEnum(SubscriptionInterval, { message: 'O intervalo do plano é inválido.' })
-  interval: SubscriptionInterval;
+  @IsEnum(SubscriptionIntervalEnum, { message: 'O intervalo do plano é inválido.' })
+  interval: SubscriptionIntervalEnum;
 
   @ApiProperty({
     description: 'Quantidade de intervalos por ciclo de cobrança.',

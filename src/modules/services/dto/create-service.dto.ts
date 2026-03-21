@@ -10,7 +10,7 @@ import {
   MaxLength,
   MinLength,
 } from 'class-validator';
-import { ServiceType } from '../enums/service-type.enum';
+import { ServiceTypeEnum } from '../enums/service-type.enum';
 
 export class CreateServiceDto {
   @ApiProperty({
@@ -26,12 +26,12 @@ export class CreateServiceDto {
 
   @ApiProperty({
     description: 'Tipo de atendimento do serviço.',
-    enum: ServiceType,
-    enumName: 'ServiceType',
-    example: ServiceType.Online,
+    enum: ServiceTypeEnum,
+    enumName: 'ServiceTypeEnum',
+    example: ServiceTypeEnum.Online,
   })
-  @IsEnum(ServiceType, { message: 'O tipo de serviço informado é inválido.' })
-  type: ServiceType;
+  @IsEnum(ServiceTypeEnum, { message: 'O tipo de serviço informado é inválido.' })
+  type: ServiceTypeEnum;
 
   @ApiProperty({
     description: 'Registro profissional, quando aplicável.',

@@ -1,4 +1,4 @@
-export enum WorkStatus {
+export enum WorkStatusEnum {
   Pending = 'Pending',
   InProgress = 'InProgress',
   Finished = 'Finished',

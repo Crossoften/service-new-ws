@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { WorkFileType } from '../enums/work-file-type.enum';
+import { WorkFileTypeEnum } from '../enums/work-file-type.enum';
 
 export class ResponseWorkFileDto {
   @ApiProperty({
@@ -32,11 +32,11 @@ export class ResponseWorkFileDto {
 
   @ApiProperty({
     description: 'Origem do arquivo no trabalho.',
-    enum: WorkFileType,
-    enumName: 'WorkFileType',
-    example: WorkFileType.Requester,
+    enum: WorkFileTypeEnum,
+    enumName: 'WorkFileTypeEnum',
+    example: WorkFileTypeEnum.Requester,
   })
-  type: WorkFileType;
+  type: WorkFileTypeEnum;
 
   @ApiProperty({
     description: 'Data de criação do registro do arquivo em formato ISO 8601.',

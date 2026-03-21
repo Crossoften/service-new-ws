@@ -1,3 +1,3 @@
-export enum CommercialTransactionReferenceType {
+export enum CommercialTransactionReferenceTypeEnum {
   Product = 'Product',
 }

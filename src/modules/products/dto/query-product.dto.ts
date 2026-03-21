@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { ProductTransactionType } from '../enums/product-transaction-type.enum';
+import { ProductTransactionTypeEnum } from '../enums/product-transaction-type.enum';
 
 export class QueryProductDto {
   @ApiProperty({
@@ -46,13 +46,13 @@ export class QueryProductDto {
   @ApiProperty({
     description: 'Filtro opcional pelo tipo de negociação do produto.',
     required: false,
-    enum: ProductTransactionType,
-    enumName: 'ProductTransactionType',
-    example: ProductTransactionType.Rent,
+    enum: ProductTransactionTypeEnum,
+    enumName: 'ProductTransactionTypeEnum',
+    example: ProductTransactionTypeEnum.Rent,
   })
-  @IsEnum(ProductTransactionType, { message: 'O tipo de negociação informado é inválido.' })
+  @IsEnum(ProductTransactionTypeEnum, { message: 'O tipo de negociação informado é inválido.' })
   @IsOptional()
-  transactionType?: ProductTransactionType;
+  transactionType?: ProductTransactionTypeEnum;
 
   @ApiProperty({
     description: 'Filtro opcional por status ativo/inativo do produto.',

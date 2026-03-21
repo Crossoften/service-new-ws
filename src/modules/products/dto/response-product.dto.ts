@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ProductTransactionType } from '../enums/product-transaction-type.enum';
+import { ProductTransactionTypeEnum } from '../enums/product-transaction-type.enum';
 import { ResponseProductCategoryDto } from './response-product-category.dto';
 
 export class ResponseProductOwnerDto {
@@ -72,11 +72,11 @@ export class ResponseProductListItemDto {
 
   @ApiProperty({
     description: 'Tipo de negociação do produto.',
-    enum: ProductTransactionType,
-    enumName: 'ProductTransactionType',
-    example: ProductTransactionType.Sale,
+    enum: ProductTransactionTypeEnum,
+    enumName: 'ProductTransactionTypeEnum',
+    example: ProductTransactionTypeEnum.Sale,
   })
-  transactionType: ProductTransactionType;
+  transactionType: ProductTransactionTypeEnum;
 
   @ApiProperty({
     description: 'Modelo do produto.',
@@ -160,11 +160,11 @@ export class ResponseProductDto {
 
   @ApiProperty({
     description: 'Tipo de negociação do produto.',
-    enum: ProductTransactionType,
-    enumName: 'ProductTransactionType',
-    example: ProductTransactionType.Sale,
+    enum: ProductTransactionTypeEnum,
+    enumName: 'ProductTransactionTypeEnum',
+    example: ProductTransactionTypeEnum.Sale,
   })
-  transactionType: ProductTransactionType;
+  transactionType: ProductTransactionTypeEnum;
 
   @ApiProperty({
     description: 'Modelo do produto.',

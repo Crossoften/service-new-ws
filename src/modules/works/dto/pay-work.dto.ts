@@ -1,16 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
-import { PaymentMethod } from '../enums/payment-method.enum';
+import { PaymentMethodEnum } from '../enums/payment-method.enum';
 
 export class PayWorkDto {
   @ApiProperty({
     description: 'Método de pagamento escolhido para quitar o trabalho.',
-    enum: PaymentMethod,
-    enumName: 'PaymentMethod',
-    example: PaymentMethod.CreditCard,
+    enum: PaymentMethodEnum,
+    enumName: 'PaymentMethodEnum',
+    example: PaymentMethodEnum.CreditCard,
   })
-  @IsEnum(PaymentMethod, { message: 'O método de pagamento informado é inválido.' })
-  method: PaymentMethod;
+  @IsEnum(PaymentMethodEnum, { message: 'O método de pagamento informado é inválido.' })
+  method: PaymentMethodEnum;
 
   @ApiProperty({
     description: 'Nome completo do titular do cartão, quando o método exigir cartão.',

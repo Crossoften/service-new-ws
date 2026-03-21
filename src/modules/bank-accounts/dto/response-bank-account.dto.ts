@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BankAccountType } from '../enums/bank-account-type.enum';
+import { BankAccountTypeEnum } from '../enums/bank-account-type.enum';
 
 export class ResponseBankAccountDto {
   @ApiProperty({ description: 'Identificador do cadastro bancário.', example: 1, type: Number })
@@ -14,11 +14,11 @@ export class ResponseBankAccountDto {
 
   @ApiProperty({
     description: 'Tipo da conta bancária.',
-    enum: BankAccountType,
-    enumName: 'BankAccountType',
-    example: BankAccountType.Checking,
+    enum: BankAccountTypeEnum,
+    enumName: 'BankAccountTypeEnum',
+    example: BankAccountTypeEnum.Checking,
   })
-  accountType: BankAccountType;
+  accountType: BankAccountTypeEnum;
 
   @ApiProperty({
     description: 'Número da agência bancária.',

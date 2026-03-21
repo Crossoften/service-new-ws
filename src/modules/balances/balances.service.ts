@@ -1,14 +1,14 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { Prisma, User } from '@prisma/client';
-import { BudgetStatus } from '../budgets/enums/budget-status.enum';
+import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { ResponseBalanceOverviewDto } from './dto/response-balance-overview.dto';
 import { ResponseBalanceReceiptsDto } from './dto/response-balance-receipts.dto';
-import { FinancialTransactionCategory } from '../works/enums/financial-transaction-category.enum';
-import { FinancialTransactionType } from '../works/enums/financial-transaction-type.enum';
-import { PaymentReferenceType } from '../works/enums/payment-reference-type.enum';
-import { PaymentStatus } from '../works/enums/payment-status.enum';
-import { PaymentMethod } from '../works/enums/payment-method.enum';
+import { FinancialTransactionCategoryEnum } from '../works/enums/financial-transaction-category.enum';
+import { FinancialTransactionTypeEnum } from '../works/enums/financial-transaction-type.enum';
+import { PaymentReferenceTypeEnum } from '../works/enums/payment-reference-type.enum';
+import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
+import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 
 @Injectable()
 export class BalancesService {
@@ -70,8 +70,8 @@ export class BalancesService {
       this.prisma.financialTransaction.aggregate({
         where: {
           userId: user.id,
-          type: FinancialTransactionType.Credit,
-          status: PaymentStatus.Paid,
+          type: FinancialTransactionTypeEnum.Credit,
+          status: PaymentStatusEnum.Paid,
           OR: [
             {
               availableAt: {
@@ -95,8 +95,8 @@ export class BalancesService {
       this.prisma.financialTransaction.aggregate({
         where: {
           userId: user.id,
-          type: FinancialTransactionType.Debit,
-          status: PaymentStatus.Paid,
+          type: FinancialTransactionTypeEnum.Debit,
+          status: PaymentStatusEnum.Paid,
           OR: [
             {
               availableAt: {
@@ -127,7 +127,7 @@ export class BalancesService {
       recentBudgets: recentBudgets.map((budget) => ({
         id: budget.id,
         description: budget.description || undefined,
-        status: budget.status as BudgetStatus,
+        status: budget.status as BudgetStatusEnum,
         createdAt: budget.createdAt,
         requester: {
           id: budget.requester.id,
@@ -151,10 +151,10 @@ export class BalancesService {
       this.prisma.financialTransaction.findMany({
         where: {
           userId: user.id,
-          type: FinancialTransactionType.Credit,
-          category: FinancialTransactionCategory.WorkPayment,
-          status: PaymentStatus.Paid,
-          referenceType: PaymentReferenceType.Work,
+          type: FinancialTransactionTypeEnum.Credit,
+          category: FinancialTransactionCategoryEnum.WorkPayment,
+          status: PaymentStatusEnum.Paid,
+          referenceType: PaymentReferenceTypeEnum.Work,
         },
         select: this.recentReceiptSelect,
         orderBy: [{ availableAt: 'desc' }, { createdAt: 'desc' }],
@@ -163,8 +163,8 @@ export class BalancesService {
       this.prisma.financialTransaction.aggregate({
         where: {
           userId: user.id,
-          type: FinancialTransactionType.Credit,
-          status: PaymentStatus.Paid,
+          type: FinancialTransactionTypeEnum.Credit,
+          status: PaymentStatusEnum.Paid,
           OR: [
             {
               availableAt: {
@@ -188,8 +188,8 @@ export class BalancesService {
       this.prisma.financialTransaction.aggregate({
         where: {
           userId: user.id,
-          type: FinancialTransactionType.Debit,
-          status: PaymentStatus.Paid,
+          type: FinancialTransactionTypeEnum.Debit,
+          status: PaymentStatusEnum.Paid,
           OR: [
             {
               availableAt: {
@@ -247,7 +247,7 @@ export class BalancesService {
         id: transaction.id,
         amount: transaction.amount.toFixed(2),
         description: transaction.description || undefined,
-        method: transaction.payment ? (transaction.payment.method as PaymentMethod) : undefined,
+        method: transaction.payment ? (transaction.payment.method as PaymentMethodEnum) : undefined,
         availableAt: transaction.availableAt || undefined,
         createdAt: transaction.createdAt,
         payer: {

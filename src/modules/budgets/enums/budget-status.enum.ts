@@ -1,4 +1,4 @@
-export enum BudgetStatus {
+export enum BudgetStatusEnum {
   Pending = 'Pending',
   Responded = 'Responded',
   WaitingInformation = 'WaitingInformation',

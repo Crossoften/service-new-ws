@@ -7,7 +7,7 @@ import {
   IsString,
   MaxLength,
 } from 'class-validator';
-import { ProductTransactionType } from '../enums/product-transaction-type.enum';
+import { ProductTransactionTypeEnum } from '../enums/product-transaction-type.enum';
 
 export class CreateProductDto {
   @ApiProperty({
@@ -20,12 +20,12 @@ export class CreateProductDto {
 
   @ApiProperty({
     description: 'Tipo de negociação do produto. Pode ser somente aluguel, somente venda ou ambos.',
-    enum: ProductTransactionType,
-    enumName: 'ProductTransactionType',
-    example: ProductTransactionType.Sale,
+    enum: ProductTransactionTypeEnum,
+    enumName: 'ProductTransactionTypeEnum',
+    example: ProductTransactionTypeEnum.Sale,
   })
-  @IsEnum(ProductTransactionType, { message: 'O tipo de negociação informado é inválido.' })
-  transactionType: ProductTransactionType;
+  @IsEnum(ProductTransactionTypeEnum, { message: 'O tipo de negociação informado é inválido.' })
+  transactionType: ProductTransactionTypeEnum;
 
   @ApiProperty({
     description: 'Nome principal do produto.',
