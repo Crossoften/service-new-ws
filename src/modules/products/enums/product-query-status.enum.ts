@@ -1,4 +1,4 @@
-export enum ProductQueryStatus {
+export enum ProductQueryStatusEnum {
   Active = 'true',
   Inactive = 'false',
 }

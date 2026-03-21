@@ -1,17 +1,17 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString, MaxLength } from 'class-validator';
-import { ReviewType } from '../enums/service-review-type.enum';
+import { ReviewTypeEnum } from '../enums/service-review-type.enum';
 
 export class CreateServiceReviewDto {
   @ApiProperty({
     description:
       'Tipo da avaliação do serviço. Use `Positive` para avaliação positiva e `Negative` para avaliação negativa.',
-    enum: ReviewType,
-    enumName: 'ReviewType',
-    example: ReviewType.Positive,
+    enum: ReviewTypeEnum,
+    enumName: 'ReviewTypeEnum',
+    example: ReviewTypeEnum.Positive,
   })
-  @IsEnum(ReviewType, { message: 'O tipo de avaliação informado é inválido.' })
-  type: ReviewType;
+  @IsEnum(ReviewTypeEnum, { message: 'O tipo de avaliação informado é inválido.' })
+  type: ReviewTypeEnum;
 
   @ApiProperty({
     description: 'Comentário opcional da avaliação do serviço.',

@@ -141,7 +141,7 @@ model Product {
   id Int @id @default(autoincrement())
 
   name            String                 @db.VarChar(160)
-  transactionType ProductTransactionType @default(Sale)
+  transactionType ProductTransactionTypeEnum @default(Sale)
   model           String?                @db.VarChar(160)
   year            Int?
   price           Decimal                @db.Decimal(10, 2)
@@ -243,7 +243,7 @@ model BankAccount {
   id Int @id @default(autoincrement())
 
   bankName    String          @db.VarChar(120)
-  accountType BankAccountType
+  accountType BankAccountTypeEnum
   agency      String          @db.VarChar(30)
   account     String          @db.VarChar(30)
   cpf         String          @db.VarChar(14)
@@ -261,7 +261,7 @@ model Service {
   id Int @id @default(autoincrement())
 
   name             String      @db.VarChar(160)
-  type             ServiceType
+  type             ServiceTypeEnum
   registrationCode String?     @db.VarChar(80)
   price            Decimal     @db.Decimal(10, 2)
   description      String?     @db.LongText()
@@ -288,7 +288,7 @@ model Service {
 model Review {
   id Int @id @default(autoincrement())
 
-  type             ReviewType
+  type             ReviewTypeEnum
   comment          String?    @db.LongText()
   serviceId        Int?
   productId        Int?
@@ -322,7 +322,7 @@ model Budget {
   id Int @id @default(autoincrement())
 
   description             String?             @db.LongText()
-  status                  BudgetStatus        @default(Pending)
+  status                  BudgetStatusEnum        @default(Pending)
   responseDescription     String?             @db.LongText()
   responseValue           Decimal?            @db.Decimal(10, 2)
   extraRequestValue       Decimal?            @db.Decimal(10, 2)
@@ -331,7 +331,7 @@ model Budget {
   extraRequestedAt        DateTime?
   extraRespondedAt        DateTime?
   responseTimeQuantity    Int?
-  responseTimeUnit        BudgetTimeUnit?
+  responseTimeUnit        BudgetTimeUnitEnum?
   serviceId               Int?
   requesterId             Int
   providerId              Int
@@ -359,7 +359,7 @@ model BudgetFile {
   fileName             String         @db.VarChar(191)
   fileUrl              String         @db.VarChar(1500)
   fileKey              String         @db.VarChar(1500)
-  type                 BudgetFileType @default(Request)
+  type                 BudgetFileTypeEnum @default(Request)
   budgetId             Int
   informationRequestId Int?
 
@@ -393,7 +393,7 @@ model BudgetInformation {
 model Work {
   id Int @id @default(autoincrement())
 
-  status                      WorkStatus             @default(Pending)
+  status                      WorkStatusEnum             @default(Pending)
   details                     String?                @db.LongText()
   completionDescription       String?                @db.LongText()
   cancelReason                String?                @db.LongText()
@@ -498,9 +498,9 @@ model ChatMessage {
 model CommercialTransaction {
   id Int @id @default(autoincrement())
 
-  referenceType   CommercialTransactionReferenceType
+  referenceType   CommercialTransactionReferenceTypeEnum
   referenceId     Int
-  status          CommercialTransactionStatus        @default(Requested)
+  status          CommercialTransactionStatusEnum        @default(Requested)
   title           String?                            @db.VarChar(191)
   description     String?                            @db.LongText()
   requestedAmount Decimal                            @db.Decimal(10, 2)
@@ -530,9 +530,9 @@ model CommercialTransaction {
 model Payment {
   id Int @id @default(autoincrement())
 
-  method        PaymentMethod
-  status        PaymentStatus        @default(Paid)
-  referenceType PaymentReferenceType
+  method        PaymentMethodEnum
+  status        PaymentStatusEnum        @default(Paid)
+  referenceType PaymentReferenceTypeEnum
   referenceId   Int
   holderName    String?              @db.VarChar(160)
   cardBrand     String?              @db.VarChar(60)
@@ -562,7 +562,7 @@ model Plan {
   slug          String               @unique @db.VarChar(120)
   description   String?              @db.LongText()
   price         Decimal              @db.Decimal(10, 2)
-  interval      SubscriptionInterval
+  interval      SubscriptionIntervalEnum
   intervalCount Int                  @default(1)
   benefits      Json?
   isActive      Boolean              @default(true)
@@ -580,10 +580,10 @@ model Plan {
 
 model Subscription {
   id                  Int                @id @default(autoincrement())
-  status              SubscriptionStatus @default(Active)
+  status              SubscriptionStatusEnum @default(Active)
   amount              Decimal            @db.Decimal(10, 2)
   planName            String             @db.VarChar(120)
-  planInterval        SubscriptionInterval
+  planInterval        SubscriptionIntervalEnum
   intervalCount       Int                @default(1)
   startedAt           DateTime?
   currentPeriodStart  DateTime?
@@ -611,13 +611,13 @@ model Subscription {
 model FinancialTransaction {
   id Int @id @default(autoincrement())
 
-  type          FinancialTransactionType
-  category      FinancialTransactionCategory
-  status        PaymentStatus                @default(Paid)
+  type          FinancialTransactionTypeEnum
+  category      FinancialTransactionCategoryEnum
+  status        PaymentStatusEnum                @default(Paid)
   amount        Decimal                      @db.Decimal(10, 2)
   description   String?                      @db.VarChar(255)
   availableAt   DateTime?
-  referenceType PaymentReferenceType
+  referenceType PaymentReferenceTypeEnum
   referenceId   Int
   userId        Int
   paymentId     Int?
@@ -641,7 +641,7 @@ model WorkFile {
   fileName String       @db.VarChar(191)
   fileUrl  String       @db.VarChar(1500)
   fileKey  String       @db.VarChar(1500)
-  type     WorkFileType @default(Requester)
+  type     WorkFileTypeEnum @default(Requester)
   workId   Int
 
   createdAt DateTime @default(now())
@@ -717,43 +717,43 @@ enum TextType {
   Cookies
 }
 
-enum ServiceType {
+enum ServiceTypeEnum {
   Online
   Presential
   Home
 }
 
-enum ProductTransactionType {
+enum ProductTransactionTypeEnum {
   Rent
   Sale
   RentAndSale
 }
 
-enum BankAccountType {
+enum BankAccountTypeEnum {
   Checking
   Savings
 }
 
-enum BudgetStatus {
+enum BudgetStatusEnum {
   Pending
   Responded
   WaitingInformation
   Cancelled
 }
 
-enum BudgetTimeUnit {
+enum BudgetTimeUnitEnum {
   Hour
   Day
   Week
   Month
 }
 
-enum BudgetFileType {
+enum BudgetFileTypeEnum {
   Request
   InformationRequest
 }
 
-enum WorkStatus {
+enum WorkStatusEnum {
   Pending
   InProgress
   Finished
@@ -766,29 +766,29 @@ enum ChatContextType {
   CommercialTransaction
 }
 
-enum PaymentMethod {
+enum PaymentMethodEnum {
   CreditCard
   Pix
   BankSlip
 }
 
-enum PaymentStatus {
+enum PaymentStatusEnum {
   Pending
   Paid
   Cancelled
 }
 
-enum PaymentReferenceType {
+enum PaymentReferenceTypeEnum {
   Work
   CommercialTransaction
   Subscription
 }
 
-enum CommercialTransactionReferenceType {
+enum CommercialTransactionReferenceTypeEnum {
   Product
 }
 
-enum CommercialTransactionStatus {
+enum CommercialTransactionStatusEnum {
   Requested
   Accepted
   Rejected
@@ -797,12 +797,12 @@ enum CommercialTransactionStatus {
   Completed
 }
 
-enum FinancialTransactionType {
+enum FinancialTransactionTypeEnum {
   Credit
   Debit
 }
 
-enum FinancialTransactionCategory {
+enum FinancialTransactionCategoryEnum {
   WorkPayment
   CommercialTransaction
   Subscription
@@ -812,18 +812,18 @@ enum FinancialTransactionCategory {
   Adjustment
 }
 
-enum SubscriptionInterval {
+enum SubscriptionIntervalEnum {
   Month
   Year
 }
 
-enum SubscriptionStatus {
+enum SubscriptionStatusEnum {
   Active
   Cancelled
   Expired
 }
 
-enum WorkFileType {
+enum WorkFileTypeEnum {
   Requester
   Provider
   Completion
@@ -842,7 +842,7 @@ enum ExtraRequestStatus {
   Rejected
 }
 
-enum ReviewType {
+enum ReviewTypeEnum {
   Positive
   Negative
 }

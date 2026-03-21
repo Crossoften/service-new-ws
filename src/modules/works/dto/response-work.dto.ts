@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ExtraRequestStatus, WarrantyRequestStatus } from '@prisma/client';
-import { PaymentMethod } from '../enums/payment-method.enum';
-import { PaymentStatus } from '../enums/payment-status.enum';
-import { WorkStatus } from '../enums/work-status.enum';
+import { PaymentMethodEnum } from '../enums/payment-method.enum';
+import { PaymentStatusEnum } from '../enums/payment-status.enum';
+import { WorkStatusEnum } from '../enums/work-status.enum';
 import { ResponseWorkFileDto } from './response-work-file.dto';
 
 export class ResponseWorkUserDto {
@@ -111,19 +111,19 @@ export class ResponseWorkPaymentDto {
 
   @ApiProperty({
     description: 'Método de pagamento utilizado.',
-    enum: PaymentMethod,
-    enumName: 'PaymentMethod',
-    example: PaymentMethod.CreditCard,
+    enum: PaymentMethodEnum,
+    enumName: 'PaymentMethodEnum',
+    example: PaymentMethodEnum.CreditCard,
   })
-  method: PaymentMethod;
+  method: PaymentMethodEnum;
 
   @ApiProperty({
     description: 'Status do pagamento.',
-    enum: PaymentStatus,
-    enumName: 'PaymentStatus',
-    example: PaymentStatus.Paid,
+    enum: PaymentStatusEnum,
+    enumName: 'PaymentStatusEnum',
+    example: PaymentStatusEnum.Paid,
   })
-  status: PaymentStatus;
+  status: PaymentStatusEnum;
 
   @ApiProperty({
     description: 'Nome do titular do cartão, quando informado.',
@@ -171,11 +171,11 @@ export class ResponseWorkListItemDto {
 
   @ApiProperty({
     description: 'Status atual do trabalho.',
-    enum: WorkStatus,
-    enumName: 'WorkStatus',
-    example: WorkStatus.InProgress,
+    enum: WorkStatusEnum,
+    enumName: 'WorkStatusEnum',
+    example: WorkStatusEnum.InProgress,
   })
-  status: WorkStatus;
+  status: WorkStatusEnum;
 
   @ApiProperty({
     description: 'Data planejada ou efetiva do serviço em formato ISO 8601.',
@@ -339,11 +339,11 @@ export class ResponseWorkDto {
 
   @ApiProperty({
     description: 'Status atual do trabalho.',
-    enum: WorkStatus,
-    enumName: 'WorkStatus',
-    example: WorkStatus.InProgress,
+    enum: WorkStatusEnum,
+    enumName: 'WorkStatusEnum',
+    example: WorkStatusEnum.InProgress,
   })
-  status: WorkStatus;
+  status: WorkStatusEnum;
 
   @ApiProperty({
     description:

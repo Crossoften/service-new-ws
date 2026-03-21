@@ -21,7 +21,7 @@ import { TransportationCategoryNotFoundException } from './exceptions/transporta
 import { TransportationNotFoundException } from './exceptions/transportation-not-found.exception';
 import { TransportationPersistenceException } from './exceptions/transportation-persistence.exception';
 import { TransportationSelfReviewNotAllowedException } from './exceptions/transportation-self-review-not-allowed.exception';
-import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
+import { ReviewTypeEnum } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class TransportationsService {
@@ -268,13 +268,13 @@ export class TransportationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewType.Positive,
+              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewType.Negative,
+              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -361,13 +361,13 @@ export class TransportationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewType.Positive,
+              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewType.Negative,
+              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -429,10 +429,10 @@ export class TransportationsService {
         phone: transportation.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: transportation.createdAt,
       updatedAt: transportation.updatedAt,
@@ -491,10 +491,10 @@ export class TransportationsService {
         phone: transportation.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: transportation.createdAt,
       updatedAt: transportation.updatedAt,

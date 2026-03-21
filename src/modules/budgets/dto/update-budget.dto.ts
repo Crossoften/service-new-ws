@@ -1,20 +1,20 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { BudgetStatus } from '../enums/budget-status.enum';
-import { BudgetTimeUnit } from '../enums/budget-time-unit.enum';
+import { BudgetStatusEnum } from '../enums/budget-status.enum';
+import { BudgetTimeUnitEnum } from '../enums/budget-time-unit.enum';
 import { CreateBudgetDto } from './create-budget.dto';
 
 export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
   @ApiProperty({
     description: 'Status atual do orçamento.',
-    enum: BudgetStatus,
-    enumName: 'BudgetStatus',
+    enum: BudgetStatusEnum,
+    enumName: 'BudgetStatusEnum',
     required: false,
-    example: BudgetStatus.Responded,
+    example: BudgetStatusEnum.Responded,
   })
-  @IsEnum(BudgetStatus, { message: 'O status do orçamento é inválido.' })
+  @IsEnum(BudgetStatusEnum, { message: 'O status do orçamento é inválido.' })
   @IsOptional()
-  status?: BudgetStatus;
+  status?: BudgetStatusEnum;
 
   @ApiProperty({
     description: 'Descrição da resposta do fornecedor.',
@@ -49,12 +49,12 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
 
   @ApiProperty({
     description: 'Unidade de tempo da previsão.',
-    enum: BudgetTimeUnit,
-    enumName: 'BudgetTimeUnit',
+    enum: BudgetTimeUnitEnum,
+    enumName: 'BudgetTimeUnitEnum',
     required: false,
-    example: BudgetTimeUnit.Day,
+    example: BudgetTimeUnitEnum.Day,
   })
-  @IsEnum(BudgetTimeUnit, { message: 'A unidade de tempo informada é inválida.' })
+  @IsEnum(BudgetTimeUnitEnum, { message: 'A unidade de tempo informada é inválida.' })
   @IsOptional()
-  responseTimeUnit?: BudgetTimeUnit;
+  responseTimeUnit?: BudgetTimeUnitEnum;
 }

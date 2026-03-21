@@ -1,15 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { CommercialTransactionStatus } from '../enums/commercial-transaction-status.enum';
+import { CommercialTransactionStatusEnum } from '../enums/commercial-transaction-status.enum';
 
 export class RespondCommercialTransactionDto {
   @ApiProperty({
     description: 'Novo status da negociação.',
-    enum: [CommercialTransactionStatus.Accepted, CommercialTransactionStatus.Rejected],
-    example: CommercialTransactionStatus.Accepted,
+    enum: [CommercialTransactionStatusEnum.Accepted, CommercialTransactionStatusEnum.Rejected],
+    example: CommercialTransactionStatusEnum.Accepted,
   })
-  @IsEnum(CommercialTransactionStatus, { message: 'O status da resposta é inválido.' })
-  status: CommercialTransactionStatus;
+  @IsEnum(CommercialTransactionStatusEnum, { message: 'O status da resposta é inválido.' })
+  status: CommercialTransactionStatusEnum;
 
   @ApiPropertyOptional({
     description: 'Valor acordado ao aceitar a negociação. Se omitido, usa o valor solicitado.',

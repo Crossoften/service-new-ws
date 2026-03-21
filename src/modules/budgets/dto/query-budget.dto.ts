@@ -1,30 +1,30 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { BudgetScope } from '../enums/budget-scope.enum';
-import { BudgetStatus } from '../enums/budget-status.enum';
+import { BudgetScopeEnum } from '../enums/budget-scope.enum';
+import { BudgetStatusEnum } from '../enums/budget-status.enum';
 
 export class QueryBudgetDto {
   @ApiProperty({
     description: 'Escopo da listagem.',
-    enum: BudgetScope,
-    enumName: 'BudgetScope',
+    enum: BudgetScopeEnum,
+    enumName: 'BudgetScopeEnum',
     required: false,
-    example: BudgetScope.Received,
+    example: BudgetScopeEnum.Received,
   })
-  @IsEnum(BudgetScope, { message: 'O escopo informado é inválido.' })
+  @IsEnum(BudgetScopeEnum, { message: 'O escopo informado é inválido.' })
   @IsOptional()
-  scope?: BudgetScope;
+  scope?: BudgetScopeEnum;
 
   @ApiProperty({
     description: 'Filtro por status do orçamento.',
-    enum: BudgetStatus,
-    enumName: 'BudgetStatus',
+    enum: BudgetStatusEnum,
+    enumName: 'BudgetStatusEnum',
     required: false,
-    example: BudgetStatus.Pending,
+    example: BudgetStatusEnum.Pending,
   })
-  @IsEnum(BudgetStatus, { message: 'O status do orçamento é inválido.' })
+  @IsEnum(BudgetStatusEnum, { message: 'O status do orçamento é inválido.' })
   @IsOptional()
-  status?: BudgetStatus;
+  status?: BudgetStatusEnum;
 
   @ApiProperty({
     description: 'Filtro por id do serviço.',

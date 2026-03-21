@@ -1,4 +1,4 @@
-export enum SubscriptionInterval {
+export enum SubscriptionIntervalEnum {
   Month = 'Month',
   Year = 'Year',
 }

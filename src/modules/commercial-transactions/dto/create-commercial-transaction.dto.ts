@@ -1,17 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
-import { CommercialTransactionReferenceType } from '../enums/commercial-transaction-reference-type.enum';
+import { CommercialTransactionReferenceTypeEnum } from '../enums/commercial-transaction-reference-type.enum';
 
 export class CreateCommercialTransactionDto {
   @ApiProperty({
     description: 'Tipo de referência da negociação.',
-    enum: CommercialTransactionReferenceType,
-    example: CommercialTransactionReferenceType.Product,
+    enum: CommercialTransactionReferenceTypeEnum,
+    example: CommercialTransactionReferenceTypeEnum.Product,
   })
-  @IsEnum(CommercialTransactionReferenceType, {
+  @IsEnum(CommercialTransactionReferenceTypeEnum, {
     message: 'O tipo de referência da negociação é inválido.',
   })
-  referenceType: CommercialTransactionReferenceType;
+  referenceType: CommercialTransactionReferenceTypeEnum;
 
   @ApiProperty({
     description: 'Id do item sendo negociado.',

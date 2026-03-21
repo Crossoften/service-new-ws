@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { ServiceType } from '../enums/service-type.enum';
+import { ServiceTypeEnum } from '../enums/service-type.enum';
 import { ResponseServiceCategoryDto } from './response-service-category.dto';
 
 export class ResponseServiceOwnerDto {
@@ -65,11 +65,11 @@ export class ResponseServiceListItemDto {
 
   @ApiProperty({
     description: 'Tipo de atendimento do serviço.',
-    enum: ServiceType,
-    enumName: 'ServiceType',
-    example: ServiceType.Online,
+    enum: ServiceTypeEnum,
+    enumName: 'ServiceTypeEnum',
+    example: ServiceTypeEnum.Online,
   })
-  type: ServiceType;
+  type: ServiceTypeEnum;
 
   @ApiProperty({ description: 'Preço formatado com duas casas decimais.', example: '150.00' })
   price: string;
@@ -130,11 +130,11 @@ export class ResponseServiceDto {
 
   @ApiProperty({
     description: 'Tipo de atendimento do serviço.',
-    enum: ServiceType,
-    enumName: 'ServiceType',
-    example: ServiceType.Online,
+    enum: ServiceTypeEnum,
+    enumName: 'ServiceTypeEnum',
+    example: ServiceTypeEnum.Online,
   })
-  type: ServiceType;
+  type: ServiceTypeEnum;
 
   @ApiProperty({
     description: 'Registro profissional vinculado ao serviço.',

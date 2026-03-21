@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BudgetStatus } from 'src/modules/budgets/enums/budget-status.enum';
+import { BudgetStatusEnum } from 'src/modules/budgets/enums/budget-status.enum';
 import { ResponseBalanceServiceDto } from './response-balance-service.dto';
 import { ResponseBalanceUserDto } from './response-balance-user.dto';
 
@@ -21,11 +21,11 @@ export class ResponseBalanceBudgetItemDto {
 
   @ApiProperty({
     description: 'Status atual do orçamento.',
-    enum: BudgetStatus,
-    enumName: 'BudgetStatus',
-    example: BudgetStatus.Pending,
+    enum: BudgetStatusEnum,
+    enumName: 'BudgetStatusEnum',
+    example: BudgetStatusEnum.Pending,
   })
-  status: BudgetStatus;
+  status: BudgetStatusEnum;
 
   @ApiProperty({
     description: 'Data de criação do orçamento em formato ISO 8601.',

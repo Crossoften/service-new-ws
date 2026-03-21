@@ -11,7 +11,7 @@ import {
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { parsePriceDecimal } from '@utils/parsePriceDecimal';
-import { BudgetStatus } from '../budgets/enums/budget-status.enum';
+import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
 import { CancelWorkDto } from './dto/cancel-work.dto';
@@ -26,14 +26,14 @@ import { RespondWorkWarrantyDto } from './dto/respond-work-warranty.dto';
 import { ResponseFindAllWorkDto } from './dto/response-find-all-work.dto';
 import { ResponseWorkDto } from './dto/response-work.dto';
 import { UpdateWorkDto } from './dto/update-work.dto';
-import { PaymentMethod } from './enums/payment-method.enum';
-import { PaymentReferenceType } from './enums/payment-reference-type.enum';
-import { PaymentStatus } from './enums/payment-status.enum';
-import { FinancialTransactionCategory } from './enums/financial-transaction-category.enum';
-import { FinancialTransactionType } from './enums/financial-transaction-type.enum';
-import { WorkFileType } from './enums/work-file-type.enum';
-import { WorkScope } from './enums/work-scope.enum';
-import { WorkStatus } from './enums/work-status.enum';
+import { PaymentMethodEnum } from './enums/payment-method.enum';
+import { PaymentReferenceTypeEnum } from './enums/payment-reference-type.enum';
+import { PaymentStatusEnum } from './enums/payment-status.enum';
+import { FinancialTransactionCategoryEnum } from './enums/financial-transaction-category.enum';
+import { FinancialTransactionTypeEnum } from './enums/financial-transaction-type.enum';
+import { WorkFileTypeEnum } from './enums/work-file-type.enum';
+import { WorkScopeEnum } from './enums/work-scope.enum';
+import { WorkStatusEnum } from './enums/work-status.enum';
 import { WorkAccessDeniedException } from './exceptions/work-access-denied.exception';
 import { WorkBudgetAlreadyHasWorkException } from './exceptions/work-budget-already-has-work.exception';
 import { WorkBudgetNotFoundException } from './exceptions/work-budget-not-found.exception';
@@ -212,7 +212,7 @@ export class WorksService {
       throw new WorkBudgetNotFoundException();
     }
 
-    if (budget.status !== BudgetStatus.Responded) {
+    if (budget.status !== BudgetStatusEnum.Responded) {
       throw new WorkBudgetNotRespondedException();
     }
 
@@ -230,7 +230,7 @@ export class WorksService {
       const work = await this.prisma.$transaction(async (tx) => {
         const createdWork = await tx.work.create({
           data: {
-            status: WorkStatus.Pending,
+            status: WorkStatusEnum.Pending,
             details: payload.details ? payload.details.trim() : budget.description,
             serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : null,
             warrantyExpiresAt: payload.warrantyExpiresAt
@@ -252,18 +252,18 @@ export class WorksService {
                   fileName: file.fileName,
                   fileUrl: file.fileUrl,
                   fileKey: file.fileKey,
-                  type: WorkFileType.Requester,
+                  type: WorkFileTypeEnum.Requester,
                 })),
                 ...((payload.providerFiles || []).map((file) => ({
                   fileName: file.fileName,
                   fileUrl: file.fileUrl,
                   fileKey: file.fileKey,
-                  type: WorkFileType.Provider,
+                  type: WorkFileTypeEnum.Provider,
                 })) as Array<{
                   fileName: string;
                   fileUrl: string;
                   fileKey: string;
-                  type: WorkFileType;
+                  type: WorkFileTypeEnum;
                 }>),
               ],
             },
@@ -295,12 +295,12 @@ export class WorksService {
 
       await this.prisma.budget.update({
         where: { id: budget.id },
-        data: { status: BudgetStatus.Responded },
+        data: { status: BudgetStatusEnum.Responded },
       });
 
       const payment = await this.prisma.payment.findFirst({
         where: {
-          referenceType: PaymentReferenceType.Work,
+          referenceType: PaymentReferenceTypeEnum.Work,
           referenceId: work.id,
         },
       });
@@ -314,7 +314,7 @@ export class WorksService {
         message: 'Trabalho cadastrado com sucesso.',
         work: {
           id: work.id,
-          status: work.status as WorkStatus,
+          status: work.status as WorkStatusEnum,
           details: work.details,
           completionDescription: work.completionDescription,
           cancelReason: work.cancelReason,
@@ -326,7 +326,7 @@ export class WorksService {
           warrantyExpiresAt: work.warrantyExpiresAt || undefined,
           isUnderWarranty:
             !!work.warrantyExpiresAt &&
-            work.status === WorkStatus.Finished &&
+            work.status === WorkStatusEnum.Finished &&
             work.warrantyExpiresAt.getTime() >= Date.now(),
           warrantyRequestStatus: work.warrantyRequestStatus || undefined,
           warrantyRequestedAt: work.warrantyRequestedAt || undefined,
@@ -354,7 +354,7 @@ export class WorksService {
             fileName: file.fileName,
             fileUrl: file.fileUrl,
             fileKey: file.fileKey,
-            type: file.type as WorkFileType,
+            type: file.type as WorkFileTypeEnum,
             createdAt: file.createdAt,
             updatedAt: file.updatedAt,
           })),
@@ -363,8 +363,8 @@ export class WorksService {
           payment: payment
             ? {
                 id: payment.id,
-                method: payment.method as PaymentMethod,
-                status: payment.status as PaymentStatus,
+                method: payment.method as PaymentMethodEnum,
+                status: payment.status as PaymentStatusEnum,
                 holderName: payment.holderName || undefined,
                 cardBrand: payment.cardBrand || undefined,
                 cardLast4: payment.cardLast4 || undefined,
@@ -388,13 +388,13 @@ export class WorksService {
     const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
     const serviceId = query.serviceId ? parsePositiveInt(query.serviceId, 'serviceId') : undefined;
     const search = query.search ? query.search.trim() : undefined;
-    const scope = query.scope || WorkScope.Received;
+    const scope = query.scope || WorkScopeEnum.Received;
 
     const where: Prisma.WorkWhereInput = {
       status: query.status,
       serviceId,
-      requesterId: scope === WorkScope.Requested ? user.id : undefined,
-      providerId: scope === WorkScope.Received ? user.id : undefined,
+      requesterId: scope === WorkScopeEnum.Requested ? user.id : undefined,
+      providerId: scope === WorkScopeEnum.Received ? user.id : undefined,
       OR: search
         ? [
             { requester: { name: { contains: search } } },
@@ -419,7 +419,7 @@ export class WorksService {
       works.length > 0
         ? await this.prisma.payment.findMany({
             where: {
-              referenceType: PaymentReferenceType.Work,
+              referenceType: PaymentReferenceTypeEnum.Work,
               referenceId: { in: works.map((work) => work.id) },
             },
           })
@@ -430,7 +430,7 @@ export class WorksService {
     return {
       works: works.map((work) => ({
         id: work.id,
-        status: work.status as WorkStatus,
+        status: work.status as WorkStatusEnum,
         serviceDate: work.serviceDate,
         startedAt: work.startedAt,
         arrivalConfirmedAt: work.arrivalConfirmedAt || undefined,
@@ -439,7 +439,7 @@ export class WorksService {
         warrantyExpiresAt: work.warrantyExpiresAt || undefined,
         isUnderWarranty:
           !!work.warrantyExpiresAt &&
-          work.status === WorkStatus.Finished &&
+          work.status === WorkStatusEnum.Finished &&
           work.warrantyExpiresAt.getTime() >= Date.now(),
         warrantyRequestStatus: work.warrantyRequestStatus || undefined,
         warrantyRequestedAt: work.warrantyRequestedAt || undefined,
@@ -463,8 +463,8 @@ export class WorksService {
         payment: paymentMap.get(work.id)
           ? {
               id: paymentMap.get(work.id)!.id,
-              method: paymentMap.get(work.id)!.method as PaymentMethod,
-              status: paymentMap.get(work.id)!.status as PaymentStatus,
+              method: paymentMap.get(work.id)!.method as PaymentMethodEnum,
+              status: paymentMap.get(work.id)!.status as PaymentStatusEnum,
               holderName: paymentMap.get(work.id)!.holderName || undefined,
               cardBrand: paymentMap.get(work.id)!.cardBrand || undefined,
               cardLast4: paymentMap.get(work.id)!.cardLast4 || undefined,
@@ -482,7 +482,7 @@ export class WorksService {
   async findMyRequests(user: User, query: QueryWorkDto): Promise<ResponseFindAllWorkDto> {
     return this.findAll(user, {
       ...query,
-      scope: WorkScope.Requested,
+      scope: WorkScopeEnum.Requested,
     });
   }
 
@@ -505,7 +505,7 @@ export class WorksService {
 
     const payment = await this.prisma.payment.findFirst({
       where: {
-        referenceType: PaymentReferenceType.Work,
+        referenceType: PaymentReferenceTypeEnum.Work,
         referenceId: work.id,
       },
     });
@@ -517,7 +517,7 @@ export class WorksService {
 
     return {
       id: work.id,
-      status: work.status as WorkStatus,
+      status: work.status as WorkStatusEnum,
       details: work.details,
       completionDescription: work.completionDescription,
       cancelReason: work.cancelReason,
@@ -540,7 +540,7 @@ export class WorksService {
       extraRespondedAt: work.extraRespondedAt || undefined,
       isUnderWarranty:
         !!work.warrantyExpiresAt &&
-        work.status === WorkStatus.Finished &&
+        work.status === WorkStatusEnum.Finished &&
         work.warrantyExpiresAt.getTime() >= Date.now(),
       serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
       totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
@@ -557,7 +557,7 @@ export class WorksService {
         fileName: file.fileName,
         fileUrl: file.fileUrl,
         fileKey: file.fileKey,
-        type: file.type as WorkFileType,
+        type: file.type as WorkFileTypeEnum,
         createdAt: file.createdAt,
         updatedAt: file.updatedAt,
       })),
@@ -567,8 +567,8 @@ export class WorksService {
       payment: payment
         ? {
             id: payment.id,
-            method: payment.method as PaymentMethod,
-            status: payment.status as PaymentStatus,
+            method: payment.method as PaymentMethodEnum,
+            status: payment.status as PaymentStatusEnum,
             holderName: payment.holderName || undefined,
             cardBrand: payment.cardBrand || undefined,
             cardLast4: payment.cardLast4 || undefined,
@@ -645,12 +645,12 @@ export class WorksService {
                   deleteMany: {
                     type: {
                       in: [
-                        ...(payload.requesterFiles ? [WorkFileType.Requester] : []),
+                        ...(payload.requesterFiles ? [WorkFileTypeEnum.Requester] : []),
                         ...((payload.providerFiles && !isRequester) || isAdmin
-                          ? [WorkFileType.Provider]
+                          ? [WorkFileTypeEnum.Provider]
                           : []),
                         ...((payload.completionFiles && !isRequester) || isAdmin
-                          ? [WorkFileType.Completion]
+                          ? [WorkFileTypeEnum.Completion]
                           : []),
                       ],
                     },
@@ -660,38 +660,38 @@ export class WorksService {
                       fileName: file.fileName,
                       fileUrl: file.fileUrl,
                       fileKey: file.fileKey,
-                      type: WorkFileType.Requester,
+                      type: WorkFileTypeEnum.Requester,
                     })) as Array<{
                       fileName: string;
                       fileUrl: string;
                       fileKey: string;
-                      type: WorkFileType;
+                      type: WorkFileTypeEnum;
                     }>),
                     ...(((isRequester && !isAdmin ? [] : payload.providerFiles) || []).map(
                       (file) => ({
                         fileName: file.fileName,
                         fileUrl: file.fileUrl,
                         fileKey: file.fileKey,
-                        type: WorkFileType.Provider,
+                        type: WorkFileTypeEnum.Provider,
                       }),
                     ) as Array<{
                       fileName: string;
                       fileUrl: string;
                       fileKey: string;
-                      type: WorkFileType;
+                      type: WorkFileTypeEnum;
                     }>),
                     ...(((isRequester && !isAdmin ? [] : payload.completionFiles) || []).map(
                       (file) => ({
                         fileName: file.fileName,
                         fileUrl: file.fileUrl,
                         fileKey: file.fileKey,
-                        type: WorkFileType.Completion,
+                        type: WorkFileTypeEnum.Completion,
                       }),
                     ) as Array<{
                       fileName: string;
                       fileUrl: string;
                       fileKey: string;
-                      type: WorkFileType;
+                      type: WorkFileTypeEnum;
                     }>),
                   ],
                 }
@@ -725,14 +725,14 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
-    if (work.status !== WorkStatus.Pending) {
+    if (work.status !== WorkStatusEnum.Pending) {
       throw new WorkUpdateFailedException();
     }
 
     await this.prisma.work.update({
       where: { id },
       data: {
-        status: WorkStatus.InProgress,
+        status: WorkStatusEnum.InProgress,
         startedAt: new Date(),
         cancelledAt: null,
       },
@@ -763,7 +763,7 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
-    if (work.status !== WorkStatus.InProgress || !work.startedAt || work.arrivalConfirmedAt) {
+    if (work.status !== WorkStatusEnum.InProgress || !work.startedAt || work.arrivalConfirmedAt) {
       throw new WorkUpdateFailedException();
     }
 
@@ -793,14 +793,14 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
-    if (work.status !== WorkStatus.InProgress) {
+    if (work.status !== WorkStatusEnum.InProgress) {
       throw new WorkUpdateFailedException();
     }
 
     await this.prisma.work.update({
       where: { id },
       data: {
-        status: WorkStatus.Finished,
+        status: WorkStatusEnum.Finished,
         completionDescription: payload.completionDescription.trim(),
         serviceDate: payload.serviceDate ? new Date(payload.serviceDate) : undefined,
         warrantyExpiresAt:
@@ -814,12 +814,12 @@ export class WorksService {
         finishedAt: new Date(),
         files: payload.completionFiles
           ? {
-              deleteMany: { type: WorkFileType.Completion },
+              deleteMany: { type: WorkFileTypeEnum.Completion },
               create: payload.completionFiles.map((file) => ({
                 fileName: file.fileName,
                 fileUrl: file.fileUrl,
                 fileKey: file.fileKey,
-                type: WorkFileType.Completion,
+                type: WorkFileTypeEnum.Completion,
               })),
             }
           : undefined,
@@ -850,13 +850,13 @@ export class WorksService {
       throw new WorkPaymentNotAllowedException();
     }
 
-    if (work.status !== WorkStatus.Finished) {
+    if (work.status !== WorkStatusEnum.Finished) {
       throw new WorkPaymentOnlyAfterFinishException();
     }
 
     const existingPayment = await this.prisma.payment.findFirst({
       where: {
-        referenceType: PaymentReferenceType.Work,
+        referenceType: PaymentReferenceTypeEnum.Work,
         referenceId: work.id,
       },
       select: { id: true },
@@ -882,8 +882,8 @@ export class WorksService {
       const payment = await tx.payment.create({
         data: {
           method: payload.method,
-          status: PaymentStatus.Paid,
-          referenceType: PaymentReferenceType.Work,
+          status: PaymentStatusEnum.Paid,
+          referenceType: PaymentReferenceTypeEnum.Work,
           referenceId: work.id,
           holderName: payload.holderName ? payload.holderName.trim() : null,
           cardBrand: payload.cardBrand ? payload.cardBrand.trim() : null,
@@ -898,25 +898,25 @@ export class WorksService {
       await tx.financialTransaction.createMany({
         data: [
           {
-            type: FinancialTransactionType.Debit,
-            category: FinancialTransactionCategory.WorkPayment,
-            status: PaymentStatus.Paid,
+            type: FinancialTransactionTypeEnum.Debit,
+            category: FinancialTransactionCategoryEnum.WorkPayment,
+            status: PaymentStatusEnum.Paid,
             amount,
             description: `Pagamento do trabalho #${work.id}`,
             availableAt: new Date(),
-            referenceType: PaymentReferenceType.Work,
+            referenceType: PaymentReferenceTypeEnum.Work,
             referenceId: work.id,
             userId: work.requesterId,
             paymentId: payment.id,
           },
           {
-            type: FinancialTransactionType.Credit,
-            category: FinancialTransactionCategory.WorkPayment,
-            status: PaymentStatus.Paid,
+            type: FinancialTransactionTypeEnum.Credit,
+            category: FinancialTransactionCategoryEnum.WorkPayment,
+            status: PaymentStatusEnum.Paid,
             amount,
             description: `Recebimento do trabalho #${work.id}`,
             availableAt: new Date(),
-            referenceType: PaymentReferenceType.Work,
+            referenceType: PaymentReferenceTypeEnum.Work,
             referenceId: work.id,
             userId: work.providerId,
             paymentId: payment.id,
@@ -958,7 +958,7 @@ export class WorksService {
     }
 
     if (
-      work.status !== WorkStatus.Finished ||
+      work.status !== WorkStatusEnum.Finished ||
       !work.warrantyExpiresAt ||
       work.warrantyExpiresAt.getTime() < Date.now() ||
       work.warrantyRequestStatus === WarrantyRequestStatus.Pending
@@ -976,12 +976,12 @@ export class WorksService {
         warrantyRespondedAt: null,
         files: payload.files?.length
           ? {
-              deleteMany: { type: WorkFileType.WarrantyRequest },
+              deleteMany: { type: WorkFileTypeEnum.WarrantyRequest },
               create: payload.files.map((file) => ({
                 fileName: file.fileName,
                 fileUrl: file.fileUrl,
                 fileKey: file.fileKey,
-                type: WorkFileType.WarrantyRequest,
+                type: WorkFileTypeEnum.WarrantyRequest,
               })),
             }
           : undefined,
@@ -1066,7 +1066,7 @@ export class WorksService {
     }
 
     if (
-      work.status === WorkStatus.Cancelled ||
+      work.status === WorkStatusEnum.Cancelled ||
       work.extraRequestStatus === ExtraRequestStatus.Pending
     ) {
       throw new WorkUpdateFailedException();
@@ -1156,14 +1156,14 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
-    if (work.status === WorkStatus.Finished || work.status === WorkStatus.Cancelled) {
+    if (work.status === WorkStatusEnum.Finished || work.status === WorkStatusEnum.Cancelled) {
       throw new WorkUpdateFailedException();
     }
 
     await this.prisma.work.update({
       where: { id },
       data: {
-        status: WorkStatus.Cancelled,
+        status: WorkStatusEnum.Cancelled,
         cancelReason: payload.cancelReason.trim(),
         cancelledAt: new Date(),
       },

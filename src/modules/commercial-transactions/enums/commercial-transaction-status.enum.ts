@@ -1,4 +1,4 @@
-export enum CommercialTransactionStatus {
+export enum CommercialTransactionStatusEnum {
   Requested = 'Requested',
   Accepted = 'Accepted',
   Rejected = 'Rejected',

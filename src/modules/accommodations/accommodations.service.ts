@@ -21,7 +21,7 @@ import { AccommodationCategoryNotFoundException } from './exceptions/accommodati
 import { AccommodationNotFoundException } from './exceptions/accommodation-not-found.exception';
 import { AccommodationPersistenceException } from './exceptions/accommodation-persistence.exception';
 import { AccommodationSelfReviewNotAllowedException } from './exceptions/accommodation-self-review-not-allowed.exception';
-import { ReviewType } from 'src/modules/services/enums/service-review-type.enum';
+import { ReviewTypeEnum } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class AccommodationsService {
@@ -302,13 +302,13 @@ export class AccommodationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.accommodationId === accommodation.id && review.type === ReviewType.Positive,
+              review.accommodationId === accommodation.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.accommodationId === accommodation.id && review.type === ReviewType.Negative,
+              review.accommodationId === accommodation.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -406,13 +406,13 @@ export class AccommodationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.accommodationId === accommodation.id && review.type === ReviewType.Positive,
+              review.accommodationId === accommodation.id && review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.accommodationId === accommodation.id && review.type === ReviewType.Negative,
+              review.accommodationId === accommodation.id && review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -475,10 +475,10 @@ export class AccommodationsService {
         phone: accommodation.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: accommodation.createdAt,
       updatedAt: accommodation.updatedAt,
@@ -538,10 +538,10 @@ export class AccommodationsService {
         phone: accommodation.user.phone || undefined,
       },
       positiveReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Positive)
+        .filter((review) => review.type === ReviewTypeEnum.Positive)
         .reduce((total) => total + 1, 0),
       negativeReviews: reviewCounts
-        .filter((review) => review.type === ReviewType.Negative)
+        .filter((review) => review.type === ReviewTypeEnum.Negative)
         .reduce((total) => total + 1, 0),
       createdAt: accommodation.createdAt,
       updatedAt: accommodation.updatedAt,

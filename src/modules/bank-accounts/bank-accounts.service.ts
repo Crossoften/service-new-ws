@@ -9,7 +9,7 @@ import { UpdateBankAccountDto } from './dto/update-bank-account.dto';
 import { BankAccountAlreadyExistsException } from './exceptions/bank-account-already-exists.exception';
 import { BankAccountNotFoundException } from './exceptions/bank-account-not-found.exception';
 import { BankAccountPersistenceException } from './exceptions/bank-account-persistence.exception';
-import { BankAccountType } from './enums/bank-account-type.enum';
+import { BankAccountTypeEnum } from './enums/bank-account-type.enum';
 
 @Injectable()
 export class BankAccountsService {
@@ -42,7 +42,7 @@ export class BankAccountsService {
         bankAccount: {
           id: bankAccount.id,
           bankName: bankAccount.bankName,
-          accountType: bankAccount.accountType as BankAccountType,
+          accountType: bankAccount.accountType as BankAccountTypeEnum,
           agency: bankAccount.agency,
           account: bankAccount.account,
           cpf: bankAccount.cpf,
@@ -72,7 +72,7 @@ export class BankAccountsService {
     return {
       id: bankAccount.id,
       bankName: bankAccount.bankName,
-      accountType: bankAccount.accountType as BankAccountType,
+      accountType: bankAccount.accountType as BankAccountTypeEnum,
       agency: bankAccount.agency,
       account: bankAccount.account,
       cpf: bankAccount.cpf,
@@ -107,7 +107,7 @@ export class BankAccountsService {
       return {
         id: bankAccount.id,
         bankName: bankAccount.bankName,
-        accountType: bankAccount.accountType as BankAccountType,
+        accountType: bankAccount.accountType as BankAccountTypeEnum,
         agency: bankAccount.agency,
         account: bankAccount.account,
         cpf: bankAccount.cpf,

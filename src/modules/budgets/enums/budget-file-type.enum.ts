@@ -1,4 +1,4 @@
-export enum BudgetFileType {
+export enum BudgetFileTypeEnum {
   Request = 'Request',
   InformationRequest = 'InformationRequest',
 }

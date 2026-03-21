@@ -1,4 +1,4 @@
-export enum FinancialTransactionCategory {
+export enum FinancialTransactionCategoryEnum {
   WorkPayment = 'WorkPayment',
   CommercialTransaction = 'CommercialTransaction',
   Subscription = 'Subscription',

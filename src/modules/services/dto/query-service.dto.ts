@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsBooleanString, IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { ServiceType } from '../enums/service-type.enum';
+import { ServiceTypeEnum } from '../enums/service-type.enum';
 
 export class QueryServiceDto {
   @ApiProperty({
@@ -35,14 +35,14 @@ export class QueryServiceDto {
 
   @ApiProperty({
     description: 'Filtro por tipo do serviço.',
-    enum: ServiceType,
-    enumName: 'ServiceType',
+    enum: ServiceTypeEnum,
+    enumName: 'ServiceTypeEnum',
     required: false,
-    example: ServiceType.Online,
+    example: ServiceTypeEnum.Online,
   })
-  @IsEnum(ServiceType, { message: 'O tipo de serviço informado é inválido.' })
+  @IsEnum(ServiceTypeEnum, { message: 'O tipo de serviço informado é inválido.' })
   @IsOptional()
-  type?: ServiceType;
+  type?: ServiceTypeEnum;
 
   @ApiProperty({
     description: 'Filtro por id do usuário dono do serviço.',

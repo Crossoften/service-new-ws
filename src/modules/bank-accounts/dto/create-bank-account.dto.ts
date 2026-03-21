@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { BankAccountType } from '../enums/bank-account-type.enum';
+import { BankAccountTypeEnum } from '../enums/bank-account-type.enum';
 
 export class CreateBankAccountDto {
   @ApiProperty({
@@ -15,12 +15,12 @@ export class CreateBankAccountDto {
 
   @ApiProperty({
     description: 'Tipo da conta bancária.',
-    enum: BankAccountType,
-    enumName: 'BankAccountType',
-    example: BankAccountType.Checking,
+    enum: BankAccountTypeEnum,
+    enumName: 'BankAccountTypeEnum',
+    example: BankAccountTypeEnum.Checking,
   })
-  @IsEnum(BankAccountType, { message: 'O tipo de conta bancária informado é inválido.' })
-  accountType: BankAccountType;
+  @IsEnum(BankAccountTypeEnum, { message: 'O tipo de conta bancária informado é inválido.' })
+  accountType: BankAccountTypeEnum;
 
   @ApiProperty({
     description: 'Número da agência bancária.',

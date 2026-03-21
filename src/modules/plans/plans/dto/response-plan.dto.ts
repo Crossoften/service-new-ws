@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { SubscriptionInterval } from '../../enums/subscription-interval.enum';
+import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
 
 export class ResponsePlanDto {
   @ApiProperty({ description: 'Identificador do plano.', example: 1 })
@@ -22,10 +22,10 @@ export class ResponsePlanDto {
 
   @ApiProperty({
     description: 'Intervalo de renovação do plano.',
-    enum: SubscriptionInterval,
-    example: SubscriptionInterval.Month,
+    enum: SubscriptionIntervalEnum,
+    example: SubscriptionIntervalEnum.Month,
   })
-  interval: SubscriptionInterval;
+  interval: SubscriptionIntervalEnum;
 
   @ApiProperty({ description: 'Quantidade de intervalos por ciclo.', example: 1 })
   intervalCount: number;

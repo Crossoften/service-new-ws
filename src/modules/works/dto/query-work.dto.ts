@@ -1,31 +1,31 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
-import { WorkScope } from '../enums/work-scope.enum';
-import { WorkStatus } from '../enums/work-status.enum';
+import { WorkScopeEnum } from '../enums/work-scope.enum';
+import { WorkStatusEnum } from '../enums/work-status.enum';
 
 export class QueryWorkDto {
   @ApiProperty({
     description:
       'Escopo da listagem de trabalhos. Define se a consulta retorna trabalhos recebidos pelo usuário logado ou enviados por ele.',
-    enum: WorkScope,
-    enumName: 'WorkScope',
+    enum: WorkScopeEnum,
+    enumName: 'WorkScopeEnum',
     required: false,
-    example: WorkScope.Received,
+    example: WorkScopeEnum.Received,
   })
-  @IsEnum(WorkScope, { message: 'O escopo informado é inválido.' })
+  @IsEnum(WorkScopeEnum, { message: 'O escopo informado é inválido.' })
   @IsOptional()
-  scope?: WorkScope;
+  scope?: WorkScopeEnum;
 
   @ApiProperty({
     description: 'Filtro opcional pelo status atual do trabalho.',
-    enum: WorkStatus,
-    enumName: 'WorkStatus',
+    enum: WorkStatusEnum,
+    enumName: 'WorkStatusEnum',
     required: false,
-    example: WorkStatus.InProgress,
+    example: WorkStatusEnum.InProgress,
   })
-  @IsEnum(WorkStatus, { message: 'O status do trabalho é inválido.' })
+  @IsEnum(WorkStatusEnum, { message: 'O status do trabalho é inválido.' })
   @IsOptional()
-  status?: WorkStatus;
+  status?: WorkStatusEnum;
 
   @ApiProperty({
     description:
