@@ -1,16 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import {
-  FinancialTransactionCategory as PrismaFinancialTransactionCategory,
-  PaymentMethod as PrismaPaymentMethod,
-  PaymentReferenceType as PrismaPaymentReferenceType,
-  PaymentStatus as PrismaPaymentStatus,
-  Prisma,
-  Role,
-  SubscriptionInterval as PrismaSubscriptionInterval,
-  SubscriptionStatus as PrismaSubscriptionStatus,
-  User,
-} from '@prisma/client';
+
 import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { FinancialTransactionTypeEnum } from '../../works/enums/financial-transaction-type.enum';
 import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
@@ -31,6 +21,9 @@ import { SubscriptionAlreadyActiveException } from './exceptions/subscription-al
 import { SubscriptionCancelOnlyActiveException } from './exceptions/subscription-cancel-only-active.exception';
 import { SubscriptionNotFoundException } from './exceptions/subscription-not-found.exception';
 import { SubscriptionReceiverNotFoundException } from './exceptions/subscription-receiver-not-found.exception';
+import { Prisma, User, Role } from '@prisma/client';
+import { FinancialTransactionCategoryEnum } from '../../works/enums/financial-transaction-category.enum';
+import { PaymentReferenceTypeEnum } from '../../works/enums/payment-reference-type.enum';
 
 @Injectable()
 export class SubscriptionsService {
@@ -98,7 +91,7 @@ export class SubscriptionsService {
     const activeSubscription = await this.prisma.subscription.findFirst({
       where: {
         userId: user.id,
-        status: PrismaSubscriptionStatus.Active,
+        status: SubscriptionStatusEnum.Active,
         OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gte: new Date() } }],
       },
       select: { id: true },
@@ -110,7 +103,11 @@ export class SubscriptionsService {
 
     const receiver = await this.findPlatformReceiver(user.id);
     const periodStart = new Date();
-    const periodEnd = this.calculatePeriodEnd(periodStart, plan.interval, plan.intervalCount);
+    const periodEnd = this.calculatePeriodEnd(
+      periodStart,
+      plan.interval as SubscriptionIntervalEnum,
+      plan.intervalCount,
+    );
     const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
     const cardLast4 =
       trimmedCardNumber.length >= 4
@@ -140,7 +137,7 @@ export class SubscriptionsService {
         data: {
           userId: user.id,
           planId: plan.id,
-          status: PrismaSubscriptionStatus.Active,
+          status: SubscriptionStatusEnum.Active,
           amount: plan.price,
           planName: plan.name,
           planInterval: plan.interval,
@@ -155,9 +152,9 @@ export class SubscriptionsService {
 
       const payment = await tx.payment.create({
         data: {
-          method: payload.method as PrismaPaymentMethod,
-          status: PrismaPaymentStatus.Paid,
-          referenceType: PrismaPaymentReferenceType.Subscription,
+          method: payload.method as PaymentMethodEnum,
+          status: PaymentStatusEnum.Paid,
+          referenceType: PaymentReferenceTypeEnum.Subscription,
           referenceId: subscription.id,
           holderName: payload.holderName?.trim() || null,
           cardBrand: payload.cardBrand?.trim() || null,
@@ -173,24 +170,24 @@ export class SubscriptionsService {
         data: [
           {
             type: FinancialTransactionTypeEnum.Debit,
-            category: PrismaFinancialTransactionCategory.Subscription,
-            status: PrismaPaymentStatus.Paid,
+            category: FinancialTransactionCategoryEnum.Subscription,
+            status: PaymentStatusEnum.Paid,
             amount: plan.price,
             description: `Pagamento da assinatura #${subscription.id}`,
             availableAt: new Date(),
-            referenceType: PrismaPaymentReferenceType.Subscription,
+            referenceType: PaymentReferenceTypeEnum.Subscription,
             referenceId: subscription.id,
             userId: user.id,
             paymentId: payment.id,
           },
           {
             type: FinancialTransactionTypeEnum.Credit,
-            category: PrismaFinancialTransactionCategory.Subscription,
-            status: PrismaPaymentStatus.Paid,
+            category: FinancialTransactionCategoryEnum.Subscription,
+            status: PaymentStatusEnum.Paid,
             amount: plan.price,
             description: `Recebimento da assinatura #${subscription.id}`,
             availableAt: new Date(),
-            referenceType: PrismaPaymentReferenceType.Subscription,
+            referenceType: PaymentReferenceTypeEnum.Subscription,
             referenceId: subscription.id,
             userId: receiver.id,
             paymentId: payment.id,
@@ -225,7 +222,7 @@ export class SubscriptionsService {
     const subscription = await this.prisma.subscription.findFirst({
       where: {
         userId: user.id,
-        status: PrismaSubscriptionStatus.Active,
+        status: SubscriptionStatusEnum.Active,
       },
       select: this.subscriptionSelect,
       orderBy: [{ createdAt: 'desc' }],
@@ -279,14 +276,14 @@ export class SubscriptionsService {
       throw new SubscriptionAccessDeniedException();
     }
 
-    if (subscription.status !== PrismaSubscriptionStatus.Active) {
+    if (subscription.status !== SubscriptionStatusEnum.Active) {
       throw new SubscriptionCancelOnlyActiveException();
     }
 
     await this.prisma.subscription.update({
       where: { id },
       data: {
-        status: PrismaSubscriptionStatus.Cancelled,
+        status: SubscriptionStatusEnum.Cancelled,
         cancelledAt: new Date(),
       },
     });
@@ -313,7 +310,7 @@ export class SubscriptionsService {
 
   private calculatePeriodEnd(
     start: Date,
-    interval: PrismaSubscriptionInterval,
+    interval: SubscriptionIntervalEnum,
     intervalCount: number,
   ): Date {
     const end = new Date(start);
@@ -330,7 +327,7 @@ export class SubscriptionsService {
   private async toResponse(subscription: any): Promise<ResponseSubscriptionDto> {
     const payment = await this.prisma.payment.findFirst({
       where: {
-        referenceType: PrismaPaymentReferenceType.Subscription,
+        referenceType: PaymentReferenceTypeEnum.Subscription,
         referenceId: subscription.id,
       },
       select: {
