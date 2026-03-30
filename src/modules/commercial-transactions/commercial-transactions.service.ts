@@ -1,19 +1,10 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import {
-  ChatContextType,
-  CommercialTransactionReferenceType as PrismaCommercialTransactionReferenceType,
-  CommercialTransactionStatus as PrismaCommercialTransactionStatus,
-  FinancialTransactionCategory as PrismaFinancialTransactionCategory,
-  PaymentMethod as PrismaPaymentMethod,
-  PaymentReferenceType as PrismaPaymentReferenceType,
-  PaymentStatus as PrismaPaymentStatus,
-  Prisma,
-  Role,
-  User,
-} from '@prisma/client';
-import { parsePositiveInt } from 'src/utils/parsePositiveInt';
-import { parsePriceDecimal } from 'src/utils/parsePriceDecimal';
+import { ChatContextType, Prisma, Role, User } from '@prisma/client';
+import { parsePositiveInt } from '@utils/parsePositiveInt';
+import { parsePriceDecimal } from '@utils/parsePriceDecimal';
+import { FinancialTransactionCategoryEnum } from '../works/enums/financial-transaction-category.enum';
+import { PaymentReferenceTypeEnum } from '../works/enums/payment-reference-type.enum';
 import { ProductNotFoundException } from '../products/exceptions/product-not-found.exception';
 import { FinancialTransactionTypeEnum } from '../works/enums/financial-transaction-type.enum';
 import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
@@ -129,9 +120,9 @@ export class CommercialTransactionsService {
     const transaction = await this.prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.commercialTransaction.create({
         data: {
-          referenceType: PrismaCommercialTransactionReferenceType.Product,
+          referenceType: CommercialTransactionReferenceTypeEnum.Product,
           referenceId,
-          status: PrismaCommercialTransactionStatus.Requested,
+          status: CommercialTransactionStatusEnum.Requested,
           title,
           description,
           requestedAmount,
@@ -195,7 +186,7 @@ export class CommercialTransactionsService {
 
     const accessFilter = this.buildAccessFilter(user, participantRole);
     const where: Prisma.CommercialTransactionWhereInput = {
-      status: query.status as PrismaCommercialTransactionStatus | undefined,
+      status: query.status as CommercialTransactionStatusEnum | undefined,
       AND: [
         accessFilter,
         search
@@ -247,7 +238,7 @@ export class CommercialTransactionsService {
       this.findChatRoomByTransactionId(transaction.id),
       this.prisma.payment.findFirst({
         where: {
-          referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
           referenceId: transaction.id,
         },
         select: {
@@ -290,7 +281,7 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionSellerResponseNotAllowedException();
     }
 
-    if (transaction.status !== PrismaCommercialTransactionStatus.Requested) {
+    if (transaction.status !== CommercialTransactionStatusEnum.Requested) {
       throw new CommercialTransactionPendingResponseOnlyException();
     }
 
@@ -312,7 +303,7 @@ export class CommercialTransactionsService {
       await tx.commercialTransaction.update({
         where: { id: transaction.id },
         data: {
-          status: payload.status as PrismaCommercialTransactionStatus,
+          status: payload.status as CommercialTransactionStatusEnum,
           agreedAmount,
           acceptedAt:
             payload.status === CommercialTransactionStatusEnum.Accepted ? new Date() : null,
@@ -354,13 +345,13 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionBuyerPaymentNotAllowedException();
     }
 
-    if (transaction.status !== PrismaCommercialTransactionStatus.Accepted) {
+    if (transaction.status !== CommercialTransactionStatusEnum.Accepted) {
       throw new CommercialTransactionPaymentBeforeAcceptanceException();
     }
 
     const existingPayment = await this.prisma.payment.findFirst({
       where: {
-        referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+        referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
         referenceId: transaction.id,
       },
       select: { id: true },
@@ -380,9 +371,9 @@ export class CommercialTransactionsService {
     await this.prisma.$transaction(async (tx) => {
       const payment = await tx.payment.create({
         data: {
-          method: payload.method as PrismaPaymentMethod,
-          status: PrismaPaymentStatus.Paid,
-          referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+          method: payload.method as PaymentMethodEnum,
+          status: PaymentStatusEnum.Paid,
+          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
           referenceId: transaction.id,
           holderName: payload.holderName?.trim() || null,
           cardBrand: payload.cardBrand?.trim() || null,
@@ -398,24 +389,24 @@ export class CommercialTransactionsService {
         data: [
           {
             type: FinancialTransactionTypeEnum.Debit,
-            category: PrismaFinancialTransactionCategory.CommercialTransaction,
-            status: PrismaPaymentStatus.Paid,
+            category: FinancialTransactionCategoryEnum.CommercialTransaction,
+            status: PaymentStatusEnum.Paid,
             amount,
             description: `Pagamento da negociação #${transaction.id}`,
             availableAt: new Date(),
-            referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+            referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
             referenceId: transaction.id,
             userId: transaction.buyerId,
             paymentId: payment.id,
           },
           {
             type: FinancialTransactionTypeEnum.Credit,
-            category: PrismaFinancialTransactionCategory.CommercialTransaction,
-            status: PrismaPaymentStatus.Paid,
+            category: FinancialTransactionCategoryEnum.CommercialTransaction,
+            status: PaymentStatusEnum.Paid,
             amount,
             description: `Recebimento da negociação #${transaction.id}`,
             availableAt: new Date(),
-            referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+            referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
             referenceId: transaction.id,
             userId: transaction.sellerId,
             paymentId: payment.id,
@@ -426,7 +417,7 @@ export class CommercialTransactionsService {
       await tx.commercialTransaction.update({
         where: { id: transaction.id },
         data: {
-          status: PrismaCommercialTransactionStatus.Paid,
+          status: CommercialTransactionStatusEnum.Paid,
           paidAt: new Date(),
         },
       });
@@ -454,14 +445,14 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionBuyerCompletionNotAllowedException();
     }
 
-    if (transaction.status !== PrismaCommercialTransactionStatus.Paid) {
+    if (transaction.status !== CommercialTransactionStatusEnum.Paid) {
       throw new CommercialTransactionUnpaidCompletionNotAllowedException();
     }
 
     await this.prisma.commercialTransaction.update({
       where: { id: transaction.id },
       data: {
-        status: PrismaCommercialTransactionStatus.Completed,
+        status: CommercialTransactionStatusEnum.Completed,
         completedAt: new Date(),
       },
     });
@@ -501,14 +492,14 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionAlreadyFinishedException();
     }
 
-    if (transaction.status === PrismaCommercialTransactionStatus.Paid) {
+    if (transaction.status === CommercialTransactionStatusEnum.Paid) {
       throw new CommercialTransactionPaidCancelNotAllowedException();
     }
 
     await this.prisma.commercialTransaction.update({
       where: { id: transaction.id },
       data: {
-        status: PrismaCommercialTransactionStatus.Cancelled,
+        status: CommercialTransactionStatusEnum.Cancelled,
         cancelledAt: new Date(),
       },
     });
@@ -568,7 +559,7 @@ export class CommercialTransactionsService {
       }),
       this.prisma.payment.findMany({
         where: {
-          referenceType: PrismaPaymentReferenceType.CommercialTransaction,
+          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
           referenceId: { in: transactionIds },
         },
         select: {
