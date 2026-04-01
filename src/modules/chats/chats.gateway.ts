@@ -30,6 +30,12 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
   server: Server;
 
+  private readonly connectedUsers = new Map<number, Set<string>>();
+
+  private readonly messageRateLimit = new Map<number, { count: number; resetAt: number }>();
+  private readonly MAX_MESSAGES_PER_WINDOW = 10;
+  private readonly RATE_WINDOW_MS = 10_000;
+
   constructor(
     private readonly jwtService: JwtService,
     private readonly prisma: PrismaService,
@@ -59,12 +65,49 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
       }
 
       client.data.user = user;
+
+      if (!this.connectedUsers.has(user.id)) {
+        this.connectedUsers.set(user.id, new Set());
+      }
+      this.connectedUsers.get(user.id)!.add(client.id);
+
+      const rooms = await this.prisma.chatRoom.findMany({
+        where: { participants: { some: { userId: user.id } } },
+        select: { id: true },
+      });
+
+      for (const room of rooms) {
+        this.server.to(this.roomChannel(room.id)).emit('user:online', { userId: user.id });
+      }
     } catch {
       client.disconnect();
     }
   }
 
-  handleDisconnect() {}
+  async handleDisconnect(client: AuthenticatedSocket) {
+    const user = client.data.user;
+
+    if (!user) return;
+
+    const sockets = this.connectedUsers.get(user.id);
+
+    if (sockets) {
+      sockets.delete(client.id);
+
+      if (sockets.size === 0) {
+        this.connectedUsers.delete(user.id);
+
+        const rooms = await this.prisma.chatRoom.findMany({
+          where: { participants: { some: { userId: user.id } } },
+          select: { id: true },
+        });
+
+        for (const room of rooms) {
+          this.server.to(this.roomChannel(room.id)).emit('user:offline', { userId: user.id });
+        }
+      }
+    }
+  }
 
   @SubscribeMessage('chat:join')
   async joinRoom(
@@ -114,6 +157,8 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const user = this.getSocketUser(client);
 
     try {
+      this.checkRateLimit(user.id);
+
       const result = await this.chatsService.sendMessageAndGetLastMessage(user, payload.roomId, {
         message: payload.message,
         fileName: payload.fileName,
@@ -128,9 +173,10 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
       this.server.to(this.roomChannel(payload.roomId)).emit('chat:updated', result.room);
 
-      return result;
+      return { success: true, data: result };
     } catch (error) {
-      throw this.normalizeWsError(error);
+      const wsError = this.normalizeWsError(error);
+      return { success: false, error: wsError.message };
     }
   }
 
@@ -153,6 +199,26 @@ export class ChatsGateway implements OnGatewayConnection, OnGatewayDisconnect {
     } catch (error) {
       throw this.normalizeWsError(error);
     }
+  }
+
+  emitToRoom(roomId: number, event: string, payload: unknown): void {
+    this.server.to(this.roomChannel(roomId)).emit(event, payload);
+  }
+
+  private checkRateLimit(userId: number): void {
+    const now = Date.now();
+    const entry = this.messageRateLimit.get(userId);
+
+    if (!entry || now > entry.resetAt) {
+      this.messageRateLimit.set(userId, { count: 1, resetAt: now + this.RATE_WINDOW_MS });
+      return;
+    }
+
+    if (entry.count >= this.MAX_MESSAGES_PER_WINDOW) {
+      throw new WsException('Limite de mensagens excedido. Aguarde alguns segundos.');
+    }
+
+    entry.count++;
   }
 
   private extractToken(client: Socket): string | undefined {
