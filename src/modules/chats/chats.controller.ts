@@ -23,12 +23,16 @@ import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
 import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
 import { ResponseChatDto } from './dto/response-chat.dto';
+import { ChatsGateway } from './chats.gateway';
 import { ChatsService } from './chats.service';
 
 @ApiTags('Chats')
 @Controller('chats')
 export class ChatsController {
-  constructor(private readonly chatsService: ChatsService) {}
+  constructor(
+    private readonly chatsService: ChatsService,
+    private readonly chatsGateway: ChatsGateway,
+  ) {}
 
   @Get('context/:contextType/:referenceId')
   @ApiOperation({
@@ -93,7 +97,12 @@ export class ChatsController {
     @Param('id', ParseIntPipe) id: number,
     @Body() payload: CreateChatMessageDto,
   ): Promise<ResponseChatDto> {
-    return this.chatsService.sendMessage(user, id, payload);
+    const result = await this.chatsService.sendMessageAndGetLastMessage(user, id, payload);
+
+    this.chatsGateway.emitToRoom(id, 'chat:message', { roomId: id, message: result.message });
+    this.chatsGateway.emitToRoom(id, 'chat:updated', result.room);
+
+    return result.room;
   }
 
   @Patch(':id/read')
@@ -108,6 +117,10 @@ export class ChatsController {
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ResponseChatDto> {
-    return this.chatsService.markAsRead(user, id);
+    const room = await this.chatsService.markAsRead(user, id);
+
+    this.chatsGateway.emitToRoom(id, 'chat:read', { roomId: id, userId: user.id });
+
+    return room;
   }
 }
