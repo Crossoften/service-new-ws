@@ -159,17 +159,21 @@ export class ChatsService {
     )?.user;
 
     return {
-      id: room.id,
-      contextType: room.contextType,
-      referenceId: room.referenceId,
-      lastMessageAt: room.lastMessageAt || undefined,
-      otherUser: otherUser
-        ? {
-            id: otherUser.id,
-            name: otherUser.name,
-            fileUrl: otherUser.fileUrl || undefined,
-          }
-        : undefined,
+      chat: {
+        id: room.id,
+        contextType: room.contextType,
+        referenceId: room.referenceId,
+        lastMessageAt: room.lastMessageAt || undefined,
+        otherUser: otherUser
+          ? {
+              id: otherUser.id,
+              name: otherUser.name,
+              fileUrl: otherUser.fileUrl || undefined,
+            }
+          : undefined,
+        createdAt: room.createdAt,
+        updatedAt: room.updatedAt,
+      },
       messages: messages.map((message) => ({
         id: message.id,
         message: message.message || undefined,
@@ -187,8 +191,6 @@ export class ChatsService {
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
       totalRecords,
-      createdAt: room.createdAt,
-      updatedAt: room.updatedAt,
     };
   }
 
