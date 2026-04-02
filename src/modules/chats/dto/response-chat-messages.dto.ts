@@ -13,7 +13,7 @@ export class ResponseChatOtherUserDto {
   fileUrl?: string;
 }
 
-export class ResponseFindChatMessagesDto {
+export class ResponseChatInfoDto {
   @ApiProperty({ example: 1 })
   id: number;
 
@@ -29,6 +29,17 @@ export class ResponseFindChatMessagesDto {
   @ApiPropertyOptional({ type: ResponseChatOtherUserDto })
   otherUser?: ResponseChatOtherUserDto;
 
+  @ApiProperty({ example: '2026-03-18T14:00:00.000Z' })
+  createdAt: Date;
+
+  @ApiProperty({ example: '2026-03-18T14:00:00.000Z' })
+  updatedAt: Date;
+}
+
+export class ResponseFindChatMessagesDto {
+  @ApiProperty({ type: ResponseChatInfoDto })
+  chat: ResponseChatInfoDto;
+
   @ApiProperty({ type: [ResponseChatMessageDto] })
   messages: ResponseChatMessageDto[];
 
@@ -40,10 +51,4 @@ export class ResponseFindChatMessagesDto {
 
   @ApiProperty({ description: 'Total de mensagens encontradas.', example: 42 })
   totalRecords: number;
-
-  @ApiProperty({ example: '2026-03-18T14:00:00.000Z' })
-  createdAt: Date;
-
-  @ApiProperty({ example: '2026-03-18T14:00:00.000Z' })
-  updatedAt: Date;
 }
