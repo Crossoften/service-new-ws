@@ -8,7 +8,10 @@ export class ResponseTextDto {
   @ApiProperty({ description: 'Tipo do texto retornado.', enum: TextType, example: TextType.Terms })
   type: TextType;
 
-  @ApiProperty({ description: 'Conteúdo do texto.', example: 'Termos e condições da plataforma...' })
+  @ApiProperty({
+    description: 'Conteúdo do texto.',
+    example: 'Termos e condições da plataforma...',
+  })
   text: string;
 
   @ApiProperty({ description: 'Data de criação do texto.', example: '2026-03-20T12:00:00.000Z' })
