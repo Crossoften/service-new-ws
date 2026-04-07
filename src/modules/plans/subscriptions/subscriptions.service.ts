@@ -1,7 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 
-import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { FinancialTransactionTypeEnum } from '../../works/enums/financial-transaction-type.enum';
 import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
@@ -71,9 +70,8 @@ export class SubscriptionsService {
   });
 
   async create(user: User, payload: CreateSubscriptionDto): Promise<CreateSubscriptionResponseDto> {
-    const planId = parsePositiveInt(payload.planId, 'planId');
     const plan = await this.prisma.plan.findUnique({
-      where: { id: planId },
+      where: { id: payload.planId },
       select: {
         id: true,
         name: true,
@@ -101,13 +99,28 @@ export class SubscriptionsService {
       throw new SubscriptionAlreadyActiveException();
     }
 
-    const receiver = await this.findPlatformReceiver(user.id);
+    const receiver = await this.prisma.user.findFirst({
+      where: {
+        id: { not: user.id },
+        OR: [{ role: Role.Master }, { role: Role.Admin }],
+      },
+      select: { id: true },
+      orderBy: [{ id: 'asc' }],
+    });
+
+    if (!receiver) {
+      throw new SubscriptionReceiverNotFoundException();
+    }
+
     const periodStart = new Date();
-    const periodEnd = this.calculatePeriodEnd(
-      periodStart,
-      plan.interval as SubscriptionIntervalEnum,
-      plan.intervalCount,
-    );
+    const interval = plan.interval as SubscriptionIntervalEnum;
+    const periodEnd = new Date(periodStart);
+    if (interval === SubscriptionIntervalEnum.Year) {
+      periodEnd.setFullYear(periodEnd.getFullYear() + plan.intervalCount);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + plan.intervalCount);
+    }
+
     const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
     const cardLast4 =
       trimmedCardNumber.length >= 4
@@ -211,11 +224,82 @@ export class SubscriptionsService {
       orderBy: [{ createdAt: 'desc' }],
     });
 
-    return {
-      subscriptions: await Promise.all(
-        subscriptions.map((subscription) => this.toResponse(subscription)),
-      ),
-    };
+    const result = await Promise.all(
+      subscriptions.map(async (subscription) => {
+        const payment = await this.prisma.payment.findFirst({
+          where: {
+            referenceType: PaymentReferenceTypeEnum.Subscription,
+            referenceId: subscription.id,
+          },
+          select: {
+            id: true,
+            method: true,
+            status: true,
+            amount: true,
+            holderName: true,
+            cardBrand: true,
+            cardLast4: true,
+            paidAt: true,
+          },
+          orderBy: [{ createdAt: 'desc' }],
+        });
+
+        return {
+          id: subscription.id,
+          status: subscription.status as SubscriptionStatusEnum,
+          amount: subscription.amount.toFixed(2),
+          planName: subscription.planName,
+          planInterval: subscription.planInterval as SubscriptionIntervalEnum,
+          intervalCount: subscription.intervalCount,
+          plan: {
+            id: subscription.plan.id,
+            name: subscription.plan.name,
+            slug: subscription.plan.slug,
+            description: subscription.plan.description || undefined,
+            price: subscription.plan.price.toFixed(2),
+            interval: subscription.plan.interval as SubscriptionIntervalEnum,
+            intervalCount: subscription.plan.intervalCount,
+            benefits: Array.isArray(subscription.plan.benefits)
+              ? subscription.plan.benefits.map((item: any) => String(item))
+              : [],
+            isActive: subscription.plan.isActive,
+            sortOrder: subscription.plan.sortOrder,
+            createdAt: subscription.plan.createdAt,
+            updatedAt: subscription.plan.updatedAt,
+          } as ResponsePlanDto,
+          payment: payment
+            ? {
+                id: payment.id,
+                method: payment.method as PaymentMethodEnum,
+                status: payment.status as PaymentStatusEnum,
+                amount: payment.amount.toFixed(2),
+                holderName: payment.holderName || undefined,
+                cardBrand: payment.cardBrand || undefined,
+                cardLast4: payment.cardLast4 || undefined,
+                paidAt: payment.paidAt || undefined,
+              }
+            : undefined,
+          address: subscription.address
+            ? {
+                id: subscription.address.id,
+                street: subscription.address.street || undefined,
+                neighborhood: subscription.address.neighborhood || undefined,
+                city: subscription.address.city || undefined,
+                state: subscription.address.state || undefined,
+                zipCode: subscription.address.zipCode || undefined,
+              }
+            : undefined,
+          startedAt: subscription.startedAt || undefined,
+          currentPeriodStart: subscription.currentPeriodStart || undefined,
+          currentPeriodEnd: subscription.currentPeriodEnd || undefined,
+          cancelledAt: subscription.cancelledAt || undefined,
+          createdAt: subscription.createdAt,
+          updatedAt: subscription.updatedAt,
+        };
+      }),
+    );
+
+    return { subscriptions: result };
   }
 
   async findCurrent(user: User): Promise<ResponseSubscriptionDto> {
@@ -232,99 +316,6 @@ export class SubscriptionsService {
       throw new SubscriptionActiveNotFoundException();
     }
 
-    return this.toResponse(subscription);
-  }
-
-  async findById(user: User, id: number): Promise<ResponseSubscriptionDto> {
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { id },
-      select: {
-        ...this.subscriptionSelect,
-        userId: true,
-      },
-    });
-
-    if (!subscription) {
-      throw new SubscriptionNotFoundException();
-    }
-
-    const canAccess =
-      subscription.userId === user.id || user.role === Role.Admin || user.role === Role.Master;
-
-    if (!canAccess) {
-      throw new SubscriptionAccessDeniedException();
-    }
-
-    return this.toResponse(subscription);
-  }
-
-  async cancel(user: User, id: number): Promise<ResponseSubscriptionDto> {
-    const subscription = await this.prisma.subscription.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        userId: true,
-        status: true,
-      },
-    });
-
-    if (!subscription) {
-      throw new SubscriptionNotFoundException();
-    }
-
-    if (subscription.userId !== user.id) {
-      throw new SubscriptionAccessDeniedException();
-    }
-
-    if (subscription.status !== SubscriptionStatusEnum.Active) {
-      throw new SubscriptionCancelOnlyActiveException();
-    }
-
-    await this.prisma.subscription.update({
-      where: { id },
-      data: {
-        status: SubscriptionStatusEnum.Cancelled,
-        cancelledAt: new Date(),
-      },
-    });
-
-    return this.findById(user, id);
-  }
-
-  private async findPlatformReceiver(currentUserId: number) {
-    const receiver = await this.prisma.user.findFirst({
-      where: {
-        id: { not: currentUserId },
-        OR: [{ role: Role.Master }, { role: Role.Admin }],
-      },
-      select: { id: true },
-      orderBy: [{ id: 'asc' }],
-    });
-
-    if (!receiver) {
-      throw new SubscriptionReceiverNotFoundException();
-    }
-
-    return receiver;
-  }
-
-  private calculatePeriodEnd(
-    start: Date,
-    interval: SubscriptionIntervalEnum,
-    intervalCount: number,
-  ): Date {
-    const end = new Date(start);
-
-    if (interval === SubscriptionIntervalEnum.Year) {
-      end.setFullYear(end.getFullYear() + intervalCount);
-      return end;
-    }
-
-    end.setMonth(end.getMonth() + intervalCount);
-    return end;
-  }
-
-  private async toResponse(subscription: any): Promise<ResponseSubscriptionDto> {
     const payment = await this.prisma.payment.findFirst({
       where: {
         referenceType: PaymentReferenceTypeEnum.Subscription,
@@ -395,5 +386,130 @@ export class SubscriptionsService {
       createdAt: subscription.createdAt,
       updatedAt: subscription.updatedAt,
     };
+  }
+
+  async findById(user: User, id: number): Promise<ResponseSubscriptionDto> {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id },
+      select: {
+        ...this.subscriptionSelect,
+        userId: true,
+      },
+    });
+
+    if (!subscription) {
+      throw new SubscriptionNotFoundException();
+    }
+
+    const canAccess =
+      subscription.userId === user.id || user.role === Role.Admin || user.role === Role.Master;
+
+    if (!canAccess) {
+      throw new SubscriptionAccessDeniedException();
+    }
+
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        referenceType: PaymentReferenceTypeEnum.Subscription,
+        referenceId: subscription.id,
+      },
+      select: {
+        id: true,
+        method: true,
+        status: true,
+        amount: true,
+        holderName: true,
+        cardBrand: true,
+        cardLast4: true,
+        paidAt: true,
+      },
+      orderBy: [{ createdAt: 'desc' }],
+    });
+
+    return {
+      id: subscription.id,
+      status: subscription.status as SubscriptionStatusEnum,
+      amount: subscription.amount.toFixed(2),
+      planName: subscription.planName,
+      planInterval: subscription.planInterval as SubscriptionIntervalEnum,
+      intervalCount: subscription.intervalCount,
+      plan: {
+        id: subscription.plan.id,
+        name: subscription.plan.name,
+        slug: subscription.plan.slug,
+        description: subscription.plan.description || undefined,
+        price: subscription.plan.price.toFixed(2),
+        interval: subscription.plan.interval as SubscriptionIntervalEnum,
+        intervalCount: subscription.plan.intervalCount,
+        benefits: Array.isArray(subscription.plan.benefits)
+          ? subscription.plan.benefits.map((item: any) => String(item))
+          : [],
+        isActive: subscription.plan.isActive,
+        sortOrder: subscription.plan.sortOrder,
+        createdAt: subscription.plan.createdAt,
+        updatedAt: subscription.plan.updatedAt,
+      } as ResponsePlanDto,
+      payment: payment
+        ? {
+            id: payment.id,
+            method: payment.method as PaymentMethodEnum,
+            status: payment.status as PaymentStatusEnum,
+            amount: payment.amount.toFixed(2),
+            holderName: payment.holderName || undefined,
+            cardBrand: payment.cardBrand || undefined,
+            cardLast4: payment.cardLast4 || undefined,
+            paidAt: payment.paidAt || undefined,
+          }
+        : undefined,
+      address: subscription.address
+        ? {
+            id: subscription.address.id,
+            street: subscription.address.street || undefined,
+            neighborhood: subscription.address.neighborhood || undefined,
+            city: subscription.address.city || undefined,
+            state: subscription.address.state || undefined,
+            zipCode: subscription.address.zipCode || undefined,
+          }
+        : undefined,
+      startedAt: subscription.startedAt || undefined,
+      currentPeriodStart: subscription.currentPeriodStart || undefined,
+      currentPeriodEnd: subscription.currentPeriodEnd || undefined,
+      cancelledAt: subscription.cancelledAt || undefined,
+      createdAt: subscription.createdAt,
+      updatedAt: subscription.updatedAt,
+    };
+  }
+
+  async cancel(user: User, id: number): Promise<ResponseSubscriptionDto> {
+    const subscription = await this.prisma.subscription.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        userId: true,
+        status: true,
+      },
+    });
+
+    if (!subscription) {
+      throw new SubscriptionNotFoundException();
+    }
+
+    if (subscription.userId !== user.id) {
+      throw new SubscriptionAccessDeniedException();
+    }
+
+    if (subscription.status !== SubscriptionStatusEnum.Active) {
+      throw new SubscriptionCancelOnlyActiveException();
+    }
+
+    await this.prisma.subscription.update({
+      where: { id },
+      data: {
+        status: SubscriptionStatusEnum.Cancelled,
+        cancelledAt: new Date(),
+      },
+    });
+
+    return this.findById(user, id);
   }
 }

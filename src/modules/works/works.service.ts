@@ -9,8 +9,6 @@ import {
   WarrantyRequestStatus,
 } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
@@ -164,29 +162,9 @@ export class WorksService {
     },
   });
 
-  private async getWorkChatMap(workIds: number[]) {
-    if (workIds.length === 0) {
-      return new Map<number, { id: number }>();
-    }
-
-    const rooms = await this.prisma.chatRoom.findMany({
-      where: {
-        contextType: ChatContextType.Work,
-        referenceId: { in: workIds },
-      },
-      select: {
-        id: true,
-        referenceId: true,
-      },
-    });
-
-    return new Map(rooms.map((room) => [room.referenceId, { id: room.id }]));
-  }
-
   async create(user: User, payload: CreateWorkDto): Promise<CreateWorkResponseDto> {
-    const budgetId = parsePositiveInt(payload.budgetId, 'budgetId');
     const budget = await this.prisma.budget.findUnique({
-      where: { id: budgetId },
+      where: { id: payload.budgetId },
       select: {
         id: true,
         status: true,
@@ -236,12 +214,14 @@ export class WorksService {
             warrantyExpiresAt: payload.warrantyExpiresAt
               ? new Date(payload.warrantyExpiresAt)
               : null,
-            serviceValue: payload.serviceValue
-              ? parsePriceDecimal(payload.serviceValue)
-              : budget.responseValue,
-            totalValue: payload.totalValue
-              ? parsePriceDecimal(payload.totalValue)
-              : budget.responseValue,
+            serviceValue:
+              payload.serviceValue !== undefined
+                ? new Prisma.Decimal(payload.serviceValue)
+                : budget.responseValue,
+            totalValue:
+              payload.totalValue !== undefined
+                ? new Prisma.Decimal(payload.totalValue)
+                : budget.responseValue,
             budgetId: budget.id,
             serviceId: budget.serviceId,
             requesterId: budget.requesterId,
@@ -304,7 +284,15 @@ export class WorksService {
           referenceId: work.id,
         },
       });
-      const chatMap = await this.getWorkChatMap([work.id]);
+      const chatRoom = await this.prisma.chatRoom.findUnique({
+        where: {
+          contextType_referenceId: {
+            contextType: ChatContextType.Work,
+            referenceId: work.id,
+          },
+        },
+        select: { id: true },
+      });
       const workWithWarrantyResponse = work as typeof work & {
         warrantyResponseDescription?: string | null;
         warrantyRespondedAt?: Date | null;
@@ -338,7 +326,7 @@ export class WorksService {
           extraRequestStatus: work.extraRequestStatus || undefined,
           extraRequestedAt: work.extraRequestedAt || undefined,
           extraRespondedAt: work.extraRespondedAt || undefined,
-          chat: chatMap.get(work.id),
+          chat: chatRoom ? { id: chatRoom.id } : undefined,
           serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
           totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
           budgetId: work.budgetId,
@@ -384,15 +372,14 @@ export class WorksService {
   }
 
   async findAll(user: User, query: QueryWorkDto): Promise<ResponseFindAllWorkDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const serviceId = query.serviceId ? parsePositiveInt(query.serviceId, 'serviceId') : undefined;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search ? query.search.trim() : undefined;
     const scope = query.scope || WorkScopeEnum.Received;
 
     const where: Prisma.WorkWhereInput = {
       status: query.status,
-      serviceId,
+      serviceId: query.serviceId,
       requesterId: scope === WorkScopeEnum.Requested ? user.id : undefined,
       providerId: scope === WorkScopeEnum.Received ? user.id : undefined,
       OR: search
@@ -425,7 +412,18 @@ export class WorksService {
           })
         : [];
     const paymentMap = new Map(payments.map((payment) => [payment.referenceId, payment]));
-    const chatMap = await this.getWorkChatMap(works.map((work) => work.id));
+    const workIds = works.map((work) => work.id);
+    const chatRooms =
+      workIds.length > 0
+        ? await this.prisma.chatRoom.findMany({
+            where: {
+              contextType: ChatContextType.Work,
+              referenceId: { in: workIds },
+            },
+            select: { id: true, referenceId: true },
+          })
+        : [];
+    const chatMap = new Map(chatRooms.map((room) => [room.referenceId, { id: room.id }]));
 
     return {
       works: works.map((work) => ({
@@ -509,7 +507,15 @@ export class WorksService {
         referenceId: work.id,
       },
     });
-    const chatMap = await this.getWorkChatMap([work.id]);
+    const findByIdChatRoom = await this.prisma.chatRoom.findUnique({
+      where: {
+        contextType_referenceId: {
+          contextType: ChatContextType.Work,
+          referenceId: work.id,
+        },
+      },
+      select: { id: true },
+    });
     const workWithWarrantyResponse = work as typeof work & {
       warrantyResponseDescription?: string | null;
       warrantyRespondedAt?: Date | null;
@@ -563,7 +569,7 @@ export class WorksService {
       })),
       createdAt: work.createdAt,
       updatedAt: work.updatedAt,
-      chat: chatMap.get(work.id),
+      chat: findByIdChatRoom ? { id: findByIdChatRoom.id } : undefined,
       payment: payment
         ? {
             id: payment.id,
@@ -637,8 +643,12 @@ export class WorksService {
                 ? new Date(payload.warrantyExpiresAt)
                 : null
               : undefined,
-          serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
-          totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
+          serviceValue:
+            payload.serviceValue !== undefined
+              ? new Prisma.Decimal(payload.serviceValue)
+              : undefined,
+          totalValue:
+            payload.totalValue !== undefined ? new Prisma.Decimal(payload.totalValue) : undefined,
           files:
             payload.requesterFiles || payload.providerFiles || payload.completionFiles
               ? {
@@ -809,8 +819,10 @@ export class WorksService {
               ? new Date(payload.warrantyExpiresAt)
               : null
             : undefined,
-        serviceValue: payload.serviceValue ? parsePriceDecimal(payload.serviceValue) : undefined,
-        totalValue: payload.totalValue ? parsePriceDecimal(payload.totalValue) : undefined,
+        serviceValue:
+          payload.serviceValue !== undefined ? new Prisma.Decimal(payload.serviceValue) : undefined,
+        totalValue:
+          payload.totalValue !== undefined ? new Prisma.Decimal(payload.totalValue) : undefined,
         finishedAt: new Date(),
         files: payload.completionFiles
           ? {
@@ -1075,7 +1087,7 @@ export class WorksService {
     await this.prisma.work.update({
       where: { id },
       data: {
-        extraRequestValue: parsePriceDecimal(payload.value),
+        extraRequestValue: new Prisma.Decimal(payload.value),
         extraRequestDescription: payload.description.trim(),
         extraRequestStatus: ExtraRequestStatus.Pending,
         extraRequestedAt: new Date(),

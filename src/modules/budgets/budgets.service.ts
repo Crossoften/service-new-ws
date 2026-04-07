@@ -2,8 +2,6 @@ import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { ChatContextType, ExtraRequestStatus, Prisma, Role, User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateWorkResponseDto } from '../works/dto/create-work-response.dto';
 import { WorkFileTypeEnum } from '../works/enums/work-file-type.enum';
 import { WorkStatusEnum } from '../works/enums/work-status.enum';
@@ -33,20 +31,6 @@ import { ServiceNotFoundException } from '../services/exceptions/service-not-fou
 @Injectable()
 export class BudgetsService {
   constructor(private readonly prisma: PrismaService) {}
-
-  private async getWorkChat(id: number) {
-    const room = await this.prisma.chatRoom.findUnique({
-      where: {
-        contextType_referenceId: {
-          contextType: ChatContextType.Work,
-          referenceId: id,
-        },
-      },
-      select: { id: true },
-    });
-
-    return room ? { id: room.id } : undefined;
-  }
 
   private readonly budgetSelect = Prisma.validator<Prisma.BudgetSelect>()({
     id: true,
@@ -223,9 +207,8 @@ export class BudgetsService {
   });
 
   async create(user: User, payload: CreateBudgetDto): Promise<CreateBudgetResponseDto> {
-    const serviceId = parsePositiveInt(payload.serviceId, 'serviceId');
     const service = await this.prisma.service.findUnique({
-      where: { id: serviceId },
+      where: { id: payload.serviceId },
       select: { id: true, userId: true, isActive: true },
     });
 
@@ -237,7 +220,7 @@ export class BudgetsService {
       const budget = await this.prisma.budget.create({
         data: {
           description: payload.description ? payload.description.trim() : null,
-          serviceId,
+          serviceId: service.id,
           requesterId: user.id,
           providerId: service.userId,
           files:
@@ -316,15 +299,14 @@ export class BudgetsService {
   }
 
   async findAll(user: User, query: QueryBudgetDto): Promise<ResponseFindAllBudgetDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
-    const serviceId = query.serviceId ? parsePositiveInt(query.serviceId, 'serviceId') : undefined;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search ? query.search.trim() : undefined;
     const scope = query.scope || BudgetScopeEnum.Received;
 
     const where: Prisma.BudgetWhereInput = {
       status: query.status,
-      serviceId,
+      serviceId: query.serviceId,
       requesterId: scope === BudgetScopeEnum.Requested ? user.id : undefined,
       providerId: scope === BudgetScopeEnum.Received ? user.id : undefined,
       OR: search
@@ -471,16 +453,9 @@ export class BudgetsService {
       throw new BudgetAccessDeniedException();
     }
 
-    const serviceId = payload.serviceId
-      ? parsePositiveInt(payload.serviceId, 'serviceId')
-      : undefined;
-    const responseTimeQuantity = payload.responseTimeQuantity
-      ? parsePositiveInt(payload.responseTimeQuantity, 'responseTimeQuantity')
-      : undefined;
-
-    if (serviceId) {
+    if (payload.serviceId) {
       const service = await this.prisma.service.findUnique({
-        where: { id: serviceId },
+        where: { id: payload.serviceId },
         select: { id: true, userId: true, isActive: true },
       });
 
@@ -497,7 +472,7 @@ export class BudgetsService {
                 ? payload.description.trim()
                 : null
               : undefined,
-          serviceId,
+          serviceId: payload.serviceId,
           status:
             payload.status ??
             (isUpdatingResponse
@@ -513,10 +488,11 @@ export class BudgetsService {
                 ? payload.responseDescription.trim()
                 : null
               : undefined,
-          responseValue: payload.responseValue
-            ? parsePriceDecimal(payload.responseValue)
-            : undefined,
-          responseTimeQuantity,
+          responseValue:
+            payload.responseValue !== undefined
+              ? new Prisma.Decimal(payload.responseValue)
+              : undefined,
+          responseTimeQuantity: payload.responseTimeQuantity,
           responseTimeUnit: payload.responseTimeUnit,
           files: payload.files
             ? {
@@ -620,7 +596,7 @@ export class BudgetsService {
     await this.prisma.budget.update({
       where: { id },
       data: {
-        extraRequestValue: parsePriceDecimal(payload.value),
+        extraRequestValue: new Prisma.Decimal(payload.value),
         extraRequestDescription: payload.description.trim(),
         extraRequestStatus: ExtraRequestStatus.Pending,
         extraRequestedAt: new Date(),
@@ -770,7 +746,16 @@ export class BudgetsService {
 
       return createdWork;
     });
-    const chat = await this.getWorkChat(work.id);
+    const chatRoom = await this.prisma.chatRoom.findUnique({
+      where: {
+        contextType_referenceId: {
+          contextType: ChatContextType.Work,
+          referenceId: work.id,
+        },
+      },
+      select: { id: true },
+    });
+    const chat = chatRoom ? { id: chatRoom.id } : undefined;
 
     return {
       message: 'Orçamento aprovado com sucesso.',

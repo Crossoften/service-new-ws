@@ -3,10 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
-import { parseBooleanString } from '@utils/parseBooleanString';
-import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateTransportationResponseDto } from './dto/create-transportation-response.dto';
 import { CreateTransportationReviewResponseDto } from './dto/create-transportation-review-response.dto';
 import { CreateTransportationReviewDto } from './dto/create-transportation-review.dto';
@@ -98,29 +94,27 @@ export class TransportationsService {
     user: User,
     payload: CreateTransportationDto,
   ): Promise<CreateTransportationResponseDto> {
-    const categoryId = parsePositiveInt(payload.categoryId, 'categoryId');
-    const price = parsePriceDecimal(payload.price);
-    const isActive = parseOptionalBooleanString(payload.isActive, 'isActive');
-    const mileageKm = payload.mileageKm ? parsePositiveInt(payload.mileageKm, 'mileageKm') : null;
-    const capacity = payload.capacity ? parsePositiveInt(payload.capacity, 'capacity') : null;
-    const year = payload.year ? parsePositiveInt(payload.year, 'year') : null;
-
-    await this.findCategoryById(categoryId);
+    const category = await this.prisma.transportationCategory.findFirst({
+      where: { id: payload.categoryId, isActive: true },
+    });
+    if (!category) {
+      throw new TransportationCategoryNotFoundException();
+    }
 
     try {
       const transportation = await this.prisma.transportation.create({
         data: {
           name: capitalizeFirstLetter(payload.name.trim()),
           model: payload.model ? payload.model.trim() : null,
-          mileageKm,
-          capacity,
-          year,
-          price,
+          mileageKm: payload.mileageKm ?? null,
+          capacity: payload.capacity ?? null,
+          year: payload.year ?? null,
+          price: new Prisma.Decimal(payload.price),
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
-          isActive: isActive ?? true,
-          categoryId,
+          isActive: payload.isActive ?? true,
+          categoryId: payload.categoryId,
           userId: user.id,
         },
         select: this.transportationSelect,
@@ -194,19 +188,14 @@ export class TransportationsService {
   }
 
   async findAll(query: QueryTransportationDto): Promise<ResponseFindAllTransportationDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const userId = query.userId ? parsePositiveInt(query.userId, 'userId') : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
+    const isActive = query.isActive ?? true;
 
     const where: Prisma.TransportationWhereInput = {
-      categoryId,
-      userId,
+      categoryId: query.categoryId,
+      userId: query.userId,
       isActive,
       OR: search
         ? [
@@ -268,13 +257,15 @@ export class TransportationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Positive,
+              review.transportationId === transportation.id &&
+              review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Negative,
+              review.transportationId === transportation.id &&
+              review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -288,19 +279,14 @@ export class TransportationsService {
     user: User,
     query: QueryTransportationDto,
   ): Promise<ResponseFindAllTransportationDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.TransportationWhereInput = {
-      categoryId,
+      categoryId: query.categoryId,
       userId: user.id,
-      isActive,
+      isActive: query.isActive,
       OR: search
         ? [
             { name: { contains: search } },
@@ -361,13 +347,15 @@ export class TransportationsService {
         positiveReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Positive,
+              review.transportationId === transportation.id &&
+              review.type === ReviewTypeEnum.Positive,
           )
           .reduce((total) => total + 1, 0),
         negativeReviews: reviewCounts
           .filter(
             (review) =>
-              review.transportationId === transportation.id && review.type === ReviewTypeEnum.Negative,
+              review.transportationId === transportation.id &&
+              review.type === ReviewTypeEnum.Negative,
           )
           .reduce((total) => total + 1, 0),
       })),
@@ -573,12 +561,13 @@ export class TransportationsService {
       throw new TransportationAccessDeniedException();
     }
 
-    const categoryId = payload.categoryId
-      ? parsePositiveInt(payload.categoryId, 'categoryId')
-      : undefined;
-
-    if (categoryId) {
-      await this.findCategoryById(categoryId);
+    if (payload.categoryId) {
+      const cat = await this.prisma.transportationCategory.findFirst({
+        where: { id: payload.categoryId, isActive: true },
+      });
+      if (!cat) {
+        throw new TransportationCategoryNotFoundException();
+      }
     }
 
     try {
@@ -588,25 +577,10 @@ export class TransportationsService {
           name: payload.name ? capitalizeFirstLetter(payload.name.trim()) : undefined,
           model:
             payload.model !== undefined ? (payload.model ? payload.model.trim() : null) : undefined,
-          mileageKm:
-            payload.mileageKm !== undefined
-              ? payload.mileageKm
-                ? parsePositiveInt(payload.mileageKm, 'mileageKm')
-                : null
-              : undefined,
-          capacity:
-            payload.capacity !== undefined
-              ? payload.capacity
-                ? parsePositiveInt(payload.capacity, 'capacity')
-                : null
-              : undefined,
-          year:
-            payload.year !== undefined
-              ? payload.year
-                ? parsePositiveInt(payload.year, 'year')
-                : null
-              : undefined,
-          price: payload.price ? parsePriceDecimal(payload.price) : undefined,
+          mileageKm: payload.mileageKm !== undefined ? payload.mileageKm ?? null : undefined,
+          capacity: payload.capacity !== undefined ? payload.capacity ?? null : undefined,
+          year: payload.year !== undefined ? payload.year ?? null : undefined,
+          price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
           description:
             payload.description !== undefined
               ? payload.description
@@ -615,8 +589,8 @@ export class TransportationsService {
               : undefined,
           imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
           imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
-          isActive: parseOptionalBooleanString(payload.isActive, 'isActive'),
-          categoryId,
+          isActive: payload.isActive,
+          categoryId: payload.categoryId,
         },
       });
     } catch (error) {
@@ -642,17 +616,5 @@ export class TransportationsService {
     await this.prisma.transportation.delete({ where: { id } });
 
     return { message: 'Transporte deletado com sucesso.' };
-  }
-
-  private async findCategoryById(id: number) {
-    const category = await this.prisma.transportationCategory.findFirst({
-      where: { id, isActive: true },
-    });
-
-    if (!category) {
-      throw new TransportationCategoryNotFoundException();
-    }
-
-    return category;
   }
 }

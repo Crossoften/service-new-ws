@@ -3,10 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
-import { parseBooleanString } from '@utils/parseBooleanString';
-import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateAccommodationResponseDto } from './dto/create-accommodation-response.dto';
 import { CreateAccommodationReviewResponseDto } from './dto/create-accommodation-review-response.dto';
 import { CreateAccommodationReviewDto } from './dto/create-accommodation-review.dto';
@@ -107,14 +103,12 @@ export class AccommodationsService {
     user: User,
     payload: CreateAccommodationDto,
   ): Promise<CreateAccommodationResponseDto> {
-    const categoryId = parsePositiveInt(payload.categoryId, 'categoryId');
-    const roomsQuantity = payload.roomsQuantity
-      ? parsePositiveInt(payload.roomsQuantity, 'roomsQuantity')
-      : null;
-    const price = parsePriceDecimal(payload.price);
-    const isActive = parseOptionalBooleanString(payload.isActive, 'isActive');
-
-    await this.findCategoryById(categoryId);
+    const category = await this.prisma.accommodationCategory.findFirst({
+      where: { id: payload.categoryId, isActive: true },
+    });
+    if (!category) {
+      throw new AccommodationCategoryNotFoundException();
+    }
 
     try {
       const accommodation = await this.prisma.accommodation.create({
@@ -132,14 +126,14 @@ export class AccommodationsService {
                 },
               }
             : undefined,
-          roomsQuantity,
-          price,
+          roomsQuantity: payload.roomsQuantity ?? null,
+          price: new Prisma.Decimal(payload.price),
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
-          isActive: isActive ?? true,
+          isActive: payload.isActive ?? true,
           category: {
-            connect: { id: categoryId },
+            connect: { id: payload.categoryId },
           },
           user: {
             connect: { id: user.id },
@@ -217,21 +211,16 @@ export class AccommodationsService {
   }
 
   async findAll(query: QueryAccommodationDto): Promise<ResponseFindAllAccommodationDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
     const city = query.city ? query.city.trim() : undefined;
     const state = query.state ? query.state.trim() : undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const userId = query.userId ? parsePositiveInt(query.userId, 'userId') : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
+    const isActive = query.isActive ?? true;
 
     const where: Prisma.AccommodationWhereInput = {
-      categoryId,
-      userId,
+      categoryId: query.categoryId,
+      userId: query.userId,
       isActive,
       OR: search
         ? [
@@ -324,21 +313,16 @@ export class AccommodationsService {
     user: User,
     query: QueryAccommodationDto,
   ): Promise<ResponseFindAllAccommodationDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
     const city = query.city ? query.city.trim() : undefined;
     const state = query.state ? query.state.trim() : undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.AccommodationWhereInput = {
-      categoryId,
+      categoryId: query.categoryId,
       userId: user.id,
-      isActive,
+      isActive: query.isActive,
       OR: search
         ? [
             { name: { contains: search } },
@@ -616,7 +600,14 @@ export class AccommodationsService {
     id: number,
     payload: UpdateAccommodationDto,
   ): Promise<ResponseAccommodationDto> {
-    const accommodation = await this.findAccommodationById(id);
+    const accommodation = await this.prisma.accommodation.findUnique({
+      where: { id },
+      select: this.accommodationSelect,
+    });
+    if (!accommodation) {
+      throw new AccommodationNotFoundException();
+    }
+
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isOwner = user.id === accommodation.userId;
 
@@ -624,12 +615,13 @@ export class AccommodationsService {
       throw new AccommodationAccessDeniedException();
     }
 
-    const categoryId = payload.categoryId
-      ? parsePositiveInt(payload.categoryId, 'categoryId')
-      : undefined;
-
-    if (categoryId) {
-      await this.findCategoryById(categoryId);
+    if (payload.categoryId) {
+      const cat = await this.prisma.accommodationCategory.findFirst({
+        where: { id: payload.categoryId, isActive: true },
+      });
+      if (!cat) {
+        throw new AccommodationCategoryNotFoundException();
+      }
     }
 
     try {
@@ -683,12 +675,8 @@ export class AccommodationsService {
           data: {
             name: payload.name ? capitalizeFirstLetter(payload.name.trim()) : undefined,
             roomsQuantity:
-              payload.roomsQuantity !== undefined
-                ? payload.roomsQuantity
-                  ? parsePositiveInt(payload.roomsQuantity, 'roomsQuantity')
-                  : null
-                : undefined,
-            price: payload.price ? parsePriceDecimal(payload.price) : undefined,
+              payload.roomsQuantity !== undefined ? payload.roomsQuantity ?? null : undefined,
+            price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
             description:
               payload.description !== undefined
                 ? payload.description
@@ -697,8 +685,8 @@ export class AccommodationsService {
                 : undefined,
             imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
             imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
-            isActive: parseOptionalBooleanString(payload.isActive, 'isActive'),
-            categoryId,
+            isActive: payload.isActive,
+            categoryId: payload.categoryId,
           },
         });
       });
@@ -714,7 +702,13 @@ export class AccommodationsService {
   }
 
   async delete(user: User, id: number): Promise<ImessageEntity> {
-    const accommodation = await this.findAccommodationById(id);
+    const accommodation = await this.prisma.accommodation.findUnique({
+      where: { id },
+      select: this.accommodationSelect,
+    });
+    if (!accommodation) {
+      throw new AccommodationNotFoundException();
+    }
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isOwner = user.id === accommodation.userId;
 
@@ -731,30 +725,5 @@ export class AccommodationsService {
     });
 
     return { message: 'Hospedagem deletada com sucesso.' };
-  }
-
-  private async findCategoryById(id: number) {
-    const category = await this.prisma.accommodationCategory.findFirst({
-      where: { id, isActive: true },
-    });
-
-    if (!category) {
-      throw new AccommodationCategoryNotFoundException();
-    }
-
-    return category;
-  }
-
-  private async findAccommodationById(id: number) {
-    const accommodation = await this.prisma.accommodation.findUnique({
-      where: { id },
-      select: this.accommodationSelect,
-    });
-
-    if (!accommodation) {
-      throw new AccommodationNotFoundException();
-    }
-
-    return accommodation;
   }
 }

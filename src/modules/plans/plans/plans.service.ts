@@ -1,9 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
-import { parseBooleanString } from '@utils/parseBooleanString';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreatePlanDto } from './dto/create-plan.dto';
 import { QueryPlanDto } from './dto/query-plan.dto';
 import { ResponseFindAllPlansDto, ResponsePlanDto } from './dto/response-plan.dto';
@@ -36,29 +33,37 @@ export class PlansService {
         name: payload.name.trim(),
         slug: payload.slug.trim(),
         description: payload.description?.trim() || null,
-        price: parsePriceDecimal(payload.price),
+        price: new Prisma.Decimal(payload.price),
         interval: payload.interval,
-        intervalCount: parsePositiveInt(payload.intervalCount, 'intervalCount'),
+        intervalCount: payload.intervalCount,
         benefits: payload.benefits || [],
-        isActive:
-          payload.isActive !== undefined ? parseBooleanString(payload.isActive, 'isActive') : true,
-        sortOrder: payload.sortOrder ? parsePositiveInt(payload.sortOrder, 'sortOrder') : 0,
+        isActive: payload.isActive ?? true,
+        sortOrder: payload.sortOrder ?? 0,
       },
       select: this.planSelect,
     });
 
-    return this.toResponse(plan);
+    return {
+      id: plan.id,
+      name: plan.name,
+      slug: plan.slug,
+      description: plan.description || undefined,
+      price: plan.price.toFixed(2),
+      interval: plan.interval as SubscriptionIntervalEnum,
+      intervalCount: plan.intervalCount,
+      benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
+      isActive: plan.isActive,
+      sortOrder: plan.sortOrder,
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+    };
   }
 
   async findAll(query: QueryPlanDto, onlyActive = false): Promise<ResponseFindAllPlansDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || undefined;
-    const isActive = onlyActive
-      ? true
-      : query.isActive !== undefined
-        ? parseBooleanString(query.isActive, 'isActive')
-        : undefined;
+    const isActive = onlyActive ? true : query.isActive;
 
     const where: Prisma.PlanWhereInput = {
       isActive,
@@ -79,7 +84,22 @@ export class PlansService {
     ]);
 
     return {
-      plans: plans.map((plan) => this.toResponse(plan)),
+      plans: plans.map((plan) => ({
+        id: plan.id,
+        name: plan.name,
+        slug: plan.slug,
+        description: plan.description || undefined,
+        price: plan.price.toFixed(2),
+        interval: plan.interval as SubscriptionIntervalEnum,
+        intervalCount: plan.intervalCount,
+        benefits: Array.isArray(plan.benefits)
+          ? plan.benefits.map((item: any) => String(item))
+          : [],
+        isActive: plan.isActive,
+        sortOrder: plan.sortOrder,
+        createdAt: plan.createdAt,
+        updatedAt: plan.updatedAt,
+      })),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
       totalRecords,
@@ -96,45 +116,6 @@ export class PlansService {
       throw new PlanNotFoundException();
     }
 
-    return this.toResponse(plan);
-  }
-
-  async update(id: number, payload: UpdatePlanDto): Promise<ResponsePlanDto> {
-    await this.findById(id);
-
-    const plan = await this.prisma.plan.update({
-      where: { id },
-      data: {
-        name: payload.name?.trim(),
-        slug: payload.slug?.trim(),
-        description:
-          payload.description !== undefined ? payload.description?.trim() || null : undefined,
-        price: payload.price ? parsePriceDecimal(payload.price) : undefined,
-        interval: payload.interval as SubscriptionIntervalEnum | undefined,
-        intervalCount: payload.intervalCount
-          ? parsePositiveInt(payload.intervalCount, 'intervalCount')
-          : undefined,
-        benefits: payload.benefits,
-        isActive:
-          payload.isActive !== undefined
-            ? parseBooleanString(payload.isActive, 'isActive')
-            : undefined,
-        sortOrder: payload.sortOrder ? parsePositiveInt(payload.sortOrder, 'sortOrder') : undefined,
-      },
-      select: this.planSelect,
-    });
-
-    return this.toResponse(plan);
-  }
-
-  async delete(id: number): Promise<{ message: string }> {
-    await this.findById(id);
-    await this.prisma.plan.delete({ where: { id } });
-
-    return { message: 'Plano removido com sucesso.' };
-  }
-
-  private toResponse(plan: any): ResponsePlanDto {
     return {
       id: plan.id,
       name: plan.name,
@@ -149,5 +130,48 @@ export class PlansService {
       createdAt: plan.createdAt,
       updatedAt: plan.updatedAt,
     };
+  }
+
+  async update(id: number, payload: UpdatePlanDto): Promise<ResponsePlanDto> {
+    await this.findById(id);
+
+    const plan = await this.prisma.plan.update({
+      where: { id },
+      data: {
+        name: payload.name?.trim(),
+        slug: payload.slug?.trim(),
+        description:
+          payload.description !== undefined ? payload.description?.trim() || null : undefined,
+        price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
+        interval: payload.interval as SubscriptionIntervalEnum | undefined,
+        intervalCount: payload.intervalCount,
+        benefits: payload.benefits,
+        isActive: payload.isActive,
+        sortOrder: payload.sortOrder,
+      },
+      select: this.planSelect,
+    });
+
+    return {
+      id: plan.id,
+      name: plan.name,
+      slug: plan.slug,
+      description: plan.description || undefined,
+      price: plan.price.toFixed(2),
+      interval: plan.interval as SubscriptionIntervalEnum,
+      intervalCount: plan.intervalCount,
+      benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
+      isActive: plan.isActive,
+      sortOrder: plan.sortOrder,
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+    };
+  }
+
+  async delete(id: number): Promise<{ message: string }> {
+    await this.findById(id);
+    await this.prisma.plan.delete({ where: { id } });
+
+    return { message: 'Plano removido com sucesso.' };
   }
 }
