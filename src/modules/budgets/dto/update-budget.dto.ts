@@ -1,5 +1,6 @@
 import { ApiProperty, PartialType } from '@nestjs/swagger';
-import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { BudgetStatusEnum } from '../enums/budget-status.enum';
 import { BudgetTimeUnitEnum } from '../enums/budget-time-unit.enum';
 import { CreateBudgetDto } from './create-budget.dto';
@@ -16,34 +17,22 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
   @IsOptional()
   status?: BudgetStatusEnum;
 
-  @ApiProperty({
-    description: 'Descrição da resposta do fornecedor.',
-    required: false,
-    nullable: true,
-    example: 'Consigo realizar o serviço em até 3 dias.',
-    type: String,
-  })
+  @ApiProperty({ description: 'Descrição da resposta do fornecedor.', required: false, nullable: true, example: 'Consigo realizar o serviço em até 3 dias.' })
   @IsString({ message: 'A descrição da resposta deve ser um texto.' })
   @IsOptional()
   responseDescription?: string;
 
-  @ApiProperty({
-    description: 'Valor respondido para o orçamento.',
-    required: false,
-    example: '350.00',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O valor da resposta deve conter apenas números.' })
+  @ApiProperty({ description: 'Valor respondido para o orçamento.', required: false, example: 350.0 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor da resposta deve ser um número válido.' })
+  @Min(0)
   @IsOptional()
-  responseValue?: string;
+  responseValue?: number;
 
-  @ApiProperty({
-    description: 'Quantidade prevista para execução.',
-    required: false,
-    example: '3',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'A quantidade de tempo deve conter apenas números.' })
+  @ApiProperty({ description: 'Quantidade prevista para execução.', required: false, example: 3 })
+  @Type(() => Number)
+  @IsInt({ message: 'A quantidade de tempo deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   responseTimeQuantity?: number;
 

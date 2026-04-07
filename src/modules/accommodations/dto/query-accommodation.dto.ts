@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsNumberString, IsOptional, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryAccommodationDto {
   @ApiProperty({
     description: 'Busca textual por nome, cidade, estado, categoria ou nome do anunciante.',
     required: false,
     example: 'Uberlândia',
-    type: String,
   })
   @IsString({ message: 'O campo search deve ser um texto.' })
   @IsOptional()
@@ -16,7 +16,6 @@ export class QueryAccommodationDto {
     description: 'Filtro textual aplicado sobre o nome da hospedagem.',
     required: false,
     example: 'Novo Leste',
-    type: String,
   })
   @IsString({ message: 'O campo name deve ser um texto.' })
   @IsOptional()
@@ -26,7 +25,6 @@ export class QueryAccommodationDto {
     description: 'Filtro opcional pela cidade da hospedagem.',
     required: false,
     example: 'Uberlândia',
-    type: String,
   })
   @IsString({ message: 'O campo city deve ser um texto.' })
   @IsOptional()
@@ -36,7 +34,6 @@ export class QueryAccommodationDto {
     description: 'Filtro opcional pelo estado da hospedagem.',
     required: false,
     example: 'Minas Gerais',
-    type: String,
   })
   @IsString({ message: 'O campo state deve ser um texto.' })
   @IsOptional()
@@ -45,51 +42,54 @@ export class QueryAccommodationDto {
   @ApiProperty({
     description: 'Filtro opcional pelo identificador da categoria.',
     required: false,
-    example: '3',
-    type: String,
+    example: 3,
   })
-  @IsNumberString({}, { message: 'O campo categoryId deve conter apenas números.' })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo categoryId deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   categoryId?: number;
 
   @ApiProperty({
     description: 'Filtro opcional pelo identificador do dono da hospedagem.',
     required: false,
-    example: '15',
-    type: String,
+    example: 15,
   })
-  @IsNumberString({}, { message: 'O campo userId deve conter apenas números.' })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo userId deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   userId?: number;
 
   @ApiProperty({
     description: 'Filtro opcional por status ativo/inativo da hospedagem.',
     required: false,
-    example: 'true',
-    type: String,
+    example: true,
   })
-  @IsString({ message: 'O campo isActive deve ser um texto.' })
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean({ message: 'O campo isActive deve ser true ou false.' })
   @IsOptional()
-  isActive?: boolean | string;
+  isActive?: boolean;
 
   @ApiProperty({
     description: 'Quantidade de registros retornados por página.',
     required: false,
-    example: '10',
-    type: String,
+    example: 10,
   })
-  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo take deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   take?: number;
 
-  @ApiProperty({
-    description:
-      'Página atual da listagem paginada. Apesar do nome do campo ser `skip`, o valor esperado é o número da página.',
-    required: false,
-    example: '1',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
+  @ApiProperty({ description: 'Página atual da listagem paginada.', required: false, example: 1 })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo skip deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   skip?: number;
 }

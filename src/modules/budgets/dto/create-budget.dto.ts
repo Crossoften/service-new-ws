@@ -1,15 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { ArrayMaxSize, IsArray, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { CreateBudgetFileDto } from './create-budget-file.dto';
 
 export class CreateBudgetDto {
-  @ApiProperty({
-    description: 'Identificador do serviço para o qual o orçamento será solicitado.',
-    example: '3',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O id do serviço deve conter apenas números.' })
+  @ApiProperty({ description: 'Identificador do serviço para o qual o orçamento será solicitado.', example: 3 })
+  @Type(() => Number)
+  @IsInt({ message: 'O id do serviço deve ser um número inteiro.' })
+  @Min(1)
   serviceId: number;
 
   @ApiProperty({
@@ -17,7 +15,6 @@ export class CreateBudgetDto {
     required: false,
     nullable: true,
     example: 'Preciso de um orçamento para atendimento residencial.',
-    type: String,
   })
   @IsString({ message: 'A descrição do orçamento deve ser um texto.' })
   @IsOptional()

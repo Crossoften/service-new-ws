@@ -5,18 +5,17 @@ import {
   IsArray,
   IsDateString,
   IsNotEmpty,
-  IsNumberString,
+  IsNumber,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
 import { CreateWorkFileDto } from './create-work-file.dto';
 
 export class FinishWorkDto {
   @ApiProperty({
-    description:
-      'Descrição final do serviço executado, normalmente usada para resumir a entrega e registrar a conclusão do trabalho.',
+    description: 'Descrição final do serviço executado.',
     example: 'Serviço concluído conforme combinado.',
-    type: String,
   })
   @IsString({ message: 'A descrição da conclusão deve ser um texto.' })
   @IsNotEmpty({ message: 'A descrição da conclusão é obrigatória.' })
@@ -26,46 +25,37 @@ export class FinishWorkDto {
     description: 'Data efetiva de realização ou conclusão do serviço em formato ISO 8601.',
     required: false,
     example: '2026-03-16T18:00:00.000Z',
-    type: String,
   })
   @IsDateString({}, { message: 'A data do serviço deve estar em formato ISO 8601.' })
   @IsOptional()
   serviceDate?: string;
 
-  @ApiProperty({
-    description: 'Valor final do serviço executado, enviado como string decimal.',
-    required: false,
-    example: '350.00',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O valor do serviço deve conter apenas números.' })
+  @ApiProperty({ description: 'Valor final do serviço executado.', required: false, example: 350.0 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor do serviço deve ser um número válido.' })
+  @Min(0)
   @IsOptional()
-  serviceValue?: string;
+  serviceValue?: number;
+
+  @ApiProperty({ description: 'Valor total final do trabalho concluído.', required: false, example: 350.0 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor total deve ser um número válido.' })
+  @Min(0)
+  @IsOptional()
+  totalValue?: number;
 
   @ApiProperty({
-    description: 'Valor total final do trabalho concluído, enviado como string decimal.',
-    required: false,
-    example: '350.00',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O valor total deve conter apenas números.' })
-  @IsOptional()
-  totalValue?: string;
-
-  @ApiProperty({
-    description: 'Data final da garantia do trabalho em formato ISO 8601, quando houver garantia.',
+    description: 'Data final da garantia do trabalho em formato ISO 8601.',
     required: false,
     nullable: true,
     example: '2026-06-16T23:59:59.000Z',
-    type: String,
   })
   @IsDateString({}, { message: 'A data da garantia deve estar em formato ISO 8601.' })
   @IsOptional()
   warrantyExpiresAt?: string;
 
   @ApiProperty({
-    description:
-      'Arquivos anexados no encerramento do trabalho, como fotos da entrega, laudos ou comprovantes.',
+    description: 'Arquivos anexados no encerramento do trabalho.',
     required: false,
     type: [CreateWorkFileDto],
     example: [
