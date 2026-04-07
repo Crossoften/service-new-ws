@@ -36,14 +36,22 @@ export class QueryWorkDto {
   @IsOptional()
   search?: string;
 
-  @ApiProperty({ description: 'Filtro opcional pelo identificador do serviço vinculado ao trabalho.', required: false, example: 3 })
+  @ApiProperty({
+    description: 'Filtro opcional pelo identificador do serviço vinculado ao trabalho.',
+    required: false,
+    example: 3,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O campo serviceId deve ser um número inteiro.' })
   @Min(1)
   @IsOptional()
   serviceId?: number;
 
-  @ApiProperty({ description: 'Quantidade de registros retornados por página.', required: false, example: 10 })
+  @ApiProperty({
+    description: 'Quantidade de registros retornados por página.',
+    required: false,
+    example: 10,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O campo take deve ser um número inteiro.' })
   @Min(1)
