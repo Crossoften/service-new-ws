@@ -1,5 +1,4 @@
-import { PrismaClient } from '@prisma/client';
-import { parsePriceDecimal } from '../../src/utils/parsePriceDecimal';
+import { Prisma, PrismaClient } from '@prisma/client';
 import { planDefinitions } from '../../src/modules/plans/plans/constants/plan.constants';
 
 export async function seedPlan(prisma: PrismaClient) {
@@ -10,7 +9,7 @@ export async function seedPlan(prisma: PrismaClient) {
         name: plan.name,
         slug: plan.slug,
         description: plan.description,
-        price: parsePriceDecimal(plan.price),
+        price: new Prisma.Decimal(plan.price),
         interval: plan.interval,
         intervalCount: plan.intervalCount,
         benefits: plan.benefits,
@@ -20,7 +19,7 @@ export async function seedPlan(prisma: PrismaClient) {
       update: {
         name: plan.name,
         description: plan.description,
-        price: parsePriceDecimal(plan.price),
+        price: new Prisma.Decimal(plan.price),
         interval: plan.interval,
         intervalCount: plan.intervalCount,
         benefits: plan.benefits,
