@@ -1,7 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { ResponseAdminUserDto } from './dto/response-admin-user.dto';
 import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.dto';
@@ -26,8 +25,8 @@ export class AdminUsersService {
   });
 
   async findAll(query: QueryAdminUserDto): Promise<ResponseFindAllAdminUserDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const currentPage = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const currentPage = query.skip ?? 1;
     const search = query.search ? query.search.trim() : undefined;
 
     const where: Prisma.UserWhereInput = {

@@ -1,8 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { ChatContextType, Prisma, Role, User } from '@prisma/client';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { FinancialTransactionCategoryEnum } from '../works/enums/financial-transaction-category.enum';
 import { PaymentReferenceTypeEnum } from '../works/enums/payment-reference-type.enum';
 import { ProductNotFoundException } from '../products/exceptions/product-not-found.exception';
@@ -92,10 +90,8 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionUnsupportedReferenceTypeException();
     }
 
-    const referenceId = parsePositiveInt(payload.referenceId, 'referenceId');
-    const requestedAmount = parsePriceDecimal(payload.requestedAmount);
     const product = await this.prisma.product.findUnique({
-      where: { id: referenceId },
+      where: { id: payload.referenceId },
       select: {
         id: true,
         name: true,
@@ -115,13 +111,14 @@ export class CommercialTransactionsService {
 
     const title = payload.title?.trim() || `Solicitação para ${product.name}`;
     const description = payload.description?.trim() || null;
+    const requestedAmount = new Prisma.Decimal(payload.requestedAmount);
     const defaultMessage = `Solicitação enviada no valor de R$ ${requestedAmount.toFixed(2)}.`;
 
     const transaction = await this.prisma.$transaction(async (tx) => {
       const createdTransaction = await tx.commercialTransaction.create({
         data: {
           referenceType: CommercialTransactionReferenceTypeEnum.Product,
-          referenceId,
+          referenceId: payload.referenceId,
           status: CommercialTransactionStatusEnum.Requested,
           title,
           description,
@@ -179,12 +176,22 @@ export class CommercialTransactionsService {
     user: User,
     query: QueryCommercialTransactionDto,
   ): Promise<ResponseFindAllCommercialTransactionDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || undefined;
     const participantRole = query.participantRole || CommercialTransactionParticipantRoleEnum.All;
 
-    const accessFilter = this.buildAccessFilter(user, participantRole);
+    let accessFilter: Prisma.CommercialTransactionWhereInput;
+    if (user.role === Role.Admin || user.role === Role.Master) {
+      accessFilter = {};
+    } else if (participantRole === CommercialTransactionParticipantRoleEnum.Buyer) {
+      accessFilter = { buyerId: user.id };
+    } else if (participantRole === CommercialTransactionParticipantRoleEnum.Seller) {
+      accessFilter = { sellerId: user.id };
+    } else {
+      accessFilter = { OR: [{ buyerId: user.id }, { sellerId: user.id }] };
+    }
+
     const where: Prisma.CommercialTransactionWhereInput = {
       status: query.status as CommercialTransactionStatusEnum | undefined,
       AND: [
@@ -214,8 +221,101 @@ export class CommercialTransactionsService {
       this.prisma.commercialTransaction.count({ where }),
     ]);
 
+    if (transactions.length === 0) {
+      return {
+        transactions: [],
+        currentPage: page,
+        totalPages: Math.max(1, Math.ceil(totalRecords / take)),
+        totalRecords,
+      };
+    }
+
+    const transactionIds = transactions.map((t) => t.id);
+    const [rooms, payments] = await Promise.all([
+      this.prisma.chatRoom.findMany({
+        where: {
+          contextType: ChatContextType.CommercialTransaction,
+          referenceId: { in: transactionIds },
+        },
+        select: { id: true, referenceId: true },
+      }),
+      this.prisma.payment.findMany({
+        where: {
+          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
+          referenceId: { in: transactionIds },
+        },
+        select: {
+          id: true,
+          referenceId: true,
+          method: true,
+          status: true,
+          amount: true,
+          holderName: true,
+          cardBrand: true,
+          cardLast4: true,
+          paidAt: true,
+        },
+      }),
+    ]);
+
+    const roomMap = new Map(rooms.map((room) => [room.referenceId, room.id]));
+    const paymentMap = new Map(payments.map((payment) => [payment.referenceId, payment]));
+
     return {
-      transactions: await this.mapTransactions(transactions),
+      transactions: transactions.map((transaction) => {
+        const payment = paymentMap.get(transaction.id);
+        return {
+          id: transaction.id,
+          referenceType: transaction.referenceType as CommercialTransactionReferenceTypeEnum,
+          referenceId: transaction.referenceId,
+          status: transaction.status as CommercialTransactionStatusEnum,
+          title: transaction.title || undefined,
+          description: transaction.description || undefined,
+          requestedAmount: transaction.requestedAmount.toFixed(2),
+          agreedAmount: transaction.agreedAmount ? transaction.agreedAmount.toFixed(2) : undefined,
+          chatRoomId: roomMap.get(transaction.id) || 0,
+          buyer: {
+            id: transaction.buyer.id,
+            name: transaction.buyer.name,
+            fileUrl: transaction.buyer.fileUrl || undefined,
+          },
+          seller: {
+            id: transaction.seller.id,
+            name: transaction.seller.name,
+            fileUrl: transaction.seller.fileUrl || undefined,
+          },
+          product:
+            transaction.referenceType === CommercialTransactionReferenceTypeEnum.Product &&
+            transaction.product
+              ? {
+                  id: transaction.product.id,
+                  name: transaction.product.name,
+                  model: transaction.product.model || undefined,
+                  price: transaction.product.price.toFixed(2),
+                  imageUrl: transaction.product.imageUrl || undefined,
+                }
+              : undefined,
+          payment: payment
+            ? {
+                id: payment.id,
+                method: payment.method as PaymentMethodEnum,
+                status: payment.status as PaymentStatusEnum,
+                amount: payment.amount.toFixed(2),
+                holderName: payment.holderName || undefined,
+                cardBrand: payment.cardBrand || undefined,
+                cardLast4: payment.cardLast4 || undefined,
+                paidAt: payment.paidAt || undefined,
+              }
+            : undefined,
+          acceptedAt: transaction.acceptedAt || undefined,
+          rejectedAt: transaction.rejectedAt || undefined,
+          cancelledAt: transaction.cancelledAt || undefined,
+          paidAt: transaction.paidAt || undefined,
+          completedAt: transaction.completedAt || undefined,
+          createdAt: transaction.createdAt,
+          updatedAt: transaction.updatedAt,
+        };
+      }),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
       totalRecords,
@@ -232,10 +332,26 @@ export class CommercialTransactionsService {
       throw new CommercialTransactionNotFoundException();
     }
 
-    this.assertAccess(user, transaction);
+    const canAccess =
+      transaction.buyerId === user.id ||
+      transaction.sellerId === user.id ||
+      user.role === Role.Admin ||
+      user.role === Role.Master;
+
+    if (!canAccess) {
+      throw new CommercialTransactionAccessDeniedException();
+    }
 
     const [room, payment] = await Promise.all([
-      this.findChatRoomByTransactionId(transaction.id),
+      this.prisma.chatRoom.findUnique({
+        where: {
+          contextType_referenceId: {
+            contextType: ChatContextType.CommercialTransaction,
+            referenceId: transaction.id,
+          },
+        },
+        select: { id: true },
+      }),
       this.prisma.payment.findFirst({
         where: {
           referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
@@ -254,7 +370,61 @@ export class CommercialTransactionsService {
       }),
     ]);
 
-    return this.toResponse(transaction, room.id, payment);
+    if (!room) {
+      throw new CommercialTransactionChatNotFoundException();
+    }
+
+    return {
+      id: transaction.id,
+      referenceType: transaction.referenceType as CommercialTransactionReferenceTypeEnum,
+      referenceId: transaction.referenceId,
+      status: transaction.status as CommercialTransactionStatusEnum,
+      title: transaction.title || undefined,
+      description: transaction.description || undefined,
+      requestedAmount: transaction.requestedAmount.toFixed(2),
+      agreedAmount: transaction.agreedAmount ? transaction.agreedAmount.toFixed(2) : undefined,
+      chatRoomId: room.id,
+      buyer: {
+        id: transaction.buyer.id,
+        name: transaction.buyer.name,
+        fileUrl: transaction.buyer.fileUrl || undefined,
+      },
+      seller: {
+        id: transaction.seller.id,
+        name: transaction.seller.name,
+        fileUrl: transaction.seller.fileUrl || undefined,
+      },
+      product:
+        transaction.referenceType === CommercialTransactionReferenceTypeEnum.Product &&
+        transaction.product
+          ? {
+              id: transaction.product.id,
+              name: transaction.product.name,
+              model: transaction.product.model || undefined,
+              price: transaction.product.price.toFixed(2),
+              imageUrl: transaction.product.imageUrl || undefined,
+            }
+          : undefined,
+      payment: payment
+        ? {
+            id: payment.id,
+            method: payment.method as PaymentMethodEnum,
+            status: payment.status as PaymentStatusEnum,
+            amount: payment.amount.toFixed(2),
+            holderName: payment.holderName || undefined,
+            cardBrand: payment.cardBrand || undefined,
+            cardLast4: payment.cardLast4 || undefined,
+            paidAt: payment.paidAt || undefined,
+          }
+        : undefined,
+      acceptedAt: transaction.acceptedAt || undefined,
+      rejectedAt: transaction.rejectedAt || undefined,
+      cancelledAt: transaction.cancelledAt || undefined,
+      paidAt: transaction.paidAt || undefined,
+      completedAt: transaction.completedAt || undefined,
+      createdAt: transaction.createdAt,
+      updatedAt: transaction.updatedAt,
+    };
   }
 
   async respond(
@@ -294,8 +464,8 @@ export class CommercialTransactionsService {
 
     const agreedAmount =
       payload.status === CommercialTransactionStatusEnum.Accepted
-        ? payload.agreedAmount
-          ? parsePriceDecimal(payload.agreedAmount)
+        ? payload.agreedAmount !== undefined
+          ? new Prisma.Decimal(payload.agreedAmount)
           : transaction.requestedAmount
         : null;
 
@@ -313,7 +483,42 @@ export class CommercialTransactionsService {
       });
 
       if (payload.message?.trim()) {
-        await this.createChatMessage(tx, transaction.id, user.id, payload.message.trim());
+        const room = await tx.chatRoom.findUnique({
+          where: {
+            contextType_referenceId: {
+              contextType: ChatContextType.CommercialTransaction,
+              referenceId: transaction.id,
+            },
+          },
+          select: { id: true },
+        });
+
+        if (!room) {
+          throw new CommercialTransactionChatNotFoundException();
+        }
+
+        await tx.chatMessage.create({
+          data: {
+            roomId: room.id,
+            senderId: user.id,
+            message: payload.message.trim(),
+          },
+        });
+
+        await tx.chatRoom.update({
+          where: { id: room.id },
+          data: { lastMessageAt: new Date() },
+        });
+
+        await tx.chatParticipant.update({
+          where: {
+            roomId_userId: {
+              roomId: room.id,
+              userId: user.id,
+            },
+          },
+          data: { lastReadAt: new Date() },
+        });
       }
     });
 
@@ -505,206 +710,5 @@ export class CommercialTransactionsService {
     });
 
     return this.findById(user, id);
-  }
-
-  private buildAccessFilter(
-    user: User,
-    participantRole: CommercialTransactionParticipantRoleEnum,
-  ): Prisma.CommercialTransactionWhereInput {
-    if (user.role === Role.Admin || user.role === Role.Master) {
-      return {};
-    }
-
-    if (participantRole === CommercialTransactionParticipantRoleEnum.Buyer) {
-      return { buyerId: user.id };
-    }
-
-    if (participantRole === CommercialTransactionParticipantRoleEnum.Seller) {
-      return { sellerId: user.id };
-    }
-
-    return {
-      OR: [{ buyerId: user.id }, { sellerId: user.id }],
-    };
-  }
-
-  private assertAccess(user: User, transaction: { buyerId?: number; sellerId?: number }): void {
-    const canAccess =
-      transaction.buyerId === user.id ||
-      transaction.sellerId === user.id ||
-      user.role === Role.Admin ||
-      user.role === Role.Master;
-
-    if (!canAccess) {
-      throw new CommercialTransactionAccessDeniedException();
-    }
-  }
-
-  private async mapTransactions(transactions: any[]): Promise<ResponseCommercialTransactionDto[]> {
-    if (transactions.length === 0) {
-      return [];
-    }
-
-    const transactionIds = transactions.map((transaction) => transaction.id);
-    const [rooms, payments] = await Promise.all([
-      this.prisma.chatRoom.findMany({
-        where: {
-          contextType: ChatContextType.CommercialTransaction,
-          referenceId: { in: transactionIds },
-        },
-        select: {
-          id: true,
-          referenceId: true,
-        },
-      }),
-      this.prisma.payment.findMany({
-        where: {
-          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
-          referenceId: { in: transactionIds },
-        },
-        select: {
-          id: true,
-          referenceId: true,
-          method: true,
-          status: true,
-          amount: true,
-          holderName: true,
-          cardBrand: true,
-          cardLast4: true,
-          paidAt: true,
-        },
-      }),
-    ]);
-
-    const roomMap = new Map(rooms.map((room) => [room.referenceId, room.id]));
-    const paymentMap = new Map(payments.map((payment) => [payment.referenceId, payment]));
-
-    return transactions.map((transaction) =>
-      this.toResponse(
-        transaction,
-        roomMap.get(transaction.id) || 0,
-        paymentMap.get(transaction.id),
-      ),
-    );
-  }
-
-  private async findChatRoomByTransactionId(id: number) {
-    const room = await this.prisma.chatRoom.findUnique({
-      where: {
-        contextType_referenceId: {
-          contextType: ChatContextType.CommercialTransaction,
-          referenceId: id,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (!room) {
-      throw new CommercialTransactionChatNotFoundException();
-    }
-
-    return room;
-  }
-
-  private async createChatMessage(
-    tx: Prisma.TransactionClient,
-    transactionId: number,
-    senderId: number,
-    message: string,
-  ): Promise<void> {
-    const room = await tx.chatRoom.findUnique({
-      where: {
-        contextType_referenceId: {
-          contextType: ChatContextType.CommercialTransaction,
-          referenceId: transactionId,
-        },
-      },
-      select: { id: true },
-    });
-
-    if (!room) {
-      throw new CommercialTransactionChatNotFoundException();
-    }
-
-    await tx.chatMessage.create({
-      data: {
-        roomId: room.id,
-        senderId,
-        message,
-      },
-    });
-
-    await tx.chatRoom.update({
-      where: { id: room.id },
-      data: { lastMessageAt: new Date() },
-    });
-
-    await tx.chatParticipant.update({
-      where: {
-        roomId_userId: {
-          roomId: room.id,
-          userId: senderId,
-        },
-      },
-      data: { lastReadAt: new Date() },
-    });
-  }
-
-  private toResponse(
-    transaction: any,
-    chatRoomId: number,
-    payment?: any,
-  ): ResponseCommercialTransactionDto {
-    return {
-      id: transaction.id,
-      referenceType: transaction.referenceType as CommercialTransactionReferenceTypeEnum,
-      referenceId: transaction.referenceId,
-      status: transaction.status as CommercialTransactionStatusEnum,
-      title: transaction.title || undefined,
-      description: transaction.description || undefined,
-      requestedAmount: transaction.requestedAmount.toFixed(2),
-      agreedAmount: transaction.agreedAmount ? transaction.agreedAmount.toFixed(2) : undefined,
-      chatRoomId,
-      buyer: {
-        id: transaction.buyer.id,
-        name: transaction.buyer.name,
-        fileUrl: transaction.buyer.fileUrl || undefined,
-      },
-      seller: {
-        id: transaction.seller.id,
-        name: transaction.seller.name,
-        fileUrl: transaction.seller.fileUrl || undefined,
-      },
-      product:
-        transaction.referenceType === CommercialTransactionReferenceTypeEnum.Product &&
-        transaction.product
-          ? {
-              id: transaction.product.id,
-              name: transaction.product.name,
-              model: transaction.product.model || undefined,
-              price: transaction.product.price.toFixed(2),
-              imageUrl: transaction.product.imageUrl || undefined,
-            }
-          : undefined,
-      payment: payment
-        ? {
-            id: payment.id,
-            method: payment.method as PaymentMethodEnum,
-            status: payment.status as PaymentStatusEnum,
-            amount: payment.amount.toFixed(2),
-            holderName: payment.holderName || undefined,
-            cardBrand: payment.cardBrand || undefined,
-            cardLast4: payment.cardLast4 || undefined,
-            paidAt: payment.paidAt || undefined,
-          }
-        : undefined,
-      acceptedAt: transaction.acceptedAt || undefined,
-      rejectedAt: transaction.rejectedAt || undefined,
-      cancelledAt: transaction.cancelledAt || undefined,
-      paidAt: transaction.paidAt || undefined,
-      completedAt: transaction.completedAt || undefined,
-      createdAt: transaction.createdAt,
-      updatedAt: transaction.updatedAt,
-    };
   }
 }

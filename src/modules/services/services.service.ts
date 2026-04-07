@@ -3,10 +3,6 @@ import { Injectable } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
-import { parseBooleanString } from '@utils/parseBooleanString';
-import { parseOptionalBooleanString } from '@utils/parseOptionalBooleanString';
-import { parsePositiveInt } from '@utils/parsePositiveInt';
-import { parsePriceDecimal } from '@utils/parsePriceDecimal';
 import { CreateServiceResponseDto } from './dto/create-service-response.dto';
 import { CreateServiceReviewDto } from './dto/create-service-review.dto';
 import { CreateServiceReviewResponseDto } from './dto/create-service-review-response.dto';
@@ -91,11 +87,10 @@ export class ServicesService {
   });
 
   async create(user: User, payload: CreateServiceDto): Promise<CreateServiceResponseDto> {
-    const categoryId = parsePositiveInt(payload.categoryId, 'categoryId');
-    const price = parsePriceDecimal(payload.price);
-    const isActive = parseOptionalBooleanString(payload.isActive, 'isActive');
-
-    await this.findCategoryById(categoryId);
+    const category = await this.prisma.serviceCategory.findFirst({
+      where: { id: payload.categoryId, isActive: true },
+    });
+    if (!category) throw new ServiceCategoryNotFoundException();
 
     try {
       const service = await this.prisma.service.create({
@@ -103,12 +98,12 @@ export class ServicesService {
           name: capitalizeFirstLetter(payload.name.trim()),
           type: payload.type,
           registrationCode: payload.registrationCode ? payload.registrationCode.trim() : null,
-          price,
+          price: new Prisma.Decimal(payload.price),
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
-          isActive: isActive ?? true,
-          categoryId,
+          isActive: payload.isActive ?? true,
+          categoryId: payload.categoryId,
           userId: user.id,
         },
         select: this.serviceSelect,
@@ -147,20 +142,15 @@ export class ServicesService {
   }
 
   async findAll(query: QueryServiceDto): Promise<ResponseFindAllServiceDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const userId = query.userId ? parsePositiveInt(query.userId, 'userId') : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : true;
+    const isActive = query.isActive ?? true;
 
     const where: Prisma.ServiceWhereInput = {
-      categoryId,
+      categoryId: query.categoryId,
       type: query.type,
-      userId,
+      userId: query.userId,
       isActive,
       OR: search
         ? [
@@ -244,20 +234,15 @@ export class ServicesService {
   }
 
   async findMyServices(user: User, query: QueryServiceDto): Promise<ResponseFindAllServiceDto> {
-    const take = query.take ? parsePositiveInt(query.take, 'take') : 10;
-    const page = query.skip ? parsePositiveInt(query.skip, 'skip') : 1;
+    const take = query.take ?? 10;
+    const page = query.skip ?? 1;
     const search = query.search?.trim() || query.name?.trim() || undefined;
-    const categoryId = query.categoryId
-      ? parsePositiveInt(query.categoryId, 'categoryId')
-      : undefined;
-    const isActive =
-      query.isActive !== undefined ? parseBooleanString(query.isActive, 'isActive') : undefined;
 
     const where: Prisma.ServiceWhereInput = {
-      categoryId,
+      categoryId: query.categoryId,
       type: query.type,
       userId: user.id,
-      isActive,
+      isActive: query.isActive,
       OR: search
         ? [
             { name: { contains: search } },
@@ -553,11 +538,12 @@ export class ServicesService {
       throw new ServiceAccessDeniedException();
     }
 
-    const categoryId = payload.categoryId
-      ? parsePositiveInt(payload.categoryId, 'categoryId')
-      : undefined;
-
-    if (categoryId) await this.findCategoryById(categoryId);
+    if (payload.categoryId) {
+      const cat = await this.prisma.serviceCategory.findFirst({
+        where: { id: payload.categoryId, isActive: true },
+      });
+      if (!cat) throw new ServiceCategoryNotFoundException();
+    }
 
     try {
       await this.prisma.service.update({
@@ -571,7 +557,7 @@ export class ServicesService {
                 ? payload.registrationCode.trim()
                 : null
               : undefined,
-          price: payload.price ? parsePriceDecimal(payload.price) : undefined,
+          price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
           description:
             payload.description !== undefined
               ? payload.description
@@ -580,8 +566,8 @@ export class ServicesService {
               : undefined,
           imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
           imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
-          isActive: parseOptionalBooleanString(payload.isActive, 'isActive'),
-          categoryId,
+          isActive: payload.isActive,
+          categoryId: payload.categoryId,
         },
       });
     } catch (error) {
@@ -610,13 +596,4 @@ export class ServicesService {
     return { message: 'Serviço deletado com sucesso.' };
   }
 
-  private async findCategoryById(id: number) {
-    const category = await this.prisma.serviceCategory.findFirst({
-      where: { id, isActive: true },
-    });
-
-    if (!category) throw new ServiceCategoryNotFoundException();
-
-    return category;
-  }
 }
