@@ -1,25 +1,27 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsEnum,
+  IsInt,
   IsNotEmpty,
-  IsNumberString,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { ProductTransactionTypeEnum } from '../enums/product-transaction-type.enum';
 
 export class CreateProductDto {
-  @ApiProperty({
-    description: 'Identificador da categoria vinculada ao produto.',
-    example: '3',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O id da categoria deve conter apenas números.' })
+  @ApiProperty({ description: 'Identificador da categoria vinculada ao produto.', example: 3 })
+  @Type(() => Number)
+  @IsInt({ message: 'O id da categoria deve ser um número inteiro.' })
+  @Min(1)
   categoryId: number;
 
   @ApiProperty({
-    description: 'Tipo de negociação do produto. Pode ser somente aluguel, somente venda ou ambos.',
+    description: 'Tipo de negociação do produto.',
     enum: ProductTransactionTypeEnum,
     enumName: 'ProductTransactionTypeEnum',
     example: ProductTransactionTypeEnum.Sale,
@@ -27,11 +29,7 @@ export class CreateProductDto {
   @IsEnum(ProductTransactionTypeEnum, { message: 'O tipo de negociação informado é inválido.' })
   transactionType: ProductTransactionTypeEnum;
 
-  @ApiProperty({
-    description: 'Nome principal do produto.',
-    example: 'Fiat Bravo',
-    type: String,
-  })
+  @ApiProperty({ description: 'Nome principal do produto.', example: 'Fiat Bravo' })
   @IsString({ message: 'O nome do produto deve ser um texto.' })
   @IsNotEmpty({ message: 'O nome do produto é obrigatório.' })
   @MaxLength(160, { message: 'O nome do produto deve ter no máximo 160 caracteres.' })
@@ -42,72 +40,51 @@ export class CreateProductDto {
     required: false,
     nullable: true,
     example: 'Essence 1.8',
-    type: String,
   })
   @IsString({ message: 'O modelo do produto deve ser um texto.' })
   @IsOptional()
   @MaxLength(160, { message: 'O modelo deve ter no máximo 160 caracteres.' })
   model?: string;
 
-  @ApiProperty({
-    description: 'Ano do produto.',
-    required: false,
-    nullable: true,
-    example: '2016',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O ano do produto deve conter apenas números.' })
+  @ApiProperty({ description: 'Ano do produto.', required: false, nullable: true, example: 2016 })
+  @Type(() => Number)
+  @IsInt({ message: 'O ano do produto deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   year?: number;
 
-  @ApiProperty({
-    description: 'Valor do produto em formato decimal com duas casas.',
-    example: '45000.00',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O preço do produto deve conter apenas números.' })
-  price: string;
+  @ApiProperty({ description: 'Valor do produto.', example: 45000.0 })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O preço do produto deve ser um número válido.' })
+  @Min(0)
+  price: number;
 
-  @ApiProperty({
-    description: 'Descrição detalhada do produto.',
-    required: false,
-    nullable: true,
-    example: 'Veículo em ótimo estado, revisado e com baixa quilometragem.',
-    type: String,
-  })
+  @ApiProperty({ description: 'Descrição detalhada do produto.', required: false, nullable: true })
   @IsString({ message: 'A descrição do produto deve ser um texto.' })
   @IsOptional()
   description?: string;
 
-  @ApiProperty({
-    description: 'URL pública da imagem do produto.',
-    required: false,
-    nullable: true,
-    example: 'https://cdn.seudominio.com/products/fiat-bravo.png',
-    type: String,
-  })
-  @IsString({ message: 'A URL da imagem deve ser um texto.' })
+  @ApiProperty({ description: 'URL pública da imagem.', required: false, nullable: true })
+  @IsString()
   @IsOptional()
   imageUrl?: string;
 
-  @ApiProperty({
-    description: 'Chave da imagem do produto no storage.',
-    required: false,
-    nullable: true,
-    example: 'products/fiat-bravo.png',
-    type: String,
-  })
-  @IsString({ message: 'A chave da imagem deve ser um texto.' })
+  @ApiProperty({ description: 'Chave da imagem no storage.', required: false, nullable: true })
+  @IsString()
   @IsOptional()
   imageKey?: string;
 
   @ApiProperty({
     description: 'Indica se o produto deve ser criado como ativo.',
     required: false,
-    example: 'true',
-    type: String,
+    example: true,
   })
-  @IsString({ message: 'O campo isActive deve ser um texto.' })
+  @Transform(({ value }) => {
+    if (value === 'true' || value === true) return true;
+    if (value === 'false' || value === false) return false;
+    return value;
+  })
+  @IsBoolean({ message: 'O campo isActive deve ser true ou false.' })
   @IsOptional()
-  isActive?: boolean | string;
+  isActive?: boolean;
 }

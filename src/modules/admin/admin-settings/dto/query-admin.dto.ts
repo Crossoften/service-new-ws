@@ -1,6 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { Status } from '@prisma/client';
-import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryAdminDto {
   @ApiProperty({ required: false })
@@ -19,12 +20,16 @@ export class QueryAdminDto {
   status?: Status;
 
   @ApiProperty({ required: false })
-  @IsNumberString()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   @IsOptional()
   take?: number;
 
   @ApiProperty({ required: false })
-  @IsNumberString()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   @IsOptional()
   skip?: number;
 }

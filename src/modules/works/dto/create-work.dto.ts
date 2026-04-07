@@ -4,81 +4,78 @@ import {
   ArrayMaxSize,
   IsArray,
   IsDateString,
-  IsNumberString,
+  IsInt,
+  IsNumber,
   IsOptional,
   IsString,
+  Min,
 } from 'class-validator';
 import { CreateWorkFileDto } from './create-work-file.dto';
 
 export class CreateWorkDto {
   @ApiProperty({
-    description:
-      'Identificador do orçamento aprovado que originou o trabalho. Esse orçamento é usado para vincular cliente, fornecedor e serviço.',
-    example: '1',
-    type: String,
+    description: 'Identificador do orçamento aprovado que originou o trabalho.',
+    example: 1,
   })
-  @IsNumberString({}, { message: 'O id do orçamento deve conter apenas números.' })
+  @Type(() => Number)
+  @IsInt({ message: 'O id do orçamento deve ser um número inteiro.' })
+  @Min(1)
   budgetId: number;
 
   @ApiProperty({
-    description:
-      'Observações, instruções ou detalhes complementares do trabalho que serão exibidos na tela de acompanhamento.',
+    description: 'Observações, instruções ou detalhes complementares do trabalho.',
     required: false,
     nullable: true,
     example: 'Executar o serviço com atendimento em domicílio.',
-    type: String,
   })
   @IsString({ message: 'Os detalhes do trabalho devem ser um texto.' })
   @IsOptional()
   details?: string;
 
   @ApiProperty({
-    description: 'Data planejada para execução do serviço. Deve ser enviada em formato ISO 8601.',
+    description: 'Data planejada para execução do serviço em formato ISO 8601.',
     required: false,
     nullable: true,
     example: '2026-03-16T14:00:00.000Z',
-    type: String,
   })
   @IsDateString({}, { message: 'A data do serviço deve estar em formato ISO 8601.' })
   @IsOptional()
   serviceDate?: string;
 
   @ApiProperty({
-    description: 'Data final da garantia do trabalho em formato ISO 8601, quando aplicável.',
+    description: 'Data final da garantia do trabalho em formato ISO 8601.',
     required: false,
     nullable: true,
     example: '2026-06-16T23:59:59.000Z',
-    type: String,
   })
   @IsDateString({}, { message: 'A data da garantia deve estar em formato ISO 8601.' })
   @IsOptional()
   warrantyExpiresAt?: string;
 
   @ApiProperty({
-    description:
-      'Valor principal do serviço, enviado como string decimal para preservar precisão monetária.',
+    description: 'Valor principal do serviço.',
     required: false,
-    example: '350.00',
-    type: String,
+    example: 350.0,
   })
-  @IsNumberString({}, { message: 'O valor do serviço deve conter apenas números.' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor do serviço deve ser um número válido.' })
+  @Min(0)
   @IsOptional()
-  serviceValue?: string;
+  serviceValue?: number;
 
   @ApiProperty({
-    description:
-      'Valor total do trabalho, incluindo eventuais custos adicionais, enviado como string decimal.',
+    description: 'Valor total do trabalho, incluindo eventuais custos adicionais.',
     required: false,
-    example: '350.00',
-    type: String,
+    example: 350.0,
   })
-  @IsNumberString({}, { message: 'O valor total deve conter apenas números.' })
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor total deve ser um número válido.' })
+  @Min(0)
   @IsOptional()
-  totalValue?: string;
+  totalValue?: number;
 
   @ApiProperty({
-    description:
-      'Lista de anexos iniciais enviados pelo fornecedor ao criar o trabalho, como documentos, fotos ou comprovantes.',
+    description: 'Lista de anexos iniciais enviados pelo fornecedor ao criar o trabalho.',
     required: false,
     type: [CreateWorkFileDto],
     example: [

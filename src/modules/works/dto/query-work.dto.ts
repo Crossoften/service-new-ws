@@ -1,12 +1,12 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { WorkScopeEnum } from '../enums/work-scope.enum';
 import { WorkStatusEnum } from '../enums/work-status.enum';
 
 export class QueryWorkDto {
   @ApiProperty({
-    description:
-      'Escopo da listagem de trabalhos. Define se a consulta retorna trabalhos recebidos pelo usuário logado ou enviados por ele.',
+    description: 'Escopo da listagem de trabalhos.',
     enum: WorkScopeEnum,
     enumName: 'WorkScopeEnum',
     required: false,
@@ -28,44 +28,32 @@ export class QueryWorkDto {
   status?: WorkStatusEnum;
 
   @ApiProperty({
-    description:
-      'Filtro textual aplicado sobre nome do cliente, nome do fornecedor ou nome do serviço relacionado ao trabalho.',
+    description: 'Filtro textual aplicado sobre nome do cliente, fornecedor ou serviço.',
     required: false,
     example: 'Susana',
-    type: String,
   })
   @IsString({ message: 'O termo de busca deve ser um texto.' })
   @IsOptional()
   search?: string;
 
-  @ApiProperty({
-    description: 'Filtro opcional pelo identificador do serviço vinculado ao trabalho.',
-    required: false,
-    example: '3',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O campo serviceId deve conter apenas números.' })
+  @ApiProperty({ description: 'Filtro opcional pelo identificador do serviço vinculado ao trabalho.', required: false, example: 3 })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo serviceId deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   serviceId?: number;
 
-  @ApiProperty({
-    description: 'Quantidade de registros retornados por página na listagem paginada.',
-    required: false,
-    example: '10',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
+  @ApiProperty({ description: 'Quantidade de registros retornados por página.', required: false, example: 10 })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo take deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   take?: number;
 
-  @ApiProperty({
-    description:
-      'Página atual da listagem paginada. Apesar do nome do campo ser `skip`, o valor esperado é o número da página.',
-    required: false,
-    example: '1',
-    type: String,
-  })
-  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
+  @ApiProperty({ description: 'Página atual da listagem paginada.', required: false, example: 1 })
+  @Type(() => Number)
+  @IsInt({ message: 'O campo skip deve ser um número inteiro.' })
+  @Min(1)
   @IsOptional()
   skip?: number;
 }

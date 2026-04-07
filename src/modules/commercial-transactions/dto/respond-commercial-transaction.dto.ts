@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { CommercialTransactionStatusEnum } from '../enums/commercial-transaction-status.enum';
 
 export class RespondCommercialTransactionDto {
@@ -13,17 +14,17 @@ export class RespondCommercialTransactionDto {
 
   @ApiPropertyOptional({
     description: 'Valor acordado ao aceitar a negociação. Se omitido, usa o valor solicitado.',
-    example: '1450.00',
-    type: String,
+    example: 1450.0,
   })
   @IsOptional()
-  @IsString({ message: 'O valor acordado deve ser um texto.' })
-  agreedAmount?: string;
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor acordado deve ser um número válido.' })
+  @Min(0)
+  agreedAmount?: number;
 
   @ApiPropertyOptional({
     description: 'Mensagem opcional enviada ao responder a negociação.',
     example: 'Posso seguir por esse valor.',
-    type: String,
   })
   @IsOptional()
   @IsString({ message: 'A mensagem da resposta deve ser um texto.' })

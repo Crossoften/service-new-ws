@@ -1,5 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNumberString, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { CommercialTransactionParticipantRoleEnum } from '../enums/commercial-transaction-participant-role.enum';
 import { CommercialTransactionStatusEnum } from '../enums/commercial-transaction-status.enum';
 
@@ -27,27 +28,22 @@ export class QueryCommercialTransactionDto {
   @ApiPropertyOptional({
     description: 'Busca textual por título, descrição, nome do produto ou contraparte.',
     example: 'Fiat',
-    type: String,
   })
   @IsOptional()
   @IsString({ message: 'O termo de busca deve ser um texto.' })
   search?: string;
 
-  @ApiPropertyOptional({
-    description: 'Quantidade de registros por página.',
-    example: '10',
-    type: String,
-  })
+  @ApiPropertyOptional({ description: 'Quantidade de registros por página.', example: 10 })
   @IsOptional()
-  @IsNumberString({}, { message: 'O campo take deve conter apenas números.' })
-  take?: string;
+  @Type(() => Number)
+  @IsInt({ message: 'O campo take deve ser um número inteiro.' })
+  @Min(1)
+  take?: number;
 
-  @ApiPropertyOptional({
-    description: 'Página atual da listagem.',
-    example: '1',
-    type: String,
-  })
+  @ApiPropertyOptional({ description: 'Página atual da listagem.', example: 1 })
   @IsOptional()
-  @IsNumberString({}, { message: 'O campo skip deve conter apenas números.' })
-  skip?: string;
+  @Type(() => Number)
+  @IsInt({ message: 'O campo skip deve ser um número inteiro.' })
+  @Min(1)
+  skip?: number;
 }
