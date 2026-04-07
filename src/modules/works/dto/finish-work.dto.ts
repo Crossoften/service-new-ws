@@ -30,14 +30,22 @@ export class FinishWorkDto {
   @IsOptional()
   serviceDate?: string;
 
-  @ApiProperty({ description: 'Valor final do serviço executado.', required: false, example: 350.0 })
+  @ApiProperty({
+    description: 'Valor final do serviço executado.',
+    required: false,
+    example: 350.0,
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor do serviço deve ser um número válido.' })
   @Min(0)
   @IsOptional()
   serviceValue?: number;
 
-  @ApiProperty({ description: 'Valor total final do trabalho concluído.', required: false, example: 350.0 })
+  @ApiProperty({
+    description: 'Valor total final do trabalho concluído.',
+    required: false,
+    example: 350.0,
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor total deve ser um número válido.' })
   @Min(0)
