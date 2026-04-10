@@ -23,5 +23,18 @@ export async function seedAdmin(prisma: PrismaClient) {
     });
   }
 
+  await prisma.user.create({
+    data: {
+      name: 'admin',
+      email: 'admin.one@email.com',
+      password: hashSync('12345678', 10),
+      role: Role.Admin,
+      status: Status.Active,
+      adminPermissions: {
+        connect: permissions.map((name) => ({ name })),
+      },
+    },
+  });
+
   console.log('Admins seed added successfully 🌱.');
 }
