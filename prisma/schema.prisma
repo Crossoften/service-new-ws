@@ -140,15 +140,15 @@ model AccommodationCategory {
 model Product {
   id Int @id @default(autoincrement())
 
-  name            String                 @db.VarChar(160)
+  name            String                     @db.VarChar(160)
   transactionType ProductTransactionTypeEnum @default(Sale)
-  model           String?                @db.VarChar(160)
+  model           String?                    @db.VarChar(160)
   year            Int?
-  price           Decimal                @db.Decimal(10, 2)
-  description     String?                @db.LongText()
-  imageUrl        String?                @db.VarChar(1500)
-  imageKey        String?                @db.VarChar(1500)
-  isActive        Boolean                @default(true)
+  price           Decimal                    @db.Decimal(10, 2)
+  description     String?                    @db.LongText()
+  imageUrl        String?                    @db.VarChar(1500)
+  imageKey        String?                    @db.VarChar(1500)
+  isActive        Boolean                    @default(true)
   categoryId      Int
   userId          Int
 
@@ -242,12 +242,12 @@ model Address {
 model BankAccount {
   id Int @id @default(autoincrement())
 
-  bankName    String          @db.VarChar(120)
+  bankName    String              @db.VarChar(120)
   accountType BankAccountTypeEnum
-  agency      String          @db.VarChar(30)
-  account     String          @db.VarChar(30)
-  cpf         String          @db.VarChar(14)
-  userId      Int             @unique
+  agency      String              @db.VarChar(30)
+  account     String              @db.VarChar(30)
+  cpf         String              @db.VarChar(14)
+  userId      Int                 @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -260,14 +260,14 @@ model BankAccount {
 model Service {
   id Int @id @default(autoincrement())
 
-  name             String      @db.VarChar(160)
+  name             String          @db.VarChar(160)
   type             ServiceTypeEnum
-  registrationCode String?     @db.VarChar(80)
-  price            Decimal     @db.Decimal(10, 2)
-  description      String?     @db.LongText()
-  imageUrl         String?     @db.VarChar(1500)
-  imageKey         String?     @db.VarChar(1500)
-  isActive         Boolean     @default(true)
+  registrationCode String?         @db.VarChar(80)
+  price            Decimal         @db.Decimal(10, 2)
+  description      String?         @db.LongText()
+  imageUrl         String?         @db.VarChar(1500)
+  imageKey         String?         @db.VarChar(1500)
+  isActive         Boolean         @default(true)
   categoryId       Int
   userId           Int
 
@@ -289,7 +289,7 @@ model Review {
   id Int @id @default(autoincrement())
 
   type             ReviewTypeEnum
-  comment          String?    @db.LongText()
+  comment          String?        @db.LongText()
   serviceId        Int?
   productId        Int?
   accommodationId  Int?
@@ -322,7 +322,7 @@ model Budget {
   id Int @id @default(autoincrement())
 
   description             String?             @db.LongText()
-  status                  BudgetStatusEnum        @default(Pending)
+  status                  BudgetStatusEnum    @default(Pending)
   responseDescription     String?             @db.LongText()
   responseValue           Decimal?            @db.Decimal(10, 2)
   extraRequestValue       Decimal?            @db.Decimal(10, 2)
@@ -356,9 +356,9 @@ model Budget {
 model BudgetFile {
   id Int @id @default(autoincrement())
 
-  fileName             String         @db.VarChar(191)
-  fileUrl              String         @db.VarChar(1500)
-  fileKey              String         @db.VarChar(1500)
+  fileName             String             @db.VarChar(191)
+  fileUrl              String             @db.VarChar(1500)
+  fileKey              String             @db.VarChar(1500)
   type                 BudgetFileTypeEnum @default(Request)
   budgetId             Int
   informationRequestId Int?
@@ -393,7 +393,7 @@ model BudgetInformation {
 model Work {
   id Int @id @default(autoincrement())
 
-  status                      WorkStatusEnum             @default(Pending)
+  status                      WorkStatusEnum         @default(Pending)
   details                     String?                @db.LongText()
   completionDescription       String?                @db.LongText()
   cancelReason                String?                @db.LongText()
@@ -501,10 +501,10 @@ model CommercialTransaction {
   referenceType   CommercialTransactionReferenceTypeEnum
   referenceId     Int
   status          CommercialTransactionStatusEnum        @default(Requested)
-  title           String?                            @db.VarChar(191)
-  description     String?                            @db.LongText()
-  requestedAmount Decimal                            @db.Decimal(10, 2)
-  agreedAmount    Decimal?                           @db.Decimal(10, 2)
+  title           String?                                @db.VarChar(191)
+  description     String?                                @db.LongText()
+  requestedAmount Decimal                                @db.Decimal(10, 2)
+  agreedAmount    Decimal?                               @db.Decimal(10, 2)
   buyerId         Int
   sellerId        Int
   acceptedAt      DateTime?
@@ -534,10 +534,10 @@ model Payment {
   status        PaymentStatusEnum        @default(Paid)
   referenceType PaymentReferenceTypeEnum
   referenceId   Int
-  holderName    String?              @db.VarChar(160)
-  cardBrand     String?              @db.VarChar(60)
-  cardLast4     String?              @db.VarChar(4)
-  amount        Decimal              @db.Decimal(10, 2)
+  holderName    String?                  @db.VarChar(160)
+  cardBrand     String?                  @db.VarChar(60)
+  cardLast4     String?                  @db.VarChar(4)
+  amount        Decimal                  @db.Decimal(10, 2)
   paidAt        DateTime?
   payerId       Int
   receiverId    Int
@@ -557,16 +557,16 @@ model Payment {
 }
 
 model Plan {
-  id            Int                  @id @default(autoincrement())
-  name          String               @db.VarChar(120)
-  slug          String               @unique @db.VarChar(120)
-  description   String?              @db.LongText()
-  price         Decimal              @db.Decimal(10, 2)
+  id            Int                      @id @default(autoincrement())
+  name          String                   @db.VarChar(120)
+  slug          String                   @unique @db.VarChar(120)
+  description   String?                  @db.LongText()
+  price         Decimal                  @db.Decimal(10, 2)
   interval      SubscriptionIntervalEnum
-  intervalCount Int                  @default(1)
+  intervalCount Int                      @default(1)
   benefits      Json?
-  isActive      Boolean              @default(true)
-  sortOrder     Int                  @default(0)
+  isActive      Boolean                  @default(true)
+  sortOrder     Int                      @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -579,25 +579,25 @@ model Plan {
 }
 
 model Subscription {
-  id                  Int                @id @default(autoincrement())
-  status              SubscriptionStatusEnum @default(Active)
-  amount              Decimal            @db.Decimal(10, 2)
-  planName            String             @db.VarChar(120)
-  planInterval        SubscriptionIntervalEnum
-  intervalCount       Int                @default(1)
-  startedAt           DateTime?
-  currentPeriodStart  DateTime?
-  currentPeriodEnd    DateTime?
-  cancelledAt         DateTime?
-  userId              Int
-  planId              Int
-  addressId           Int?
+  id                 Int                      @id @default(autoincrement())
+  status             SubscriptionStatusEnum   @default(Active)
+  amount             Decimal                  @db.Decimal(10, 2)
+  planName           String                   @db.VarChar(120)
+  planInterval       SubscriptionIntervalEnum
+  intervalCount      Int                      @default(1)
+  startedAt          DateTime?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  userId             Int
+  planId             Int
+  addressId          Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id])
-  plan Plan @relation(fields: [planId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  plan    Plan     @relation(fields: [planId], references: [id])
   address Address? @relation(fields: [addressId], references: [id])
 
   @@index([userId])
@@ -614,8 +614,8 @@ model FinancialTransaction {
   type          FinancialTransactionTypeEnum
   category      FinancialTransactionCategoryEnum
   status        PaymentStatusEnum                @default(Paid)
-  amount        Decimal                      @db.Decimal(10, 2)
-  description   String?                      @db.VarChar(255)
+  amount        Decimal                          @db.Decimal(10, 2)
+  description   String?                          @db.VarChar(255)
   availableAt   DateTime?
   referenceType PaymentReferenceTypeEnum
   referenceId   Int
@@ -638,9 +638,9 @@ model FinancialTransaction {
 model WorkFile {
   id Int @id @default(autoincrement())
 
-  fileName String       @db.VarChar(191)
-  fileUrl  String       @db.VarChar(1500)
-  fileKey  String       @db.VarChar(1500)
+  fileName String           @db.VarChar(191)
+  fileUrl  String           @db.VarChar(1500)
+  fileKey  String           @db.VarChar(1500)
   type     WorkFileTypeEnum @default(Requester)
   workId   Int
 
@@ -685,7 +685,6 @@ enum Role {
   Master
   Admin
   User
-  Supplier
 }
 
 enum UserProfileType {
