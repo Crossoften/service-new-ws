@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
-import { Role, User } from '@prisma/client';
+import { AdminPermissions, Role, User } from '@prisma/client';
 
 class HandleAccessControl {
   constructor(private readonly prisma: PrismaService) {}
@@ -13,7 +13,7 @@ class HandleAccessControl {
     }
   }
 
-  async verifyPermission(payload: Partial<User>, permission: string): Promise<void> {
+  async verifyPermission(payload: Partial<User>, permission: AdminPermissions): Promise<void> {
     const { id } = payload;
 
     const user = await this.prisma.user.findFirst({
