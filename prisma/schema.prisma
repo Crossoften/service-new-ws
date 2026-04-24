@@ -23,6 +23,7 @@ model User {
   status        Status          @default(Pending)
   fileUrl       String?         @db.VarChar(1500)
   fileKey       String?         @db.VarChar(1500)
+  referralCode  String?         @unique @db.VarChar(80)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -48,6 +49,8 @@ model User {
   chatParticipants      ChatParticipant[]
   chatMessages          ChatMessage[]           @relation("ChatMessageSender")
   createdChatRooms      ChatRoom[]              @relation("ChatRoomCreator")
+  referrals             Referral[]              @relation("InfluencerReferrals")
+  referredByInfluencer  Referral?               @relation("ReferredByInfluencer")
 
   @@map("users")
 }
@@ -692,6 +695,7 @@ enum UserProfileType {
   Supplier
   Partner
   Delivery
+  Influencer
 }
 
 enum Status {
@@ -844,4 +848,22 @@ enum ExtraRequestStatus {
 enum ReviewTypeEnum {
   Positive
   Negative
+}
+
+model Referral {
+  id               Int      @id @default(autoincrement())
+  influencerId     Int
+  referredUserId   Int      @unique
+  isPaying         Boolean  @default(false)
+  commissionAmount Decimal? @db.Decimal(10, 2)
+  paidAt           DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  influencer   User @relation("InfluencerReferrals", fields: [influencerId], references: [id])
+  referredUser User @relation("ReferredByInfluencer", fields: [referredUserId], references: [id])
+
+  @@index([influencerId])
+  @@map("referrals")
 }
