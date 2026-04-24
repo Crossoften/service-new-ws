@@ -9,17 +9,19 @@ CREATE TABLE `users` (
     `password` VARCHAR(191) NOT NULL,
     `code` VARCHAR(4) NULL,
     `codeExpiresIn` DATETIME(3) NULL,
-    `role` ENUM('Master', 'Admin', 'User', 'Supplier') NOT NULL DEFAULT 'User',
-    `profileType` ENUM('Client', 'Supplier', 'Partner', 'Delivery') NOT NULL DEFAULT 'Client',
+    `role` ENUM('Master', 'Admin', 'User') NOT NULL DEFAULT 'User',
+    `profileType` ENUM('Client', 'Supplier', 'Partner', 'Delivery', 'Influencer') NOT NULL DEFAULT 'Client',
     `status` ENUM('Active', 'Pending', 'Inactive') NOT NULL DEFAULT 'Pending',
     `fileUrl` VARCHAR(1500) NULL,
     `fileKey` VARCHAR(1500) NULL,
+    `referralCode` VARCHAR(80) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 
     UNIQUE INDEX `users_email_key`(`email`),
     UNIQUE INDEX `users_document_key`(`document`),
     UNIQUE INDEX `users_phone_key`(`phone`),
+    UNIQUE INDEX `users_referralCode_key`(`referralCode`),
     PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
@@ -553,6 +555,22 @@ CREATE TABLE `texts` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
+CREATE TABLE `referrals` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `influencerId` INTEGER NOT NULL,
+    `referredUserId` INTEGER NOT NULL,
+    `isPaying` BOOLEAN NOT NULL DEFAULT false,
+    `commissionAmount` DECIMAL(10, 2) NULL,
+    `paidAt` DATETIME(3) NULL,
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `referrals_referredUserId_key`(`referredUserId`),
+    INDEX `referrals_influencerId_idx`(`influencerId`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
 CREATE TABLE `_AdminPermissionToUser` (
     `A` INTEGER NOT NULL,
     `B` INTEGER NOT NULL,
@@ -686,6 +704,12 @@ ALTER TABLE `work_files` ADD CONSTRAINT `work_files_workId_fkey` FOREIGN KEY (`w
 
 -- AddForeignKey
 ALTER TABLE `files` ADD CONSTRAINT `files_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `referrals` ADD CONSTRAINT `referrals_influencerId_fkey` FOREIGN KEY (`influencerId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `referrals` ADD CONSTRAINT `referrals_referredUserId_fkey` FOREIGN KEY (`referredUserId`) REFERENCES `users`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `_AdminPermissionToUser` ADD CONSTRAINT `_AdminPermissionToUser_A_fkey` FOREIGN KEY (`A`) REFERENCES `admin_permissions`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
