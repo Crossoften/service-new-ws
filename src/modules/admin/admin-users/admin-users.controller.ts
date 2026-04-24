@@ -35,6 +35,8 @@ export class AdminUsersController {
   ): Promise<ResponseFindAllAdminUserDto> {
     handleAccessControl.verifyAdminRole(user);
 
+    handleAccessControl.verifyPermission(user, 'Users');
+
     return this._adminUsersService.findAll(query);
   }
 
@@ -52,6 +54,8 @@ export class AdminUsersController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ResponseAdminUserDto> {
     handleAccessControl.verifyAdminRole(user);
+
+    handleAccessControl.verifyPermission(user, 'Users');
 
     return this._adminUsersService.findById(id);
   }
