@@ -1,6 +1,15 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsArray, IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
 
 export class CreatePlanDto {
@@ -8,11 +17,17 @@ export class CreatePlanDto {
   @IsString({ message: 'O nome do plano deve ser um texto.' })
   name: string;
 
-  @ApiProperty({ description: 'Slug único usado para identificar o plano internamente.', example: 'plano-mensal' })
+  @ApiProperty({
+    description: 'Slug único usado para identificar o plano internamente.',
+    example: 'plano-mensal',
+  })
   @IsString({ message: 'O slug do plano deve ser um texto.' })
   slug: string;
 
-  @ApiPropertyOptional({ description: 'Descrição resumida do plano.', example: 'Acesso completo ao app por 1 mês.' })
+  @ApiPropertyOptional({
+    description: 'Descrição resumida do plano.',
+    example: 'Acesso completo ao app por 1 mês.',
+  })
   @IsOptional()
   @IsString({ message: 'A descrição do plano deve ser um texto.' })
   description?: string;
@@ -47,7 +62,10 @@ export class CreatePlanDto {
   @IsString({ each: true, message: 'Cada benefício deve ser um texto.' })
   benefits?: string[];
 
-  @ApiPropertyOptional({ description: 'Indica se o plano está ativo para contratação.', example: true })
+  @ApiPropertyOptional({
+    description: 'Indica se o plano está ativo para contratação.',
+    example: true,
+  })
   @IsOptional()
   @Transform(({ value }) => {
     if (value === 'true' || value === true) return true;
