@@ -12,7 +12,7 @@ import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
-import { CreateUserDto } from './dto/create-user.dto';
+import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
@@ -24,8 +24,12 @@ export class NoAuthService {
     private readonly mailService: MailService,
   ) {}
 
-  async register(payload: CreateUserDto): Promise<RegisterUserResponseDto> {
-    const { name, email, phone, password, confirmPassword, acceptedTerms, profileType } = payload;
+  async register(
+    payload: RegisterBaseDto,
+    profileType: UserProfileType,
+    referralCode?: string,
+  ): Promise<RegisterUserResponseDto> {
+    const { name, email, phone, password, confirmPassword, acceptedTerms } = payload;
 
     if (!acceptedTerms) {
       throw new BadRequestException('É necessário aceitar os termos para concluir o cadastro.');
@@ -46,17 +50,25 @@ export class NoAuthService {
       throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
     }
 
-    const role = profileType === UserProfileType.Client ? Role.User : Role.Supplier;
-
     const user = await this.prisma.user.create({
       data: {
         name: capitalizeFirstLetter(name.trim()),
         email: email.trim(),
         phone: phone ? phone.trim() : null,
         password: hashSync(password, 10),
-        role,
+        role: Role.User,
         profileType,
         status: Status.Active,
+        referralCode: referralCode ? referralCode.trim() : undefined,
+        socialMedias: payload.socialMedias
+          ? {
+              create: payload.socialMedias.map((sm) => ({
+                network: sm.network,
+                url: sm.url,
+                followers: sm.followers ?? 0,
+              })),
+            }
+          : undefined,
       },
       select: {
         id: true,

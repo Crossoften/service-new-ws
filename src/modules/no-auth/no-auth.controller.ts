@@ -2,6 +2,8 @@ import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
@@ -9,13 +11,15 @@ import {
 } from '@nestjs/swagger';
 
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
-import { User } from '@prisma/client';
+import { User, UserProfileType } from '@prisma/client';
 import { ResponseAllUserDto } from '../admin/admin-settings/dto/response-all-user.dto';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { CreateUserDto } from './dto/create-user.dto';
 import { ForgotDto } from './dto/forgot.dto';
+import { RegisterBaseDto } from './dto/register-base.dto';
+import { RegisterInfluencerDto } from './dto/register-influencer.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { ResponseTextDto } from './dto/response-text.dto';
@@ -30,12 +34,80 @@ export class NoAuthController {
   @IsPublic()
   @Post('no-auth/register')
   @ApiTags('Sem autenticação')
-  @ApiOperation({ summary: 'Rota para cadastro público de usuário.' })
-  @ApiOkResponse({ type: RegisterUserResponseDto })
-  @ApiBadRequestResponse({ description: 'Requisição inválida' })
+  @ApiOperation({
+    summary: 'Cadastro genérico (profileType no body). Mantido para compatibilidade.',
+    deprecated: true,
+  })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async register(@Body() body: CreateUserDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body);
+    return this.noAuthService.register(body, body.profileType);
+  }
+
+  @IsPublic()
+  @Post('no-auth/register/client')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Cadastro de cliente.' })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerClient(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, UserProfileType.Client);
+  }
+
+  @IsPublic()
+  @Post('no-auth/register/supplier')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Cadastro de fornecedor.' })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerSupplier(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, UserProfileType.Supplier);
+  }
+
+  @IsPublic()
+  @Post('no-auth/register/partner')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Cadastro de parceiro.' })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerPartner(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, UserProfileType.Partner);
+  }
+
+  @IsPublic()
+  @Post('no-auth/register/delivery')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Cadastro de entregador.' })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerDelivery(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, UserProfileType.Delivery);
+  }
+
+  @IsPublic()
+  @Post('no-auth/register/influencer')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({
+    summary: 'Cadastro de influencer.',
+    description:
+      'O campo referralCode é opcional. Se não informado, pode ser definido posteriormente pelo perfil.',
+  })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerInfluencer(@Body() body: RegisterInfluencerDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, UserProfileType.Influencer, body.referralCode);
   }
 
   @IsPublic()
