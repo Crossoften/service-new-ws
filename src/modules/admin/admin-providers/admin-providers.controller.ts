@@ -1,5 +1,6 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
@@ -12,11 +13,13 @@ import { User } from '@prisma/client';
 import handleAccessControl from '@utils/HandleAccessControl';
 import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { AdminProvidersService } from './admin-providers.service';
+import { AddSubscriptionBonusDto } from './dto/add-subscription-bonus.dto';
 import { QueryAdminProviderHistoryDto } from './dto/query-admin-provider-history.dto';
 import { QueryAdminProviderDto } from './dto/query-admin-provider.dto';
 import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-history.dto';
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
+import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
 
 @ApiTags('Fornecedores - Portal Gerencial')
 @Controller('admin-providers')
@@ -78,5 +81,27 @@ export class AdminProvidersController {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminProvidersService.findHistory(id, query);
+  }
+
+  @Patch(':id/subscriptions/:subscriptionId/bonus')
+  @ApiOperation({
+    summary: 'Adiciona meses de bônus à assinatura de um fornecedor.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseSubscriptionBonusDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiNotFoundResponse({ description: 'Assinatura não encontrada para este fornecedor.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async addSubscriptionBonus(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Param('subscriptionId', ParseIntPipe) subscriptionId: number,
+    @Body() body: AddSubscriptionBonusDto,
+  ): Promise<ResponseSubscriptionBonusDto> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminProvidersService.addSubscriptionBonus(id, subscriptionId, body);
   }
 }

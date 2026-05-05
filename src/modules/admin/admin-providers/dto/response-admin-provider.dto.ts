@@ -25,6 +25,14 @@ export class ResponseAdminProviderDto {
   })
   fileUrl?: string;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: '1990-05-15T00:00:00.000Z',
+    type: String,
+  })
+  birthDate?: Date;
+
   @ApiProperty({ enum: Status, enumName: 'Status', example: Status.Active })
   status: Status;
 
@@ -55,6 +63,13 @@ export class ResponseAdminProviderDto {
     type: Number,
   })
   totalReviews: number;
+
+  @ApiProperty({
+    description: 'Nota média do fornecedor (escala de 0 a 5) calculada a partir das avaliações.',
+    example: 4.2,
+    type: Number,
+  })
+  averageRating: number;
 
   @ApiProperty({ example: '2026-03-16T10:00:00.000Z', type: String })
   createdAt: Date;
