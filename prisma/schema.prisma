@@ -23,7 +23,9 @@ model User {
   status        Status          @default(Pending)
   fileUrl       String?         @db.VarChar(1500)
   fileKey       String?         @db.VarChar(1500)
-  referralCode  String?         @unique @db.VarChar(80)
+  referralCode     String?         @unique @db.VarChar(80)
+  birthDate        DateTime?
+  commissionRate   Decimal?        @db.Decimal(5, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -51,8 +53,35 @@ model User {
   createdChatRooms      ChatRoom[]              @relation("ChatRoomCreator")
   referrals             Referral[]              @relation("InfluencerReferrals")
   referredByInfluencer  Referral?               @relation("ReferredByInfluencer")
+  socialMedias          UserSocialMedia[]
 
   @@map("users")
+}
+
+model UserSocialMedia {
+  id        Int               @id @default(autoincrement())
+  userId    Int
+  network   SocialNetworkEnum
+  url       String            @db.VarChar(500)
+  followers Int               @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, network])
+  @@index([userId])
+  @@map("user_social_medias")
+}
+
+model PlatformSettings {
+  id                       Int     @id @default(1)
+  influencerCommissionRate Decimal @default(10) @db.Decimal(5, 2)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("platform_settings")
 }
 
 model AdminPermission {
@@ -592,6 +621,7 @@ model Subscription {
   currentPeriodStart DateTime?
   currentPeriodEnd   DateTime?
   cancelledAt        DateTime?
+  bonusMonths        Int                      @default(0)
   userId             Int
   planId             Int
   addressId          Int?
@@ -682,6 +712,15 @@ model Text {
   updatedAt DateTime @updatedAt
 
   @@map("texts")
+}
+
+enum SocialNetworkEnum {
+  Instagram
+  TikTok
+  YouTube
+  Facebook
+  X
+  Other
 }
 
 enum Role {
