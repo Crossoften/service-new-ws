@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { ServiceTypeEnum } from '@prisma/client';
 import { Transform, Type } from 'class-transformer';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryAdminServiceDto {
   @ApiProperty({
@@ -48,4 +48,24 @@ export class QueryAdminServiceDto {
   @Min(1)
   @IsOptional()
   skip?: number;
+
+  @ApiProperty({
+    description: 'Campo para ordenação dos resultados.',
+    required: false,
+    example: 'createdAt',
+    enum: ['name', 'price', 'isActive', 'createdAt'],
+  })
+  @IsIn(['name', 'price', 'isActive', 'createdAt'])
+  @IsOptional()
+  sortBy?: string;
+
+  @ApiProperty({
+    description: 'Direção da ordenação.',
+    required: false,
+    example: 'desc',
+    enum: ['asc', 'desc'],
+  })
+  @IsIn(['asc', 'desc'])
+  @IsOptional()
+  sortDirection?: 'asc' | 'desc';
 }

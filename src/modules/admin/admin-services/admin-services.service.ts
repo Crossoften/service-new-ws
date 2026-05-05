@@ -59,11 +59,14 @@ export class AdminServicesService {
       ...(search && { name: { contains: search } }),
     };
 
+    const sortField = query.sortBy ?? 'createdAt';
+    const sortDir = query.sortDirection ?? 'desc';
+
     const [services, totalRecords] = await Promise.all([
       this._prisma.service.findMany({
         where,
         select: this.serviceSelect,
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortField]: sortDir } as Prisma.ServiceOrderByWithRelationInput,
         take,
         skip: (currentPage - 1) * take,
       }),
@@ -150,6 +153,8 @@ export class AdminServicesService {
 
     const take = query.take ?? 10;
     const currentPage = query.skip ?? 1;
+    const sortField = query.sortBy ?? 'createdAt';
+    const sortDir = query.sortDirection ?? 'desc';
 
     const where: Prisma.WorkWhereInput = { serviceId: id };
 
@@ -164,7 +169,7 @@ export class AdminServicesService {
           createdAt: true,
           requester: { select: { id: true, name: true, fileUrl: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortField]: sortDir } as Prisma.WorkOrderByWithRelationInput,
         take,
         skip: (currentPage - 1) * take,
       }),
@@ -176,11 +181,11 @@ export class AdminServicesService {
       requesterIds.length > 0
         ? await this._prisma.review.findMany({
             where: { serviceId: id, requesterId: { in: requesterIds } },
-            select: { requesterId: true },
+            select: { requesterId: true, type: true },
           })
         : [];
 
-    const reviewSet = new Set(reviews.map((r) => r.requesterId));
+    const reviewMap = new Map(reviews.map((r) => [r.requesterId, r.type]));
 
     return {
       clients: works.map((w) => ({
@@ -191,7 +196,7 @@ export class AdminServicesService {
         clientFileUrl: w.requester.fileUrl ?? undefined,
         totalValue: w.totalValue ? Number(w.totalValue) : undefined,
         status: w.status,
-        hasReview: reviewSet.has(w.requester.id),
+        reviewType: reviewMap.get(w.requester.id) ?? null,
       })),
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,

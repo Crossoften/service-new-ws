@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { WorkStatusEnum } from '@prisma/client';
+import { ReviewTypeEnum, WorkStatusEnum } from '@prisma/client';
 
 class ServiceClientItemDto {
   @ApiProperty({ example: 1, type: Number })
@@ -34,11 +34,13 @@ class ServiceClientItemDto {
   status: WorkStatusEnum;
 
   @ApiProperty({
-    description: 'Indica se o cliente deixou avaliação para este serviço.',
-    example: true,
-    type: Boolean,
+    description: 'Tipo da avaliação deixada pelo cliente, ou null caso não tenha avaliado.',
+    required: false,
+    nullable: true,
+    enum: ReviewTypeEnum,
+    enumName: 'ReviewTypeEnum',
   })
-  hasReview: boolean;
+  reviewType: ReviewTypeEnum | null;
 }
 
 export class ResponseAdminServiceClientsDto {
