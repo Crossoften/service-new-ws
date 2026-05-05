@@ -35,12 +35,21 @@ export class CreateAdminDto {
   @IsOptional()
   phone?: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Senha de acesso do administrador ao portal gerencial.',
+    example: 'Senha@123',
+  })
   @IsString()
   @IsNotEmpty()
   password: string;
 
-  @ApiProperty({ enum: AdminPermissions, enumName: 'AdminPermissions', type: [AdminPermissions] })
+  @ApiProperty({
+    description:
+      'Lista de seções do portal às quais o admin terá acesso. Valores possíveis: Dashboard, Settings, Services, Financial, Users.',
+    enum: AdminPermissions,
+    enumName: 'AdminPermissions',
+    type: [AdminPermissions],
+  })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5)

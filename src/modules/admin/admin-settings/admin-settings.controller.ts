@@ -18,6 +18,10 @@ import { AdminSettingsService } from './admin-settings.service';
 import { CreateAdminAloneDto } from './dto/create-admin-alone.dto';
 import { CreateAdminResponseDto } from './dto/create-admin-response.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import {
+  ResponsePlatformSettingsDto,
+  UpdatePlatformSettingsDto,
+} from './dto/platform-settings.dto';
 import { PermissionResponseDto } from './dto/permission-response.dto';
 import { QueryAdminDto } from './dto/query-admin.dto';
 import { ResponseFindAllAdminDto } from './dto/response-find-all-admin.dto';
@@ -53,6 +57,44 @@ export class AdminSettingsController {
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async findAllPermissions(): Promise<AdminPermission[]> {
     return this._adminSettingsService.findAllPermissions();
+  }
+
+  @Get('platform')
+  @ApiOperation({
+    summary: 'Retorna as configurações globais da plataforma.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponsePlatformSettingsDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async getPlatformSettings(@CurrentUser() user: User): Promise<ResponsePlatformSettingsDto> {
+    handleAccessControl.verifyAdminRole(user);
+
+    await handleAccessControl.verifyPermission(user, 'Settings');
+
+    return this._adminSettingsService.getPlatformSettings();
+  }
+
+  @Patch('platform')
+  @ApiOperation({
+    summary: 'Atualiza as configurações globais da plataforma.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponsePlatformSettingsDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async updatePlatformSettings(
+    @CurrentUser() user: User,
+    @Body() body: UpdatePlatformSettingsDto,
+  ): Promise<ResponsePlatformSettingsDto> {
+    handleAccessControl.verifyAdminRole(user);
+
+    await handleAccessControl.verifyPermission(user, 'Settings');
+
+    return this._adminSettingsService.updatePlatformSettings(body);
   }
 
   @Get()

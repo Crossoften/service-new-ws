@@ -43,13 +43,25 @@ export class UpdateAdminDto {
   @IsOptional()
   status?: Status;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({
+    description:
+      'Token de acesso do administrador (exatamente 8 caracteres). Envie apenas para redefinir o token atual.',
+    required: false,
+    example: 'Tk123456',
+  })
   @IsString()
   @MinLength(8)
   @MaxLength(8)
   password?: string;
 
-  @ApiProperty({ enum: AdminPermissions, enumName: 'AdminPermissions', type: [AdminPermissions] })
+  @ApiProperty({
+    description:
+      'Lista de seções do portal às quais o admin terá acesso. Substitui as permissões existentes. Valores possíveis: Dashboard, Settings, Services, Financial, Users.',
+    required: false,
+    enum: AdminPermissions,
+    enumName: 'AdminPermissions',
+    type: [AdminPermissions],
+  })
   @IsArray()
   @ArrayMinSize(1)
   @ArrayMaxSize(5)

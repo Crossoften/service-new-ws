@@ -1,7 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@database/PrismaService';
-import { AdminPermission, Role, Status, User } from '@prisma/client';
+import { AdminPermission, Prisma, Role, Status, User } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { checkExistingUser } from '@utils/checkExistingUser';
 import HandleUpdatePermission from '@utils/HandleUpdatePermission';
@@ -9,6 +9,7 @@ import HandleUpdateUser from '@utils/HandleUpdateUser';
 import { hashSync } from 'bcrypt';
 import { CreateAdminResponseDto } from './dto/create-admin-response.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
+import { ResponsePlatformSettingsDto, UpdatePlatformSettingsDto } from './dto/platform-settings.dto';
 import { QueryAdminDto } from './dto/query-admin.dto';
 import { ResponseFindAllAdminDto } from './dto/response-find-all-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
@@ -51,7 +52,9 @@ export class AdminSettingsService {
 
   async findAll(query: QueryAdminDto): Promise<ResponseFindAllAdminDto> {
     const { status, take, skip } = query;
-    const search = query.search?.trim() || query.name?.trim() || undefined;
+    const search = query.search ? query.search.trim() : query.name ? query.name.trim() : undefined;
+    const sortField = query.sortBy ?? 'createdAt';
+    const sortDir = query.sortDirection ?? 'desc';
     const where = {
       OR: [{ role: Role.Master }, { role: Role.Admin }],
       status,
@@ -84,6 +87,7 @@ export class AdminSettingsService {
         createdAt: true,
         updatedAt: true,
       },
+      orderBy: { [sortField]: sortDir } as Prisma.UserOrderByWithRelationInput,
       take: Number(take) || 10,
       skip: (Number(skip) - 1) * Number(take) || 0,
     });
@@ -147,5 +151,41 @@ export class AdminSettingsService {
     const adminUpdated: Partial<User> = await this.findById(id);
 
     return adminUpdated;
+  }
+
+  async getPlatformSettings(): Promise<ResponsePlatformSettingsDto> {
+    let settings = await this._prisma.platformSettings.findUnique({ where: { id: 1 } });
+
+    if (!settings) {
+      settings = await this._prisma.platformSettings.create({
+        data: { id: 1, influencerCommissionRate: 10 },
+      });
+    }
+
+    return {
+      influencerCommissionRate: Number(settings.influencerCommissionRate),
+      updatedAt: settings.updatedAt,
+    };
+  }
+
+  async updatePlatformSettings(payload: UpdatePlatformSettingsDto): Promise<ResponsePlatformSettingsDto> {
+    const settings = await this._prisma.platformSettings.upsert({
+      where: { id: 1 },
+      create: {
+        id: 1,
+        influencerCommissionRate: payload.influencerCommissionRate ?? 10,
+      },
+      update: {
+        influencerCommissionRate:
+          payload.influencerCommissionRate !== undefined
+            ? payload.influencerCommissionRate
+            : undefined,
+      },
+    });
+
+    return {
+      influencerCommissionRate: Number(settings.influencerCommissionRate),
+      updatedAt: settings.updatedAt,
+    };
   }
 }
