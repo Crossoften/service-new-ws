@@ -54,7 +54,7 @@ export class ResponseProfileDto {
     description: 'Papel do usuário autenticado.',
     enum: Role,
     enumName: 'Role',
-    example: Role.Supplier,
+    example: Role.User,
   })
   role: Role;
 

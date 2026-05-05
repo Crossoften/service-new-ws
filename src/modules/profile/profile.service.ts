@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { Role, User } from '@prisma/client';
+import { User, UserProfileType } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import HandleUpdateUser from '@utils/HandleUpdateUser';
 import { ResponseProfileDto } from './dto/response-profile.dto';
@@ -53,7 +53,7 @@ export class ProfileService {
   }
 
   async updateMine(user: User, payload: UpdateProfileDto): Promise<ResponseProfileDto> {
-    if (payload.biography !== undefined && user.role !== Role.Supplier) {
+    if (payload.biography !== undefined && user.profileType !== UserProfileType.Supplier) {
       throw new ProfileBiographyOnlyForSupplierException();
     }
 
@@ -68,7 +68,7 @@ export class ProfileService {
           email: payload.email,
           phone: payload.phone,
           biography:
-            user.role === Role.Supplier
+            user.profileType === UserProfileType.Supplier
               ? payload.biography
                 ? payload.biography.trim()
                 : payload.biography
