@@ -75,6 +75,15 @@ export class ResponseAdminUserDto {
   fileKey?: string;
 
   @ApiProperty({
+    description: 'Data de nascimento do usuário.',
+    required: false,
+    nullable: true,
+    example: '1995-08-20T00:00:00.000Z',
+    type: String,
+  })
+  birthDate?: Date;
+
+  @ApiProperty({
     description: 'Data de criação do usuário em formato ISO 8601.',
     example: '2026-03-16T10:00:00.000Z',
     type: String,

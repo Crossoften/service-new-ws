@@ -17,6 +17,7 @@ export class AdminUsersService {
     email: true,
     phone: true,
     document: true,
+    birthDate: true,
     status: true,
     fileUrl: true,
     fileKey: true,
@@ -42,11 +43,14 @@ export class AdminUsersService {
         : undefined,
     };
 
+    const sortField = query.sortBy ?? 'createdAt';
+    const sortDir = query.sortDirection ?? 'desc';
+
     const [users, totalRecords] = await Promise.all([
       this._prisma.user.findMany({
         where,
         select: this.userSelect,
-        orderBy: [{ createdAt: 'desc' }],
+        orderBy: { [sortField]: sortDir } as Prisma.UserOrderByWithRelationInput,
         take,
         skip: (currentPage - 1) * take,
       }),
@@ -115,6 +119,7 @@ export class AdminUsersService {
       email: user.email,
       phone: user.phone,
       document: user.document,
+      birthDate: user.birthDate ?? undefined,
       status: user.status,
       openServices,
       fileUrl: user.fileUrl,
