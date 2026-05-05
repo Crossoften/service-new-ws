@@ -1,5 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Status } from '@prisma/client';
+import { SocialNetworkEnum, Status } from '@prisma/client';
+
+class InfluencerSocialMediaDto {
+  @ApiProperty({ enum: SocialNetworkEnum, enumName: 'SocialNetworkEnum' })
+  network: SocialNetworkEnum;
+
+  @ApiProperty({ example: 'https://instagram.com/joaocarlos', type: String })
+  url: string;
+
+  @ApiProperty({ example: 15000, type: Number })
+  followers: number;
+}
 
 class InfluencerStatsDto {
   @ApiProperty({ description: 'Total de usuários indicados (downloads).', example: 100, type: Number })
@@ -37,6 +48,9 @@ export class ResponseAdminInfluencerDto {
   @ApiProperty({ required: false, nullable: true, example: 'joaocarlos', type: String })
   referralCode?: string;
 
+  @ApiProperty({ required: false, nullable: true, example: '1995-08-20T00:00:00.000Z', type: String })
+  birthDate?: Date;
+
   @ApiProperty({ enum: Status, enumName: 'Status', example: Status.Active })
   status: Status;
 
@@ -45,6 +59,25 @@ export class ResponseAdminInfluencerDto {
 
   @ApiProperty({ type: InfluencerStatsDto })
   stats: InfluencerStatsDto;
+
+  @ApiProperty({
+    description: 'Taxa de comissão exclusiva deste influencer (%). Null = usa a taxa global.',
+    required: false,
+    nullable: true,
+    example: 15.5,
+    type: Number,
+  })
+  commissionRate: number | null;
+
+  @ApiProperty({
+    description: 'Taxa de comissão efetiva aplicada: customizada se definida, caso contrário a global.',
+    example: 15.5,
+    type: Number,
+  })
+  effectiveCommissionRate: number;
+
+  @ApiProperty({ type: [InfluencerSocialMediaDto] })
+  socialMedias: InfluencerSocialMediaDto[];
 
   @ApiProperty({ example: '2026-03-16T10:00:00.000Z', type: String })
   createdAt: Date;
