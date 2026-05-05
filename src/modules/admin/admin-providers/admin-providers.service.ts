@@ -1,11 +1,13 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, ReviewTypeEnum, UserProfileType } from '@prisma/client';
+import { AddSubscriptionBonusDto } from './dto/add-subscription-bonus.dto';
 import { QueryAdminProviderHistoryDto } from './dto/query-admin-provider-history.dto';
 import { QueryAdminProviderDto } from './dto/query-admin-provider.dto';
 import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-history.dto';
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
+import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
 
 @Injectable()
 export class AdminProvidersService {
@@ -28,6 +30,11 @@ export class AdminProvidersService {
       }),
     };
 
+    const sortDir = query.sortDirection ?? 'desc';
+    const orderBy: Prisma.UserOrderByWithRelationInput = query.sortBy
+      ? ({ [query.sortBy]: sortDir } as Prisma.UserOrderByWithRelationInput)
+      : { services: { _count: 'desc' } };
+
     const [providers, totalRecords] = await Promise.all([
       this._prisma.user.findMany({
         where,
@@ -40,7 +47,7 @@ export class AdminProvidersService {
           status: true,
           _count: { select: { services: { where: { isActive: true } } } },
         },
-        orderBy: { services: { _count: 'desc' } },
+        orderBy,
         take,
         skip: (currentPage - 1) * take,
       }),
@@ -75,6 +82,7 @@ export class AdminProvidersService {
         email: true,
         phone: true,
         document: true,
+        birthDate: true,
         fileUrl: true,
         status: true,
         createdAt: true,
@@ -103,18 +111,24 @@ export class AdminProvidersService {
     const negativeReviews =
       reviewCounts.find((r) => r.type === ReviewTypeEnum.Negative)?._count._all ?? 0;
 
+    const totalReviews = positiveReviews + negativeReviews;
+    const averageRating =
+      totalReviews > 0 ? Math.round((positiveReviews / totalReviews) * 5 * 10) / 10 : 0;
+
     return {
       id: provider.id,
       name: provider.name,
       email: provider.email,
       phone: provider.phone ?? undefined,
       document: provider.document ?? undefined,
+      birthDate: provider.birthDate ?? undefined,
       fileUrl: provider.fileUrl ?? undefined,
       status: provider.status,
       openServices: provider._count.services,
       positiveReviews,
       negativeReviews,
-      totalReviews: positiveReviews + negativeReviews,
+      totalReviews,
+      averageRating,
       createdAt: provider.createdAt,
       updatedAt: provider.updatedAt,
     };
@@ -134,6 +148,9 @@ export class AdminProvidersService {
     const currentPage = query.skip ?? 1;
     const where: Prisma.WorkWhereInput = { providerId: id };
 
+    const sortField = query.sortBy ?? 'createdAt';
+    const sortDir = query.sortDirection ?? 'desc';
+
     const [works, totalRecords] = await Promise.all([
       this._prisma.work.findMany({
         where,
@@ -143,10 +160,10 @@ export class AdminProvidersService {
           totalValue: true,
           status: true,
           createdAt: true,
-          service: { select: { name: true } },
+          service: { select: { name: true, description: true } },
           requester: { select: { name: true, fileUrl: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { [sortField]: sortDir } as Prisma.WorkOrderByWithRelationInput,
         take,
         skip: (currentPage - 1) * take,
       }),
@@ -157,6 +174,7 @@ export class AdminProvidersService {
       history: works.map((w) => ({
         workId: w.id,
         serviceName: w.service.name,
+        serviceDescription: w.service.description ?? undefined,
         requesterName: w.requester.name,
         requesterFileUrl: w.requester.fileUrl ?? undefined,
         totalValue: w.totalValue ? Number(w.totalValue) : undefined,
@@ -167,6 +185,52 @@ export class AdminProvidersService {
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
       totalRecords,
+    };
+  }
+
+  async addSubscriptionBonus(
+    providerId: number,
+    subscriptionId: number,
+    payload: AddSubscriptionBonusDto,
+  ): Promise<ResponseSubscriptionBonusDto> {
+    const subscription = await this._prisma.subscription.findFirst({
+      where: { id: subscriptionId, userId: providerId },
+      select: {
+        id: true,
+        status: true,
+        bonusMonths: true,
+        currentPeriodEnd: true,
+      },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException('Assinatura não encontrada para este fornecedor.');
+    }
+
+    const baseDate = subscription.currentPeriodEnd
+      ? new Date(subscription.currentPeriodEnd)
+      : new Date();
+    baseDate.setMonth(baseDate.getMonth() + payload.months);
+
+    const updated = await this._prisma.subscription.update({
+      where: { id: subscriptionId },
+      data: {
+        bonusMonths: subscription.bonusMonths + payload.months,
+        currentPeriodEnd: baseDate,
+      },
+      select: {
+        id: true,
+        status: true,
+        bonusMonths: true,
+        currentPeriodEnd: true,
+      },
+    });
+
+    return {
+      subscriptionId: updated.id,
+      totalBonusMonths: updated.bonusMonths,
+      currentPeriodEnd: updated.currentPeriodEnd,
+      status: updated.status,
     };
   }
 }

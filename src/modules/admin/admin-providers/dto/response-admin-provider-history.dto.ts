@@ -8,6 +8,14 @@ export class ProviderServiceHistoryItemDto {
   @ApiProperty({ example: 'Instalação Hidráulica', type: String })
   serviceName: string;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'Instalação de tubulação de água fria e quente.',
+    type: String,
+  })
+  serviceDescription?: string;
+
   @ApiProperty({ example: 'Ana Clara', type: String })
   requesterName: string;
 
