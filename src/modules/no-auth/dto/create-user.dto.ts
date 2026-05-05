@@ -1,6 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { UserProfileType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
   IsEnum,
@@ -9,7 +11,9 @@ import {
   IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { CreateUserSocialMediaDto } from './create-user-social-media.dto';
 
 export class CreateUserDto {
   @ApiProperty({
@@ -68,4 +72,14 @@ export class CreateUserDto {
   })
   @IsBoolean({ message: 'O aceite dos termos deve ser verdadeiro ou falso.' })
   acceptedTerms: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Redes sociais do usuário. Cada rede pode ser cadastrada apenas uma vez.',
+    type: [CreateUserSocialMediaDto],
+  })
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => CreateUserSocialMediaDto)
+  @IsOptional()
+  socialMedias?: CreateUserSocialMediaDto[];
 }
