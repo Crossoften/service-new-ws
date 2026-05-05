@@ -1,7 +1,18 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Query,
+} from '@nestjs/common';
 import {
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
+  ApiNoContentResponse,
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
@@ -12,6 +23,7 @@ import { User } from '@prisma/client';
 import handleAccessControl from '@utils/HandleAccessControl';
 import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
 import { AdminInfluencersService } from './admin-influencers.service';
+import { UpdateInfluencerCommissionDto } from './dto/update-influencer-commission.dto';
 import { QueryAdminInfluencerDto } from './dto/query-admin-influencer.dto';
 import { ResponseAdminInfluencerDto } from './dto/response-admin-influencer.dto';
 import { ResponseFindAllAdminInfluencerDto } from './dto/response-admin-influencer-list.dto';
@@ -56,5 +68,28 @@ export class AdminInfluencersController {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminInfluencersService.findById(id);
+  }
+
+  @Patch(':id/commission')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({
+    summary: 'Define ou remove a taxa de comissão exclusiva de um influencer.',
+    description:
+      'Envie commissionRate com valor para taxa customizada, ou null para usar a taxa global.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiNoContentResponse({ description: 'Comissão atualizada com sucesso.' })
+  @ApiNotFoundResponse({ description: 'Influencer não encontrado.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async updateCommission(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: UpdateInfluencerCommissionDto,
+  ): Promise<void> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    await this._adminInfluencersService.updateCommission(id, body.commissionRate ?? null);
   }
 }

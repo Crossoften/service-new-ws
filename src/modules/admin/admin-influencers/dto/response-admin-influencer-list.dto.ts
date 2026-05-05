@@ -14,13 +14,26 @@ export class ResponseAdminInfluencerListItemDto {
   @ApiProperty({ required: false, nullable: true, example: '(34) 9 9290-0000', type: String })
   phone?: string;
 
-  @ApiProperty({ required: false, nullable: true, example: 'https://cdn.example.com/photo.png', type: String })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'https://cdn.example.com/photo.png',
+    type: String,
+  })
   fileUrl?: string;
 
-  @ApiProperty({ description: 'Posição no ranking baseada no total de indicações.', example: 1, type: Number })
+  @ApiProperty({
+    description: 'Posição no ranking baseada no total de indicações.',
+    example: 1,
+    type: Number,
+  })
   ranking: number;
 
-  @ApiProperty({ description: 'Total de usuários indicados (downloads).', example: 100, type: Number })
+  @ApiProperty({
+    description: 'Total de usuários indicados (downloads).',
+    example: 100,
+    type: Number,
+  })
   totalReferrals: number;
 
   @ApiProperty({ enum: Status, enumName: 'Status', example: Status.Active })
