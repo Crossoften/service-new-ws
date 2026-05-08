@@ -13,16 +13,28 @@ class InfluencerSocialMediaDto {
 }
 
 class InfluencerStatsDto {
-  @ApiProperty({ description: 'Total de usuários indicados (downloads).', example: 100, type: Number })
+  @ApiProperty({
+    description: 'Total de usuários indicados (downloads).',
+    example: 100,
+    type: Number,
+  })
   totalReferrals: number;
 
-  @ApiProperty({ description: 'Total de indicados que realizaram pagamentos na plataforma.', example: 90, type: Number })
+  @ApiProperty({
+    description: 'Total de indicados que realizaram pagamentos na plataforma.',
+    example: 90,
+    type: Number,
+  })
   totalPaying: number;
 
   @ApiProperty({ description: 'Comissão acumulada em reais.', example: 500.0, type: Number })
   accumulatedCommission: number;
 
-  @ApiProperty({ description: 'Posição no ranking geral de influencers.', example: 24, type: Number })
+  @ApiProperty({
+    description: 'Posição no ranking geral de influencers.',
+    example: 24,
+    type: Number,
+  })
   rankingPosition: number;
 }
 
@@ -42,13 +54,23 @@ export class ResponseAdminInfluencerDto {
   @ApiProperty({ required: false, nullable: true, example: '123.456.789-10', type: String })
   document?: string;
 
-  @ApiProperty({ required: false, nullable: true, example: 'https://cdn.example.com/photo.png', type: String })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'https://cdn.example.com/photo.png',
+    type: String,
+  })
   fileUrl?: string;
 
   @ApiProperty({ required: false, nullable: true, example: 'joaocarlos', type: String })
   referralCode?: string;
 
-  @ApiProperty({ required: false, nullable: true, example: '1995-08-20T00:00:00.000Z', type: String })
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: '1995-08-20T00:00:00.000Z',
+    type: String,
+  })
   birthDate?: Date;
 
   @ApiProperty({ enum: Status, enumName: 'Status', example: Status.Active })
@@ -70,7 +92,8 @@ export class ResponseAdminInfluencerDto {
   commissionRate: number | null;
 
   @ApiProperty({
-    description: 'Taxa de comissão efetiva aplicada: customizada se definida, caso contrário a global.',
+    description:
+      'Taxa de comissão efetiva aplicada: customizada se definida, caso contrário a global.',
     example: 15.5,
     type: Number,
   })

@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { Prisma, Role } from '@prisma/client';
+import { Prisma, Role, UserProfileType } from '@prisma/client';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { ResponseAdminUserDto } from './dto/response-admin-user.dto';
 import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.dto';
@@ -18,6 +18,7 @@ export class AdminUsersService {
     phone: true,
     document: true,
     birthDate: true,
+    profileType: true,
     status: true,
     fileUrl: true,
     fileKey: true,
@@ -79,6 +80,8 @@ export class AdminUsersService {
         name: user.name,
         email: user.email,
         phone: user.phone,
+        birthDate: user.birthDate ?? undefined,
+        profileType: user.profileType as UserProfileType,
         status: user.status,
         openServices: serviceCountMap.get(user.id) || 0,
         fileUrl: user.fileUrl,
