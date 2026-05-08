@@ -60,7 +60,7 @@ export class SubscriptionsService {
         price: true,
         interval: true,
         intervalCount: true,
-        benefits: true,
+        bonusMonths: true,
         isActive: true,
         sortOrder: true,
         createdAt: true,
@@ -78,6 +78,7 @@ export class SubscriptionsService {
         price: true,
         interval: true,
         intervalCount: true,
+        bonusMonths: true,
         isActive: true,
       },
     });
@@ -120,6 +121,9 @@ export class SubscriptionsService {
     } else {
       periodEnd.setMonth(periodEnd.getMonth() + plan.intervalCount);
     }
+    if (plan.bonusMonths > 0) {
+      periodEnd.setMonth(periodEnd.getMonth() + plan.bonusMonths);
+    }
 
     const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
     const cardLast4 =
@@ -155,6 +159,7 @@ export class SubscriptionsService {
           planName: plan.name,
           planInterval: plan.interval,
           intervalCount: plan.intervalCount,
+          bonusMonths: plan.bonusMonths,
           addressId: address?.id || null,
           startedAt: periodStart,
           currentPeriodStart: periodStart,
@@ -208,6 +213,38 @@ export class SubscriptionsService {
         ],
       });
 
+      const referral = await tx.referral.findUnique({
+        where: { referredUserId: user.id },
+        select: { id: true, influencerId: true, isPaying: true },
+      });
+
+      if (referral && !referral.isPaying) {
+        const [influencer, platformSettings] = await Promise.all([
+          tx.user.findUnique({
+            where: { id: referral.influencerId },
+            select: { commissionRate: true },
+          }),
+          tx.platformSettings.findUnique({
+            where: { id: 1 },
+            select: { influencerCommissionRate: true },
+          }),
+        ]);
+
+        const globalRate = platformSettings ? Number(platformSettings.influencerCommissionRate) : 10;
+        const rate =
+          influencer && influencer.commissionRate
+            ? Number(influencer.commissionRate)
+            : globalRate;
+        const commissionAmount = new Prisma.Decimal(
+          (plan.price.toNumber() * (rate / 100)).toFixed(2),
+        );
+
+        await tx.referral.update({
+          where: { id: referral.id },
+          data: { isPaying: true, commissionAmount, paidAt: new Date() },
+        });
+      }
+
       return subscription.id;
     });
 
@@ -259,9 +296,13 @@ export class SubscriptionsService {
             price: subscription.plan.price.toFixed(2),
             interval: subscription.plan.interval as SubscriptionIntervalEnum,
             intervalCount: subscription.plan.intervalCount,
-            benefits: Array.isArray(subscription.plan.benefits)
-              ? subscription.plan.benefits.map((item: any) => String(item))
-              : [],
+            bonusMonths: subscription.plan.bonusMonths,
+            monthlyPrice: (
+              subscription.plan.price.toNumber() /
+              ((subscription.plan.interval === SubscriptionIntervalEnum.Year
+                ? subscription.plan.intervalCount * 12
+                : subscription.plan.intervalCount) + subscription.plan.bonusMonths || 1)
+            ).toFixed(2),
             isActive: subscription.plan.isActive,
             sortOrder: subscription.plan.sortOrder,
             createdAt: subscription.plan.createdAt,
@@ -349,9 +390,13 @@ export class SubscriptionsService {
         price: subscription.plan.price.toFixed(2),
         interval: subscription.plan.interval as SubscriptionIntervalEnum,
         intervalCount: subscription.plan.intervalCount,
-        benefits: Array.isArray(subscription.plan.benefits)
-          ? subscription.plan.benefits.map((item: any) => String(item))
-          : [],
+        bonusMonths: subscription.plan.bonusMonths,
+        monthlyPrice: (
+          subscription.plan.price.toNumber() /
+          ((subscription.plan.interval === SubscriptionIntervalEnum.Year
+            ? subscription.plan.intervalCount * 12
+            : subscription.plan.intervalCount) + subscription.plan.bonusMonths || 1)
+        ).toFixed(2),
         isActive: subscription.plan.isActive,
         sortOrder: subscription.plan.sortOrder,
         createdAt: subscription.plan.createdAt,
@@ -441,9 +486,13 @@ export class SubscriptionsService {
         price: subscription.plan.price.toFixed(2),
         interval: subscription.plan.interval as SubscriptionIntervalEnum,
         intervalCount: subscription.plan.intervalCount,
-        benefits: Array.isArray(subscription.plan.benefits)
-          ? subscription.plan.benefits.map((item: any) => String(item))
-          : [],
+        bonusMonths: subscription.plan.bonusMonths,
+        monthlyPrice: (
+          subscription.plan.price.toNumber() /
+          ((subscription.plan.interval === SubscriptionIntervalEnum.Year
+            ? subscription.plan.intervalCount * 12
+            : subscription.plan.intervalCount) + subscription.plan.bonusMonths || 1)
+        ).toFixed(2),
         isActive: subscription.plan.isActive,
         sortOrder: subscription.plan.sortOrder,
         createdAt: subscription.plan.createdAt,

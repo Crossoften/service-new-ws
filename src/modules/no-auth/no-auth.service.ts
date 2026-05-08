@@ -83,6 +83,22 @@ export class NoAuthService {
       },
     });
 
+    if (payload.inviteCode) {
+      const influencer = await this.prisma.user.findFirst({
+        where: {
+          referralCode: payload.inviteCode.trim(),
+          profileType: UserProfileType.Influencer,
+        },
+        select: { id: true },
+      });
+
+      if (influencer) {
+        await this.prisma.referral.create({
+          data: { influencerId: influencer.id, referredUserId: user.id },
+        });
+      }
+    }
+
     return {
       message: 'Usuário cadastrado com sucesso.',
       user: {
