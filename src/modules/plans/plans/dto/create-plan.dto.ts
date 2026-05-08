@@ -1,15 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import {
-  IsArray,
-  IsBoolean,
-  IsEnum,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsNumber, IsOptional, IsString, Min } from 'class-validator';
 import { SubscriptionIntervalEnum } from '../../enums/subscription-interval.enum';
 
 export class CreatePlanDto {
@@ -52,15 +43,12 @@ export class CreatePlanDto {
   @Min(1)
   intervalCount: number;
 
-  @ApiPropertyOptional({
-    description: 'Lista de benefícios incluídos no plano.',
-    example: ['Benefício 1', 'Benefício 2'],
-    type: [String],
-  })
+  @ApiPropertyOptional({ description: 'Meses bônus adicionados ao período do plano.', example: 0 })
   @IsOptional()
-  @IsArray({ message: 'Os benefícios devem ser enviados em lista.' })
-  @IsString({ each: true, message: 'Cada benefício deve ser um texto.' })
-  benefits?: string[];
+  @Type(() => Number)
+  @IsInt({ message: 'Os meses bônus devem ser um número inteiro.' })
+  @Min(0)
+  bonusMonths?: number;
 
   @ApiPropertyOptional({
     description: 'Indica se o plano está ativo para contratação.',
