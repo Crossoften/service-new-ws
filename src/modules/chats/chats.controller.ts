@@ -99,8 +99,12 @@ export class ChatsController {
   ): Promise<ResponseChatDto> {
     const result = await this.chatsService.sendMessageAndGetLastMessage(user, id, payload);
 
-    this.chatsGateway.emitToRoom(id, 'chat:message', { roomId: id, message: result.message });
-    this.chatsGateway.emitToRoom(id, 'chat:updated', result.room);
+    try {
+      this.chatsGateway.emitToRoom(id, 'chat:message', { roomId: id, message: result.message });
+      this.chatsGateway.emitToRoom(id, 'chat:updated', result.room);
+    } catch {
+      // WebSocket emit falhou — a mensagem já foi salva, não interrompe o response HTTP
+    }
 
     return result.room;
   }

@@ -83,77 +83,25 @@ export class ChatsService {
     contextType: ChatContextType,
     referenceId: number,
   ): Promise<ResponseChatDto> {
-    const roomByContext = await this.prisma.chatRoom.findUnique({
-      where: {
-        contextType_referenceId: {
-          contextType,
-          referenceId,
-        },
-      },
-      select: this.roomSelect,
-    });
-
-    if (!roomByContext) {
-      throw new NotFoundException('Chat não encontrado para o contexto informado.');
-    }
-
-    if (!roomByContext.participants.some((p) => p.user.id === user.id)) {
-      throw new ForbiddenException('Acesso não autorizado ao chat.');
-    }
-
-    await this.prisma.chatParticipant.update({
-      where: {
-        roomId_userId: {
-          roomId: roomByContext.id,
-          userId: user.id,
-        },
-      },
-      data: {
-        lastReadAt: new Date(),
-      },
-    });
-
     const room = await this.prisma.chatRoom.findUnique({
-      where: { id: roomByContext.id },
+      where: { contextType_referenceId: { contextType, referenceId } },
       select: this.roomSelect,
     });
 
     if (!room) {
-      throw new NotFoundException('Chat não encontrado.');
+      throw new NotFoundException('Chat não encontrado para o contexto informado.');
     }
 
     if (!room.participants.some((p) => p.user.id === user.id)) {
       throw new ForbiddenException('Acesso não autorizado ao chat.');
     }
 
-    return {
-      id: room.id,
-      contextType: room.contextType,
-      referenceId: room.referenceId,
-      lastMessageAt: room.lastMessageAt || undefined,
-      participants: room.participants.map((participant) => ({
-        id: participant.user.id,
-        name: participant.user.name,
-        fileUrl: participant.user.fileUrl || undefined,
-        lastReadAt: participant.lastReadAt || undefined,
-      })),
-      messages: room.messages.map((message) => ({
-        id: message.id,
-        message: message.message || undefined,
-        fileName: message.fileName || undefined,
-        fileUrl: message.fileUrl || undefined,
-        fileKey: message.fileKey || undefined,
-        sender: {
-          id: message.sender.id,
-          name: message.sender.name,
-          fileUrl: message.sender.fileUrl || undefined,
-        },
-        createdAt: message.createdAt,
-        updatedAt: message.updatedAt,
-      })),
-      createdAt: room.createdAt,
-      updatedAt: room.updatedAt,
-    };
+    await this.prisma.chatParticipant.updateMany({
+      where: { roomId: room.id, userId: user.id },
+      data: { lastReadAt: new Date() },
+    });
+
+    return this.findById(user, room.id);
   }
 
   async findById(user: User, id: number): Promise<ResponseChatDto> {
@@ -323,16 +271,9 @@ export class ChatsService {
       throw new ForbiddenException('Acesso não autorizado ao chat.');
     }
 
-    await this.prisma.chatParticipant.update({
-      where: {
-        roomId_userId: {
-          roomId: room.id,
-          userId: user.id,
-        },
-      },
-      data: {
-        lastReadAt: new Date(),
-      },
+    await this.prisma.chatParticipant.updateMany({
+      where: { roomId: room.id, userId: user.id },
+      data: { lastReadAt: new Date() },
     });
 
     return this.findById(user, room.id);
