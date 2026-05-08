@@ -22,7 +22,7 @@ export class AuthService {
     const token: string = this.jwtService.sign(payload);
     const user = await this.loginService.findByEmail(userArg.email);
 
-    return { token, id: user.id, role: user.role, adminPermissions: user.adminPermissions };
+    return { token, id: user.id, role: user.role, profileType: user.profileType, adminPermissions: user.adminPermissions };
   }
 
   async validateUser(email: string, password: string): Promise<User> {
