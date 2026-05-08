@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Status } from '@prisma/client';
+import { Status, UserProfileType } from '@prisma/client';
 
 export class ResponseAdminUserDto {
   @ApiProperty({
@@ -143,6 +143,23 @@ export class ResponseAdminUserListDto {
     type: Number,
   })
   openServices: number;
+
+  @ApiProperty({
+    description: 'Data de nascimento do usuário.',
+    required: false,
+    nullable: true,
+    example: '1995-08-20T00:00:00.000Z',
+    type: String,
+  })
+  birthDate?: Date;
+
+  @ApiProperty({
+    description: 'Tipo de perfil do usuário.',
+    enum: UserProfileType,
+    enumName: 'UserProfileType',
+    example: UserProfileType.Client,
+  })
+  profileType: UserProfileType;
 
   @ApiProperty({
     description: 'URL pública da foto de perfil do usuário, quando existir.',
