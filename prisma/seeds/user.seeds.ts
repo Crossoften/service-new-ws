@@ -28,6 +28,22 @@ export async function seedUser(prisma: PrismaClient) {
         profileType: UserProfileType.Delivery,
         status: Status.Active,
       },
+      {
+        name: 'supplier one',
+        email: 'supplier.one@email.com',
+        password: hashSync('12345678', 10),
+        role: Role.User,
+        profileType: UserProfileType.Supplier,
+        status: Status.Active,
+      },
+      {
+        name: 'influencer one',
+        email: 'influencer.one@email.com',
+        password: hashSync('12345678', 10),
+        role: Role.User,
+        profileType: UserProfileType.Influencer,
+        status: Status.Active,
+      },
     ],
   });
 
