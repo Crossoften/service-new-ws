@@ -8,6 +8,21 @@ import { UpdatePlanDto } from './dto/update-plan.dto';
 import { SubscriptionIntervalEnum } from '../enums/subscription-interval.enum';
 import { PlanNotFoundException } from './exceptions/plan-not-found.exception';
 
+type PlanRow = {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  price: Prisma.Decimal;
+  interval: string;
+  intervalCount: number;
+  bonusMonths: number;
+  isActive: boolean;
+  sortOrder: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
 @Injectable()
 export class PlansService {
   constructor(private readonly prisma: PrismaService) {}
@@ -20,12 +35,50 @@ export class PlansService {
     price: true,
     interval: true,
     intervalCount: true,
-    benefits: true,
+    bonusMonths: true,
     isActive: true,
     sortOrder: true,
     createdAt: true,
     updatedAt: true,
   });
+
+  private calcMonthlyPrice(
+    price: Prisma.Decimal,
+    interval: string,
+    intervalCount: number,
+    bonusMonths: number,
+  ): string {
+    const baseMonths =
+      interval === SubscriptionIntervalEnum.Year ? intervalCount * 12 : intervalCount;
+    const totalMonths = baseMonths + bonusMonths;
+    if (totalMonths <= 0) {
+      return price.toFixed(2);
+    }
+    return (price.toNumber() / totalMonths).toFixed(2);
+  }
+
+  private mapPlan(plan: PlanRow): ResponsePlanDto {
+    return {
+      id: plan.id,
+      name: plan.name,
+      slug: plan.slug,
+      description: plan.description || undefined,
+      price: plan.price.toFixed(2),
+      interval: plan.interval as SubscriptionIntervalEnum,
+      intervalCount: plan.intervalCount,
+      bonusMonths: plan.bonusMonths,
+      monthlyPrice: this.calcMonthlyPrice(
+        plan.price,
+        plan.interval,
+        plan.intervalCount,
+        plan.bonusMonths,
+      ),
+      isActive: plan.isActive,
+      sortOrder: plan.sortOrder,
+      createdAt: plan.createdAt,
+      updatedAt: plan.updatedAt,
+    };
+  }
 
   async create(payload: CreatePlanDto): Promise<ResponsePlanDto> {
     const plan = await this.prisma.plan.create({
@@ -36,27 +89,14 @@ export class PlansService {
         price: new Prisma.Decimal(payload.price),
         interval: payload.interval,
         intervalCount: payload.intervalCount,
-        benefits: payload.benefits || [],
+        bonusMonths: payload.bonusMonths ?? 0,
         isActive: payload.isActive ?? true,
         sortOrder: payload.sortOrder ?? 0,
       },
       select: this.planSelect,
     });
 
-    return {
-      id: plan.id,
-      name: plan.name,
-      slug: plan.slug,
-      description: plan.description || undefined,
-      price: plan.price.toFixed(2),
-      interval: plan.interval as SubscriptionIntervalEnum,
-      intervalCount: plan.intervalCount,
-      benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
-      isActive: plan.isActive,
-      sortOrder: plan.sortOrder,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
-    };
+    return this.mapPlan(plan as PlanRow);
   }
 
   async findAll(query: QueryPlanDto, onlyActive = false): Promise<ResponseFindAllPlansDto> {
@@ -84,22 +124,7 @@ export class PlansService {
     ]);
 
     return {
-      plans: plans.map((plan) => ({
-        id: plan.id,
-        name: plan.name,
-        slug: plan.slug,
-        description: plan.description || undefined,
-        price: plan.price.toFixed(2),
-        interval: plan.interval as SubscriptionIntervalEnum,
-        intervalCount: plan.intervalCount,
-        benefits: Array.isArray(plan.benefits)
-          ? plan.benefits.map((item: any) => String(item))
-          : [],
-        isActive: plan.isActive,
-        sortOrder: plan.sortOrder,
-        createdAt: plan.createdAt,
-        updatedAt: plan.updatedAt,
-      })),
+      plans: plans.map((plan) => this.mapPlan(plan as PlanRow)),
       currentPage: page,
       totalPages: Math.max(1, Math.ceil(totalRecords / take)),
       totalRecords,
@@ -116,20 +141,7 @@ export class PlansService {
       throw new PlanNotFoundException();
     }
 
-    return {
-      id: plan.id,
-      name: plan.name,
-      slug: plan.slug,
-      description: plan.description || undefined,
-      price: plan.price.toFixed(2),
-      interval: plan.interval as SubscriptionIntervalEnum,
-      intervalCount: plan.intervalCount,
-      benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
-      isActive: plan.isActive,
-      sortOrder: plan.sortOrder,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
-    };
+    return this.mapPlan(plan as PlanRow);
   }
 
   async update(id: number, payload: UpdatePlanDto): Promise<ResponsePlanDto> {
@@ -145,27 +157,14 @@ export class PlansService {
         price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
         interval: payload.interval as SubscriptionIntervalEnum | undefined,
         intervalCount: payload.intervalCount,
-        benefits: payload.benefits,
+        bonusMonths: payload.bonusMonths,
         isActive: payload.isActive,
         sortOrder: payload.sortOrder,
       },
       select: this.planSelect,
     });
 
-    return {
-      id: plan.id,
-      name: plan.name,
-      slug: plan.slug,
-      description: plan.description || undefined,
-      price: plan.price.toFixed(2),
-      interval: plan.interval as SubscriptionIntervalEnum,
-      intervalCount: plan.intervalCount,
-      benefits: Array.isArray(plan.benefits) ? plan.benefits.map((item: any) => String(item)) : [],
-      isActive: plan.isActive,
-      sortOrder: plan.sortOrder,
-      createdAt: plan.createdAt,
-      updatedAt: plan.updatedAt,
-    };
+    return this.mapPlan(plan as PlanRow);
   }
 
   async delete(id: number): Promise<{ message: string }> {

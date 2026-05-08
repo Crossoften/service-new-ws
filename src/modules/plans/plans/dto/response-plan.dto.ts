@@ -30,12 +30,14 @@ export class ResponsePlanDto {
   @ApiProperty({ description: 'Quantidade de intervalos por ciclo.', example: 1 })
   intervalCount: number;
 
+  @ApiProperty({ description: 'Meses bônus adicionados ao período do plano.', example: 0 })
+  bonusMonths: number;
+
   @ApiProperty({
-    description: 'Benefícios incluídos no plano.',
-    type: [String],
-    example: ['Benefício 1', 'Benefício 2'],
+    description: 'Custo mensal real considerando o período total com bônus.',
+    example: '39.90',
   })
-  benefits: string[];
+  monthlyPrice: string;
 
   @ApiProperty({ description: 'Indica se o plano está ativo.', example: true })
   isActive: boolean;

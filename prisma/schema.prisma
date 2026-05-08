@@ -596,7 +596,7 @@ model Plan {
   price         Decimal                  @db.Decimal(10, 2)
   interval      SubscriptionIntervalEnum
   intervalCount Int                      @default(1)
-  benefits      Json?
+  bonusMonths   Int                      @default(0)
   isActive      Boolean                  @default(true)
   sortOrder     Int                      @default(0)
 
