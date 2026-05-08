@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Role } from '@prisma/client';
+import { Role, UserProfileType } from '@prisma/client';
 import { PermissionResponseDto } from 'src/modules/admin/admin-settings/dto/permission-response.dto';
 
 export class ResponseLoginDto {
@@ -24,6 +24,15 @@ export class ResponseLoginDto {
     required: false,
   })
   role: Role;
+
+  @ApiProperty({
+    description: 'Tipo de perfil do usuário autenticado.',
+    enum: UserProfileType,
+    enumName: 'UserProfileType',
+    example: UserProfileType.Client,
+    required: false,
+  })
+  profileType: UserProfileType;
 
   @ApiProperty({
     description: 'Lista de permissões administrativas do usuário autenticado.',
