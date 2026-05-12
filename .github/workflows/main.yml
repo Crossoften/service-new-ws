@@ -1,0 +1,174 @@
+name: Deploy Backend (service-new-ws)
+
+on:
+  push:
+    branches:
+      - '**'
+  workflow_dispatch:
+
+env:
+  PROJECT_PATH: "/root/backs/service-new-ws" # Verifique se o nome da pasta é esse mesmo
+  PM2_APP_NAME: "service-new-https:8029"
+  NVM_BIN: "/root/.nvm/versions/node/v24.14.1/bin"
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: 📥 Checkout do Código
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ==========================================
+      # 1. CACHE
+      # ==========================================
+      - name: 🗄️ Cache node_modules (Local Runner)
+        id: cache-local
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+
+      # ==========================================
+      # 2. BUILD E PREPARAÇÃO LOCAL
+      # ==========================================
+      - name: 📦 Instalar Dependências (Runner)
+        run: npm ci --legacy-peer-deps || (echo "⚠️ Fallback para npm install..." && npm install --legacy-peer-deps)
+
+      - name: 🏗️ Compilar Código (e Prisma, se existir)
+        run: |
+          if [ -f "prisma/schema.prisma" ]; then
+            echo "⚙️ Prisma detectado. Injetando Dummy URL para bypass do gerador..."
+            DATABASE_URL="mysql://dummy:dummy@localhost:3306/dummy" ./node_modules/.bin/prisma generate
+          fi
+          echo "🏗️ Iniciando Build..."
+          npm run build
+
+      # ==========================================
+      # 3. SINCRONIZAÇÃO (DEPLOY PARA A VPS)
+      # ==========================================
+      - name: 🚚 Transferir Arquivos (Rsync Seguro)
+        run: |
+          sudo mkdir -p ${{ env.PROJECT_PATH }}/dist
+          sudo mkdir -p ${{ env.PROJECT_PATH }}/src
+          
+          # Sincroniza o Dist
+          sudo rsync -a --exclude='.env' --exclude='node_modules' ./dist/ ${{ env.PROJECT_PATH }}/dist/
+          
+          # Sincroniza o Src (Obrigatório para o ts-node rodar o seed)
+          sudo rsync -a --exclude='.env' ./src/ ${{ env.PROJECT_PATH }}/src/
+          
+          # Sincroniza a pasta Prisma
+          if [ -d "./prisma" ]; then
+            sudo rsync -a --exclude='.env' ./prisma/ ${{ env.PROJECT_PATH }}/prisma/
+          fi
+          
+          sudo cp ./package*.json ${{ env.PROJECT_PATH }}/
+          sudo chown -R root:root ${{ env.PROJECT_PATH }}
+
+      - name: 📦 Instalar Dependências na VPS (Produção)
+        run: |
+          # Instalamos dependências omitindo dev
+          # Injetamos ts-node, typescript e tsconfig-paths para o Seed
+          sudo env "PATH=${{ env.NVM_BIN }}:$PATH" bash -c "cd ${{ env.PROJECT_PATH }} && npm install --omit=dev --legacy-peer-deps && npm install ts-node typescript tsconfig-paths --no-save"
+
+      # ==========================================
+      # 4. CAMADA TRIPLA DE RESILIÊNCIA DO BANCO
+      # ==========================================
+      - name: 🗄️ Sincronização Inteligente de Banco
+        run: |
+          sudo env "PATH=${{ env.NVM_BIN }}:$PATH" bash -c '
+            cd ${{ env.PROJECT_PATH }}
+            
+            if [ ! -f ".env" ]; then
+              echo "⚠️ Aviso: Arquivo .env não encontrado. O banco de dados pode falhar ao conectar."
+            fi
+            
+            if [ ! -f "prisma/schema.prisma" ]; then
+              echo "⚠️ Projeto sem Prisma. Pulando etapa de banco."
+              exit 0
+            fi
+
+            echo "⚙️ Gerando Client Prisma em Produção via NPX Absoluto (v5.13.0)..."
+            npx --yes --package prisma@5.13.0 prisma generate
+
+            run_strict_seed() {
+              echo "🌱 Iniciando validação estrita de Seed..."
+              if grep -q "\"seed\":" package.json; then
+                if npm run seed; then
+                   echo "✅ SUCESSO: Seed NPM executado."
+                elif npx --yes --package prisma@5.13.0 prisma db seed; then
+                   echo "✅ SUCESSO: Seed Prisma executado."
+                else
+                   echo "❌ ERRO: Seed falhou."
+                   pm2 stop ${{ env.PM2_APP_NAME }} || true
+                   exit 1
+                fi
+              else
+                echo "❌ ERRO: Configuração de Seed ausente!"
+                pm2 stop ${{ env.PM2_APP_NAME }} || true
+                exit 1
+              fi
+            }
+
+            if [[ "${{ github.event.head_commit.message }}" == *"[RESET DB]"* ]]; then
+              npx --yes --package prisma@5.13.0 prisma db push --force-reset --accept-data-loss
+              run_strict_seed
+              exit 0
+            fi
+
+            if npx --yes --package prisma@5.13.0 prisma db push --accept-data-loss; then
+              echo "✅ Banco atualizado (Push)."
+            else
+              echo "⚠️ Push falhou, forçando reset para manter estabilidade do código novo."
+              npx --yes --package prisma@5.13.0 prisma db push --force-reset --accept-data-loss
+              run_strict_seed
+            fi
+          '
+
+      # ==========================================
+      # 5. PM2: RELOAD COM FALLBACK PREDITIVO
+      # ==========================================
+      - name: 🔄 Restart PM2 e Health Check
+        run: |
+          echo "🔄 Solicitando Reload Inteligente no PM2..."
+          
+          sudo env "PATH=${{ env.NVM_BIN }}:$PATH" bash -c '
+            cd ${{ env.PROJECT_PATH }}
+            
+            if ! pm2 reload "${{ env.PM2_APP_NAME }}" --update-env; then
+              echo "⚠️ Reload falhou. Iniciando Fallback Preditivo..."
+              
+              if [ -f "dist/src/main.js" ]; then
+                echo "🚀 Start via [dist/src/main.js]"
+                pm2 start dist/src/main.js --name "${{ env.PM2_APP_NAME }}"
+              elif [ -f "dist/main.js" ]; then
+                echo "🚀 Start via [dist/main.js]"
+                pm2 start dist/main.js --name "${{ env.PM2_APP_NAME }}"
+              else
+                echo "🚀 Start via [npm run start:prod]"
+                pm2 start npm --name "${{ env.PM2_APP_NAME }}" -- run start:prod
+              fi
+            fi
+            pm2 save
+          '
+          
+          sleep 30
+          
+          STATUS=$(sudo env "PATH=${{ env.NVM_BIN }}:$PATH" pm2 jlist | jq -r ".[] | select(.name==\"${{ env.PM2_APP_NAME }}\") | .pm2_env.status")
+          UPTIME=$(sudo env "PATH=${{ env.NVM_BIN }}:$PATH" pm2 jlist | jq -r ".[] | select(.name==\"${{ env.PM2_APP_NAME }}\") | .pm2_env.pm_uptime")
+          NOW=$(date +%s%3N)
+          DIFF=$((NOW - UPTIME))
+          
+          if [ "$STATUS" != "online" ] || [ $DIFF -lt 20000 ]; then
+            echo "❌ ERRO CRÍTICO: Aplicação instável."
+            sudo env "PATH=${{ env.NVM_BIN }}:$PATH" pm2 logs ${{ env.PM2_APP_NAME }} --lines 50 --nostream
+            sudo env "PATH=${{ env.NVM_BIN }}:$PATH" pm2 stop ${{ env.PM2_APP_NAME }}
+            exit 1
+          else
+            echo "✅ DEPLOY CONCLUÍDO ESTÁVEL!"
+          fi
