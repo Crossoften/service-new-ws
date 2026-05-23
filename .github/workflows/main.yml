@@ -172,3 +172,44 @@ jobs:
           else
             echo "✅ DEPLOY CONCLUÍDO ESTÁVEL!"
           fi
+      # ==========================================
+      # 6. NOTIFICAÇÃO DE FALHA (WEBHOOK DEVOPS)
+      # ==========================================
+      - name: 🚨 Notificar Falha no Deploy
+        if: failure() # ⚠️ O Pulo do Gato: Isso faz a etapa rodar SOMENTE se alguma etapa anterior quebrar
+        run: |
+          echo "🚨 Falha detectada! Preparando notificação para o sistema DevOps..."
+          
+          # 1. Tenta usar o nome do PM2, se não existir (como no Web), usa o nome do Repositório
+          APP_NAME="${{ env.PM2_APP_NAME }}"
+          if [ -z "$APP_NAME" ]; then
+            APP_NAME="${{ github.event.repository.name }}"
+          fi
+          
+          # 2. Prepara um link rápido para você clicar e ir direto para o erro no GitHub
+          ACTION_URL="https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          ERROR_LOG="Ocorreu um erro na esteira de deploy.\n🔗 Link do erro: $ACTION_URL"
+          
+          # 3. Se for Backend (tem PM2 configurado), tenta pescar as últimas 30 linhas do log!
+          if [ -n "${{ env.PM2_APP_NAME }}" ] && [ -n "${{ env.NVM_BIN }}" ]; then
+            echo "📊 Tentando extrair logs mortais do PM2..."
+            # O '2>/dev/null || true' garante que, se o PM2 não estiver rodando ainda, o script não quebra de novo
+            PM2_LOGS=$(sudo env "PATH=${{ env.NVM_BIN }}:$PATH" pm2 logs ${{ env.PM2_APP_NAME }} --lines 30 --nostream 2>/dev/null || echo "O erro ocorreu antes da aplicação chegar ao PM2 (Ex: Falha no NPM ou Prisma).")
+            ERROR_LOG="$ERROR_LOG\n\n=== LOGS DO PM2 ===\n$PM2_LOGS"
+          fi
+          
+          # 4. Usamos o 'jq' para montar o JSON. Ele blinda o texto contra aspas e quebras de linha malditas!
+          JSON_PAYLOAD=$(jq -n \
+            --arg repo "${{ github.repository }}" \
+            --arg app "$APP_NAME" \
+            --arg status "failure" \
+            --arg log "$ERROR_LOG" \
+            --arg trigger "${{ github.actor }}" \
+            '{repository: $repo, appName: $app, status: $status, log: $log, triggeredBy: $trigger}')
+            
+          echo "📨 Disparando Webhook para https://homolog.crosoften.com:3001..."
+          
+          # 5. O Curl final bonitinho e blindado
+          curl -X POST "https://homolog.crosoften.com:3001/api/devops/deploy-notify" \
+            -H "Content-Type: application/json" \
+            -d "$JSON_PAYLOAD"
