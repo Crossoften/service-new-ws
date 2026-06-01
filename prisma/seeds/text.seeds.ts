@@ -31,5 +31,5 @@ export async function seedText(prisma: PrismaClient) {
     ],
   });
 
-  console.log('Texts seed added successfully 🌱.');
+  
 }

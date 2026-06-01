@@ -1,4 +1,4 @@
-import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Param, ParseIntPipe, Query } from '@nestjs/common';
 import {
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -40,6 +40,26 @@ export class AdminUsersController {
     return this._adminUsersService.findAll(query);
   }
 
+  @Get("/actives")
+  @ApiOperation({
+    summary: 'Rota que lista apenas os usuários ativos cadastrados no portal gerencial.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseFindAllAdminUserDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async findAllActiveUsers(
+    @CurrentUser() user: User,
+    @Query() query: QueryAdminUserDto,
+  ): Promise<ResponseFindAllAdminUserDto> {
+    handleAccessControl.verifyAdminRole(user);
+
+    handleAccessControl.verifyPermission(user, 'Users');
+
+    return this._adminUsersService.findAll({ ...query, status: 'Active' });
+  }
+
   @Get(':id')
   @ApiOperation({
     summary: 'Rota que recupera os detalhes de um usuário pelo id.',
@@ -54,11 +74,29 @@ export class AdminUsersController {
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ResponseAdminUserDto> {
-    console.log("Usuario recebido aqui:",user);
     handleAccessControl.verifyAdminRole(user);
 
     handleAccessControl.verifyPermission(user, 'Users');
 
     return this._adminUsersService.findById(id);
+  }
+
+  @Patch(':id/status-active')
+  @ApiOperation({
+    summary: 'Alterna o status do usuário entre Active e Inactive.',
+    security: [{ bearerAuth: [] }],
+  })
+  
+  @ApiOkResponse({ type: ResponseAdminUserDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async updateStatus(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ResponseAdminUserDto> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminUsersService.updateStatus(id);
   }
 }

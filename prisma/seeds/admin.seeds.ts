@@ -36,5 +36,5 @@ export async function seedAdmin(prisma: PrismaClient) {
     },
   });
 
-  console.log('Admins seed added successfully 🌱.');
+  
 }

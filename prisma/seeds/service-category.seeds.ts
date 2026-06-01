@@ -27,5 +27,5 @@ export async function seedServiceCategory(prisma: PrismaClient) {
     });
   }
 
-  console.log('Service categories seed added successfully.');
+  
 }

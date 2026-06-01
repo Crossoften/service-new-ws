@@ -29,5 +29,5 @@ export async function seedPlan(prisma: PrismaClient) {
     });
   }
 
-  console.log('Plans seed added successfully.');
+  
 }

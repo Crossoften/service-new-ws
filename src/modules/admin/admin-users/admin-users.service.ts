@@ -131,4 +131,24 @@ export class AdminUsersService {
       updatedAt: user.updatedAt,
     };
   }
+
+  async updateStatus(id: number): Promise<ResponseAdminUserDto> {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new AdminUserInvalidIdException();
+    }
+
+    const user = await this._prisma.user.findFirst({
+      where: { id, role: Role.User },
+    });
+
+  
+    if (!user) throw new AdminUserNotFoundException();
+
+    await this._prisma.user.update({
+      where: { id },
+      data: { status: user.status === 'Active' ? "Inactive" : "Active" },
+    });
+
+    return this.findById(id);
+  }
 }
