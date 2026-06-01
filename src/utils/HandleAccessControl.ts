@@ -1,32 +1,21 @@
-import { PrismaService } from '@database/PrismaService';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { AdminPermissions, Role, User } from '@prisma/client';
 
 class HandleAccessControl {
-  constructor(private readonly prisma: PrismaService) {}
-
   verifyAdminRole(payload: Partial<User>): void {
-    const { role } = payload;
-
-    if (role !== Role.Master && role !== Role.Admin) {
+    console.log('JWT payload decodificado: 1', payload);
+    if (payload.role !== Role.Master && payload.role !== Role.Admin) {
       throw new ForbiddenException('Acesso não autorizado.');
     }
   }
 
-  async verifyPermission(payload: Partial<User>, permission: AdminPermissions): Promise<void> {
-    const { id } = payload;
-
-    const user = await this.prisma.user.findFirst({
-      where: { id },
-      include: { adminPermissions: true },
-    });
-
-    if (!user) throw new NotFoundException('Usuário não encontrado.');
-
-    const validPermission: boolean = user.adminPermissions.some(({ name }) => name === permission);
-
+  verifyPermission(payload: any, permission: AdminPermissions): void {
+    console.log('JWT payload decodificado 2:', payload);
+    const validPermission = payload.adminPermissions?.some(
+      ({ name }: { name: string }) => name === permission,
+    );
     if (!validPermission) throw new ForbiddenException('Acesso não autorizado.');
   }
 }
 
-export default new HandleAccessControl(new PrismaService());
+export default new HandleAccessControl();

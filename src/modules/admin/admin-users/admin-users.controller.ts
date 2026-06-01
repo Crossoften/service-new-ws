@@ -45,6 +45,7 @@ export class AdminUsersController {
     summary: 'Rota que recupera os detalhes de um usuário pelo id.',
     security: [{ bearerAuth: [] }],
   })
+  
   @ApiOkResponse({ type: ResponseAdminUserDto })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
@@ -53,6 +54,7 @@ export class AdminUsersController {
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
   ): Promise<ResponseAdminUserDto> {
+    console.log("Usuario recebido aqui:",user);
     handleAccessControl.verifyAdminRole(user);
 
     handleAccessControl.verifyPermission(user, 'Users');

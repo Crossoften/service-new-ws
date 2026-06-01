@@ -46,6 +46,8 @@ export class NoAuthController {
     return this.noAuthService.register(body, body.profileType);
   }
 
+ 
+
   @IsPublic()
   @Post('no-auth/register/client')
   @ApiTags('Sem autenticação')
@@ -58,6 +60,18 @@ export class NoAuthController {
     return this.noAuthService.register(body, UserProfileType.Client);
   }
 
+  @IsPublic()
+  @Post('no-auth/register/adm')
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Cadastro de fornecedor.' })
+  @ApiCreatedResponse({ type: RegisterUserResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async registerAdmin(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.registerAdmin(body, UserProfileType.Client);
+  }
+  
   @IsPublic()
   @Post('no-auth/register/supplier')
   @ApiTags('Sem autenticação')
@@ -174,6 +188,7 @@ export class NoAuthController {
     return this.noAuthService.texts(query);
   }
 
+  /*
   @IsPublic()
   @ApiTags('Sem autenticação')
   @ApiOperation({ summary: 'Rota para listar todos os usuários (durante desenvolvimento).' })
@@ -182,6 +197,7 @@ export class NoAuthController {
   users() {
     return this.noAuthService.users();
   }
+  */
 
   @IsPublic()
   @Get('no-auth/health-check')

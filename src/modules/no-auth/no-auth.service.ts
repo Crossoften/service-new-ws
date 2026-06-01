@@ -115,6 +115,97 @@ export class NoAuthService {
     };
   }
 
+  async registerAdmin(
+    payload: RegisterBaseDto,
+    profileType: UserProfileType,
+    referralCode?: string,
+  ): Promise<RegisterUserResponseDto> {
+    const { name, email, phone, password, confirmPassword, acceptedTerms } = payload;
+
+    if (!acceptedTerms) {
+      throw new BadRequestException('É necessário aceitar os termos para concluir o cadastro.');
+    }
+
+    if (password !== confirmPassword) {
+      throw new BadRequestException('Senhas devem ser iguais.');
+    }
+
+    const existingUser = await this.prisma.user.findFirst({
+      where: {
+        OR: [{ email: email.trim() }, ...(phone ? [{ phone: phone.trim() }] : [])],
+      },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
+    }
+
+    const user = await this.prisma.user.create({
+      data: {
+        name: capitalizeFirstLetter(name.trim()),
+        email: email.trim(),
+        phone: phone ? phone.trim() : null,
+        password: hashSync(password, 10),
+        role: Role.Admin,
+        profileType,
+        status: Status.Active,
+        referralCode: referralCode ? referralCode.trim() : undefined,
+        socialMedias: payload.socialMedias
+          ? {
+              create: payload.socialMedias.map((sm) => ({
+                network: sm.network,
+                url: sm.url,
+                followers: sm.followers ?? 0,
+              })),
+            }
+          : undefined,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        profileType: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (payload.inviteCode) {
+      const influencer = await this.prisma.user.findFirst({
+        where: {
+          referralCode: payload.inviteCode.trim(),
+          profileType: UserProfileType.Influencer,
+        },
+        select: { id: true },
+      });
+
+      if (influencer) {
+        await this.prisma.referral.create({
+          data: { influencerId: influencer.id, referredUserId: user.id },
+        });
+      }
+    }
+
+    return {
+      message: 'Usuário cadastrado com sucesso.',
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone || undefined,
+        role: user.role,
+        profileType: user.profileType,
+        status: user.status,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
+    };
+  }
+
   async forgot(email: string): Promise<void> {
     const user: User | null = await this.prisma.user.findFirst({ where: { email } });
 
@@ -168,6 +259,7 @@ export class NoAuthService {
     await this.mailService.contactUs(payload);
   }
 
+  
   async texts(query: TextQueriesDto) {
     const { type } = query;
 

@@ -47,4 +47,5 @@ export class ProfileController {
   ): Promise<ResponseProfileDto> {
     return this.profileService.updateMine(user, payload);
   }
+
 }
