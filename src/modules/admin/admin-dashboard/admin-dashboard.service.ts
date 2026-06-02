@@ -34,26 +34,33 @@ export class AdminDashboardService {
     type MonthRow = { month: number; count: bigint };
 
     const [userRows, serviceRows] = await Promise.all([
-      this._prisma.$queryRaw<MonthRow[]>`
-        SELECT MONTH(created_at) AS month, COUNT(*) AS count
-        FROM users
-        WHERE role = 'User' AND YEAR(created_at) = ${targetYear}
-        GROUP BY MONTH(created_at)
-      `,
-      this._prisma.$queryRaw<MonthRow[]>`
-        SELECT MONTH(created_at) AS month, COUNT(*) AS count
-        FROM services
-        WHERE is_active = 1 AND YEAR(created_at) = ${targetYear}
-        GROUP BY MONTH(created_at)
-      `,
+        this._prisma.$queryRaw<MonthRow[]>`
+          SELECT MONTH(createdAt) AS month, COUNT(*) AS count
+          FROM users
+          WHERE role = 'User'
+            AND YEAR(createdAt) = ${targetYear}
+          GROUP BY MONTH(createdAt)
+        `,
+        this._prisma.$queryRaw<MonthRow[]>`
+          SELECT MONTH(createdAt) AS month, COUNT(*) AS count
+          FROM services
+          WHERE isActive = 1
+            AND YEAR(createdAt) = ${targetYear}
+          GROUP BY MONTH(createdAt)
+        `,
     ]);
 
     const userMap = new Map(userRows.map((r) => [Number(r.month), Number(r.count)]));
+      
     const serviceMap = new Map(serviceRows.map((r) => [Number(r.month), Number(r.count)]));
 
     const data: DashboardChartMonthDto[] = Array.from({ length: 12 }, (_, i) => {
       const month = i + 1;
-      return { month, users: userMap.get(month) ?? 0, services: serviceMap.get(month) ?? 0 };
+      return {
+            month,
+            users: userMap.get(month) ?? 0,
+            services: serviceMap.get(month) ?? 0,
+      };
     });
 
     return { year: targetYear, data };
