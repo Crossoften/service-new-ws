@@ -59,7 +59,7 @@ export class NoAuthController {
   async registerClient(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.register(body, UserProfileType.Client);
   }
-  /*
+  
   @IsPublic()
   @Post('no-auth/register/adm')
   @ApiTags('Sem autenticação')
@@ -71,7 +71,7 @@ export class NoAuthController {
   async registerAdmin(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.registerAdmin(body, UserProfileType.Client);
   }
-  */
+  
   @IsPublic()
   @Post('no-auth/register/supplier')
   @ApiTags('Sem autenticação')
