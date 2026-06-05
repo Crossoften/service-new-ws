@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Role, Status, User, UserProfileType } from '@prisma/client';
+import { Role, Status, User, UserProfileType, Prisma } from '@prisma/client';
 import generateCode from '@utils/generateCode';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { hashSync } from 'bcrypt';
@@ -16,13 +16,14 @@ import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
+import { RegisterAdminDto } from './dto/register-admin.dto';
 
 @Injectable()
 export class NoAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
-  ) {}
+  ) { }
 
   async register(
     payload: RegisterBaseDto,
@@ -62,12 +63,12 @@ export class NoAuthService {
         referralCode: referralCode ? referralCode.trim() : undefined,
         socialMedias: payload.socialMedias
           ? {
-              create: payload.socialMedias.map((sm) => ({
-                network: sm.network,
-                url: sm.url,
-                followers: sm.followers ?? 0,
-              })),
-            }
+            create: payload.socialMedias.map((sm) => ({
+              network: sm.network,
+              url: sm.url,
+              followers: sm.followers ?? 0,
+            })),
+          }
           : undefined,
       },
       select: {
@@ -116,7 +117,7 @@ export class NoAuthService {
   }
 
   async registerAdmin(
-    payload: RegisterBaseDto,
+    payload: RegisterAdminDto,
     profileType: UserProfileType,
     referralCode?: string,
   ): Promise<RegisterUserResponseDto> {
@@ -141,6 +142,7 @@ export class NoAuthService {
       throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
     }
 
+    // 1. Cria o usuário sem permissões primeiro
     const user = await this.prisma.user.create({
       data: {
         name: capitalizeFirstLetter(name.trim()),
@@ -153,12 +155,12 @@ export class NoAuthService {
         referralCode: referralCode ? referralCode.trim() : undefined,
         socialMedias: payload.socialMedias
           ? {
-              create: payload.socialMedias.map((sm) => ({
-                network: sm.network,
-                url: sm.url,
-                followers: sm.followers ?? 0,
-              })),
-            }
+            create: payload.socialMedias.map((sm) => ({
+              network: sm.network,
+              url: sm.url,
+              followers: sm.followers ?? 0,
+            })),
+          }
           : undefined,
       },
       select: {
@@ -174,6 +176,24 @@ export class NoAuthService {
       },
     });
 
+    // 2. Insere as permissões diretamente na tabela pivot _AdminPermissionToUser
+    if (payload.adminPermissions && payload.adminPermissions.length > 0) {
+      const permissionsFound = await this.prisma.adminPermission.findMany({
+        where: { name: { in: payload.adminPermissions as any } },
+        select: { id: true },
+      });
+
+      if (permissionsFound.length > 0) {
+        await this.prisma.$executeRaw`
+        INSERT IGNORE INTO _AdminPermissionToUser (A, B)
+        VALUES ${Prisma.join(
+          permissionsFound.map((p) => Prisma.sql`(${p.id}, ${user.id})`),
+        )}
+      `;
+      }
+    }
+
+    // 3. Processa inviteCode se existir
     if (payload.inviteCode) {
       const influencer = await this.prisma.user.findFirst({
         where: {
@@ -259,7 +279,7 @@ export class NoAuthService {
     await this.mailService.contactUs(payload);
   }
 
-  
+
   async texts(query: TextQueriesDto) {
     const { type } = query;
 
