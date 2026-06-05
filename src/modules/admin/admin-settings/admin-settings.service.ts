@@ -16,7 +16,7 @@ import { UpdateAdminDto } from './dto/update-admin.dto';
 
 @Injectable()
 export class AdminSettingsService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(private readonly _prisma: PrismaService) { }
 
   async create(payload: CreateAdminDto): Promise<CreateAdminResponseDto> {
     const { name, document, email, phone, password, adminPermissions, fileUrl, fileKey } = payload;
@@ -60,15 +60,15 @@ export class AdminSettingsService {
       status,
       AND: search
         ? [
-            {
-              OR: [
-                { name: { contains: search } },
-                { email: { contains: search } },
-                { phone: { contains: search } },
-                { document: { contains: search } },
-              ],
-            },
-          ]
+          {
+            OR: [
+              { name: { contains: search } },
+              { email: { contains: search } },
+              { phone: { contains: search } },
+              { document: { contains: search } },
+            ],
+          },
+        ]
         : undefined,
     };
 

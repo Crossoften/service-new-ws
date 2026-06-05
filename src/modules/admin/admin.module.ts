@@ -13,9 +13,11 @@ import { AdminSettingsController } from './admin-settings/admin-settings.control
 import { AdminSettingsService } from './admin-settings/admin-settings.service';
 import { AdminUsersController } from './admin-users/admin-users.controller';
 import { AdminUsersService } from './admin-users/admin-users.service';
+import { AdminCategoriesController } from './admin-categories/admin-categories.controller';
+import { AdminCategoriesService } from './admin-categories/admin-categories.service';
 
 @Module({
-  controllers: [AdminSettingsController, AdminUsersController, AdminDashboardController, AdminServicesController, AdminProvidersController, AdminInfluencersController],
-  providers: [PrismaService, AdminSettingsService, AdminUsersService, AdminDashboardService, AdminServicesService, AdminProvidersService, AdminInfluencersService],
+  controllers: [AdminSettingsController, AdminUsersController, AdminDashboardController, AdminServicesController, AdminProvidersController, AdminInfluencersController, AdminCategoriesController],
+  providers: [PrismaService, AdminSettingsService, AdminUsersService, AdminDashboardService, AdminServicesService, AdminProvidersService, AdminInfluencersService, AdminCategoriesService],
 })
-export class AdminModule {}
+export class AdminModule { }

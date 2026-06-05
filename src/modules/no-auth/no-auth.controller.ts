@@ -29,7 +29,7 @@ import { NoAuthService } from './no-auth.service';
 
 @Controller()
 export class NoAuthController {
-  constructor(private readonly noAuthService: NoAuthService) {}
+  constructor(private readonly noAuthService: NoAuthService) { }
 
   @IsPublic()
   @Post('no-auth/register')
@@ -46,7 +46,7 @@ export class NoAuthController {
     return this.noAuthService.register(body, body.profileType);
   }
 
- 
+
 
   @IsPublic()
   @Post('no-auth/register/client')
@@ -59,7 +59,8 @@ export class NoAuthController {
   async registerClient(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.register(body, UserProfileType.Client);
   }
-  
+
+  /*
   @IsPublic()
   @Post('no-auth/register/adm')
   @ApiTags('Sem autenticação')
@@ -71,7 +72,8 @@ export class NoAuthController {
   async registerAdmin(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.registerAdmin(body, UserProfileType.Client);
   }
-  
+  */
+
   @IsPublic()
   @Post('no-auth/register/supplier')
   @ApiTags('Sem autenticação')
