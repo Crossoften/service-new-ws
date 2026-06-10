@@ -97,4 +97,13 @@ export class ResponseProfileDto {
     type: String,
   })
   updatedAt: Date;
+
+  @ApiProperty({
+    description: 'Código de indicação que o usuário pode compartilhar.',
+    required: false,
+    nullable: true,
+    example: 'joaosilva',
+    type: String,
+  })
+  referralCode?: string;
 }

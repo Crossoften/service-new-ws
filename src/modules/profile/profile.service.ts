@@ -11,7 +11,7 @@ import { ProfilePersistenceException } from './exceptions/profile-persistence.ex
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async findMine(user: User): Promise<ResponseProfileDto> {
     const profile = await this.prisma.user.findUnique({
@@ -29,6 +29,7 @@ export class ProfileService {
         fileKey: true,
         createdAt: true,
         updatedAt: true,
+        referralCode: true
       },
     });
 
@@ -49,6 +50,7 @@ export class ProfileService {
       fileKey: profile.fileKey || undefined,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
+      referralCode: profile.referralCode || undefined
     };
   }
 

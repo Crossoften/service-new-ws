@@ -36,7 +36,6 @@ export class CreateUserDto {
     description: 'Telefone do usuário.',
     example: '+55 34 99999-0000',
   })
-  @IsOptional()
   @IsPhoneNumber('BR', { message: 'Informe um telefone válido no formato brasileiro.' })
   phone?: string;
 
@@ -82,4 +81,6 @@ export class CreateUserDto {
   @Type(() => CreateUserSocialMediaDto)
   @IsOptional()
   socialMedias?: CreateUserSocialMediaDto[];
+
+
 }

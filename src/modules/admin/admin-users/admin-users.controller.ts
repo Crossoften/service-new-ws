@@ -16,6 +16,7 @@ import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { ResponseAdminUserDto } from './dto/response-admin-user.dto';
 import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.dto';
 import { UpdateUserDto } from './dto/update-user';
+import { ResponseFindAllReferralsDto } from './dto/response-all-referrals.dto';
 
 @ApiTags('Usuarios - Portal Gerencial')
 @Controller('admin-users')
@@ -41,6 +42,25 @@ export class AdminUsersController {
 
     return this._adminUsersService.findAll(query);
   }
+
+  @Get('referrals')
+  @ApiOperation({
+    summary: 'Rota que lista todos os usuários indicados e quem os indicou (Visão Global)',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseFindAllReferralsDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async findAllReferrals(
+    @CurrentUser() user: User,
+  ) {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+
+    return this._adminUsersService.findAllReferrals();
+  }
+
 
   @Get("/actives")
   @ApiOperation({

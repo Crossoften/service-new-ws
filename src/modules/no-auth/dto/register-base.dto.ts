@@ -12,4 +12,13 @@ export class RegisterBaseDto extends OmitType(CreateUserDto, ['profileType'] as 
   @IsString({ message: 'O código de convite deve ser um texto.' })
   @MaxLength(80)
   inviteCode?: string;
+
+  @ApiPropertyOptional({
+    description: 'Código de indicação que o usuário pode compartilhar',
+    example: 'joaosilva',
+  })
+  @IsOptional()
+  @IsString({ message: 'O código de convite deve ser um texto.' })
+  @MaxLength(80)
+  referralCode?: string;
 }

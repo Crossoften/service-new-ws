@@ -17,6 +17,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 import { RegisterAdminDto } from './dto/register-admin.dto';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class NoAuthService {
@@ -60,7 +61,7 @@ export class NoAuthService {
         role: Role.User,
         profileType,
         status: Status.Active,
-        referralCode: referralCode ? referralCode.trim() : undefined,
+        referralCode: referralCode ? referralCode.trim() : await this.generateReferralCode(name),
         socialMedias: payload.socialMedias
           ? {
             create: payload.socialMedias.map((sm) => ({
@@ -85,127 +86,16 @@ export class NoAuthService {
     });
 
     if (payload.inviteCode) {
-      const influencer = await this.prisma.user.findFirst({
+      const userInvited = await this.prisma.user.findFirst({
         where: {
           referralCode: payload.inviteCode.trim(),
-          profileType: UserProfileType.Influencer,
         },
         select: { id: true },
       });
 
-      if (influencer) {
+      if (userInvited) {
         await this.prisma.referral.create({
-          data: { influencerId: influencer.id, referredUserId: user.id },
-        });
-      }
-    }
-
-    return {
-      message: 'Usuário cadastrado com sucesso.',
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone || undefined,
-        role: user.role,
-        profileType: user.profileType,
-        status: user.status,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
-    };
-  }
-
-  async registerAdmin(
-    payload: RegisterAdminDto,
-    profileType: UserProfileType,
-    referralCode?: string,
-  ): Promise<RegisterUserResponseDto> {
-    const { name, email, phone, password, confirmPassword, acceptedTerms } = payload;
-
-    if (!acceptedTerms) {
-      throw new BadRequestException('É necessário aceitar os termos para concluir o cadastro.');
-    }
-
-    if (password !== confirmPassword) {
-      throw new BadRequestException('Senhas devem ser iguais.');
-    }
-
-    const existingUser = await this.prisma.user.findFirst({
-      where: {
-        OR: [{ email: email.trim() }, ...(phone ? [{ phone: phone.trim() }] : [])],
-      },
-      select: { id: true },
-    });
-
-    if (existingUser) {
-      throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
-    }
-
-    // 1. Cria o usuário sem permissões primeiro
-    const user = await this.prisma.user.create({
-      data: {
-        name: capitalizeFirstLetter(name.trim()),
-        email: email.trim(),
-        phone: phone ? phone.trim() : null,
-        password: hashSync(password, 10),
-        role: Role.Admin,
-        profileType,
-        status: Status.Active,
-        referralCode: referralCode ? referralCode.trim() : undefined,
-        socialMedias: payload.socialMedias
-          ? {
-            create: payload.socialMedias.map((sm) => ({
-              network: sm.network,
-              url: sm.url,
-              followers: sm.followers ?? 0,
-            })),
-          }
-          : undefined,
-      },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        role: true,
-        profileType: true,
-        status: true,
-        createdAt: true,
-        updatedAt: true,
-      },
-    });
-
-    // 2. Insere as permissões diretamente na tabela pivot _AdminPermissionToUser
-    if (payload.adminPermissions && payload.adminPermissions.length > 0) {
-      const permissionsFound = await this.prisma.adminPermission.findMany({
-        where: { name: { in: payload.adminPermissions as any } },
-        select: { id: true },
-      });
-
-      if (permissionsFound.length > 0) {
-        await this.prisma.$executeRaw`
-        INSERT IGNORE INTO _AdminPermissionToUser (A, B)
-        VALUES ${Prisma.join(
-          permissionsFound.map((p) => Prisma.sql`(${p.id}, ${user.id})`),
-        )}
-      `;
-      }
-    }
-
-    // 3. Processa inviteCode se existir
-    if (payload.inviteCode) {
-      const influencer = await this.prisma.user.findFirst({
-        where: {
-          referralCode: payload.inviteCode.trim(),
-          profileType: UserProfileType.Influencer,
-        },
-        select: { id: true },
-      });
-
-      if (influencer) {
-        await this.prisma.referral.create({
-          data: { influencerId: influencer.id, referredUserId: user.id },
+          data: { influencerId: userInvited.id, referredUserId: user.id },
         });
       }
     }
@@ -286,6 +176,19 @@ export class NoAuthService {
     return this.prisma.text.findFirst({ where: { type } });
   }
 
+  async generateReferralCode(name: string): Promise<string> {
+    const firstName = `${name
+      .trim()
+      .split(/\s+/)[0]
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]/g, '')}`;
+
+    const randomHash = randomBytes(8).toString('hex');
+    return `${firstName}-${randomHash}`;
+  }
+
   users() {
     return this.prisma.user.findMany({
       select: {
@@ -325,3 +228,6 @@ export class NoAuthService {
     });
   }
 }
+
+
+

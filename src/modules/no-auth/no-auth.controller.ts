@@ -30,7 +30,7 @@ import { NoAuthService } from './no-auth.service';
 @Controller()
 export class NoAuthController {
   constructor(private readonly noAuthService: NoAuthService) { }
-
+  /*
   @IsPublic()
   @Post('no-auth/register')
   @ApiTags('Sem autenticação')
@@ -42,10 +42,10 @@ export class NoAuthController {
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async register(@Body() body: CreateUserDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, body.profileType);
+  async register(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
+    return this.noAuthService.register(body, body.profileType, body.referralCode);
   }
-
+  */
 
 
   @IsPublic()
@@ -57,7 +57,7 @@ export class NoAuthController {
   @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerClient(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, UserProfileType.Client);
+    return this.noAuthService.register(body, UserProfileType.Client, body.referralCode);
   }
 
   /*
@@ -83,7 +83,7 @@ export class NoAuthController {
   @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerSupplier(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, UserProfileType.Supplier);
+    return this.noAuthService.register(body, UserProfileType.Supplier, body.referralCode);
   }
 
   @IsPublic()
@@ -95,7 +95,7 @@ export class NoAuthController {
   @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerPartner(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, UserProfileType.Partner);
+    return this.noAuthService.register(body, UserProfileType.Partner, body.referralCode);
   }
 
   @IsPublic()
@@ -107,7 +107,7 @@ export class NoAuthController {
   @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerDelivery(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, UserProfileType.Delivery);
+    return this.noAuthService.register(body, UserProfileType.Delivery, body.referralCode);
   }
 
   @IsPublic()

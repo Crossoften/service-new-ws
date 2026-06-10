@@ -25,6 +25,7 @@ export class AdminUsersService {
     fileKey: true,
     createdAt: true,
     updatedAt: true,
+    referralCode: true
   });
 
   async findAll(query: QueryAdminUserDto): Promise<ResponseFindAllAdminUserDto> {
@@ -86,6 +87,7 @@ export class AdminUsersService {
         status: user.status,
         openServices: serviceCountMap.get(user.id) || 0,
         fileUrl: user.fileUrl,
+        referralCode: user.referralCode || undefined,
       })),
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
@@ -130,6 +132,7 @@ export class AdminUsersService {
       fileKey: user.fileKey,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
+      referralCode: user.referralCode ?? undefined,
     };
   }
 
@@ -171,5 +174,62 @@ export class AdminUsersService {
     });
 
     return this.findById(id);
+  }
+
+  async findAllReferrals() {
+    const referrals = await this._prisma.referral.findMany({
+      orderBy: { createdAt: 'desc' },
+      include: {
+
+        influencer: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            referralCode: true,
+            profileType: true,
+          },
+        },
+
+        referredUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      referrals: referrals.map((ref) => ({
+        id: ref.id,
+        status: ref.isPaying ? 'Convertido' : 'Aguardando Pagamento',
+        commissionAmount: ref.commissionAmount ? Number(ref.commissionAmount) : null,
+        paidAt: ref.paidAt,
+        createdAt: ref.createdAt,
+
+
+        referrer: {
+          id: ref.influencer.id,
+          name: ref.influencer.name,
+          email: ref.influencer.email,
+          referralCode: ref.influencer.referralCode,
+          profileType: ref.influencer.profileType,
+        },
+
+
+        referredUser: {
+          id: ref.referredUser.id,
+          name: ref.referredUser.name,
+          email: ref.referredUser.email,
+          phone: ref.referredUser.phone,
+          registeredAt: ref.referredUser.createdAt,
+        },
+      })),
+      totalRecords: referrals.length,
+    };
   }
 }

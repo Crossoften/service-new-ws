@@ -10,6 +10,15 @@ export class ResponseAdminUserDto {
   id: number;
 
   @ApiProperty({
+    description: 'Código de indicação que o usuário pode compartilhar.',
+    required: false,
+    nullable: true,
+    example: 'joaosilva',
+    type: String,
+  })
+  referralCode?: string;
+
+  @ApiProperty({
     description: 'Nome completo do usuário.',
     example: 'Marina Silva',
     type: String,
@@ -169,4 +178,6 @@ export class ResponseAdminUserListDto {
     type: String,
   })
   fileUrl?: string;
+
+
 }
