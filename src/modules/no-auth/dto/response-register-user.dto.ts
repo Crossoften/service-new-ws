@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Role, Status, UserProfileType } from '@prisma/client';
+import { IsDateString, IsOptional } from 'class-validator';
 
 export class RegisterUserDto {
   @ApiProperty({ description: 'Identificador do usuário.', example: 1 })
@@ -39,6 +40,15 @@ export class RegisterUserDto {
     example: '2026-03-20T12:00:00.000Z',
   })
   updatedAt: Date;
+
+
+  @ApiPropertyOptional({
+    description: 'Data de nascimento do usuário no formato ISO',
+    example: '1990-01-01'
+  })
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string | Date;
 }
 
 export class RegisterUserResponseDto {

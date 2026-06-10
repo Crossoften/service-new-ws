@@ -165,6 +165,9 @@ export class AdminUsersService {
       where: { id, role: Role.User },
     });
 
+    if (data.birthDate) {
+      data.birthDate = new Date(data.birthDate);
+    }
 
     if (!user) throw new AdminUserNotFoundException();
 

@@ -4,6 +4,7 @@ import { Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
+  IsDateString,
   IsEmail,
   IsEnum,
   IsOptional,
@@ -82,5 +83,11 @@ export class CreateUserDto {
   @IsOptional()
   socialMedias?: CreateUserSocialMediaDto[];
 
-
+  @ApiPropertyOptional({
+    description: 'Data de nascimento do usuário no formato ISO',
+    example: '1990-01-01'
+  })
+  @IsOptional()
+  @IsDateString()
+  birthDate?: string | Date;
 }

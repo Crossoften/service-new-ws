@@ -57,6 +57,7 @@ export class NoAuthService {
         name: capitalizeFirstLetter(name.trim()),
         email: email.trim(),
         phone: phone ? phone.trim() : null,
+        birthDate: payload.birthDate ? new Date(payload.birthDate) : undefined,
         password: hashSync(password, 10),
         role: Role.User,
         profileType,
@@ -82,6 +83,7 @@ export class NoAuthService {
         status: true,
         createdAt: true,
         updatedAt: true,
+        birthDate: true,
       },
     });
 
@@ -112,6 +114,7 @@ export class NoAuthService {
         status: user.status,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+        birthDate: user.birthDate || undefined
       },
     };
   }
