@@ -1,5 +1,6 @@
-import { Controller, Get, Patch, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Patch, Param, ParseIntPipe, Query, Body } from '@nestjs/common';
 import {
+  ApiBadRequestResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiOkResponse,
@@ -14,11 +15,12 @@ import { AdminUsersService } from './admin-users.service';
 import { QueryAdminUserDto } from './dto/query-admin-user.dto';
 import { ResponseAdminUserDto } from './dto/response-admin-user.dto';
 import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.dto';
+import { UpdateUserDto } from './dto/update-user';
 
 @ApiTags('Usuarios - Portal Gerencial')
 @Controller('admin-users')
 export class AdminUsersController {
-  constructor(private readonly _adminUsersService: AdminUsersService) {}
+  constructor(private readonly _adminUsersService: AdminUsersService) { }
 
   @Get()
   @ApiOperation({
@@ -65,7 +67,6 @@ export class AdminUsersController {
     summary: 'Rota que recupera os detalhes de um usuário pelo id.',
     security: [{ bearerAuth: [] }],
   })
-  
   @ApiOkResponse({ type: ResponseAdminUserDto })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
@@ -81,12 +82,30 @@ export class AdminUsersController {
     return this._adminUsersService.findById(id);
   }
 
+  @Patch(':id')
+  @ApiTags('Atualizar informações do perfil do usuário')
+  @ApiOperation({
+    summary: 'Rota para administradores atualizarem qualquer informação do usuário.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ description: 'Perfil atualizado com sucesso.' })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  update(@Param('id', ParseIntPipe) UserId: number,
+    @CurrentUser() adminUser: User,
+    @Body() body: UpdateUserDto): Promise<ResponseAdminUserDto> {
+    handleAccessControl.verifyAdminRole(adminUser);
+    handleAccessControl.verifyPermission(adminUser, 'Users');
+    return this._adminUsersService.update(UserId, body);
+  }
+
   @Patch(':id/status-active')
   @ApiOperation({
     summary: 'Alterna o status do usuário entre Active e Inactive.',
     security: [{ bearerAuth: [] }],
   })
-  
   @ApiOkResponse({ type: ResponseAdminUserDto })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })

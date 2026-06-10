@@ -6,10 +6,11 @@ import { ResponseAdminUserDto } from './dto/response-admin-user.dto';
 import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.dto';
 import { AdminUserInvalidIdException } from './exceptions/admin-user-invalid-id.exception';
 import { AdminUserNotFoundException } from './exceptions/admin-user-not-found.exception';
+import { UpdateUserDto } from './dto/update-user';
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(private readonly _prisma: PrismaService) { }
 
   private readonly userSelect = Prisma.validator<Prisma.UserSelect>()({
     id: true,
@@ -36,11 +37,11 @@ export class AdminUsersService {
       status: query.status,
       OR: search
         ? [
-            { name: { contains: search } },
-            { email: { contains: search } },
-            { phone: { contains: search } },
-            { document: { contains: search } },
-          ]
+          { name: { contains: search } },
+          { email: { contains: search } },
+          { phone: { contains: search } },
+          { document: { contains: search } },
+        ]
         : undefined,
     };
 
@@ -61,15 +62,15 @@ export class AdminUsersService {
     const serviceCounts =
       users.length > 0
         ? await this._prisma.service.groupBy({
-            by: ['userId'],
-            where: {
-              userId: { in: users.map((user) => user.id) },
-              isActive: true,
-            },
-            _count: {
-              _all: true,
-            },
-          })
+          by: ['userId'],
+          where: {
+            userId: { in: users.map((user) => user.id) },
+            isActive: true,
+          },
+          _count: {
+            _all: true,
+          },
+        })
         : [];
 
     const serviceCountMap = new Map(serviceCounts.map((item) => [item.userId, item._count._all]));
@@ -141,12 +142,32 @@ export class AdminUsersService {
       where: { id, role: Role.User },
     });
 
-  
+
     if (!user) throw new AdminUserNotFoundException();
 
     await this._prisma.user.update({
       where: { id },
       data: { status: user.status === 'Active' ? "Inactive" : "Active" },
+    });
+
+    return this.findById(id);
+  }
+
+  async update(id: number, data: UpdateUserDto): Promise<ResponseAdminUserDto> {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new AdminUserInvalidIdException();
+    }
+
+    const user = await this._prisma.user.findFirst({
+      where: { id, role: Role.User },
+    });
+
+
+    if (!user) throw new AdminUserNotFoundException();
+
+    await this._prisma.user.update({
+      where: { id },
+      data: data,
     });
 
     return this.findById(id);

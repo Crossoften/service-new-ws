@@ -7,7 +7,7 @@ import { ResponseFindAllAdminInfluencerDto } from './dto/response-admin-influenc
 
 @Injectable()
 export class AdminInfluencersService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(private readonly _prisma: PrismaService) { }
 
   async findAll(query: QueryAdminInfluencerDto): Promise<ResponseFindAllAdminInfluencerDto> {
     const take = query.take ?? 10;
@@ -131,7 +131,7 @@ export class AdminInfluencersService {
     };
   }
 
-  async updateCommission(id: number, commissionRate: number | null): Promise<void> {
+  async updateCommission(id: number, commissionRate: number | null): Promise<{ message: string, id: number }> {
     const influencer = await this._prisma.user.findFirst({
       where: { id, profileType: UserProfileType.Influencer },
       select: { id: true },
@@ -143,6 +143,11 @@ export class AdminInfluencersService {
       where: { id },
       data: { commissionRate: commissionRate !== null ? commissionRate : null },
     });
+
+    return {
+      message: "Comissão atualizada com sucesso",
+      id: id
+    }
   }
 
   private async _getRankingPosition(influencerId: number): Promise<number> {

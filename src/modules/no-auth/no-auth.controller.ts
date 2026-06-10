@@ -71,8 +71,8 @@ export class NoAuthController {
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerAdmin(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.registerAdmin(body, UserProfileType.Client);
-  }
-  */
+  }*/
+
 
   @IsPublic()
   @Post('no-auth/register/supplier')
