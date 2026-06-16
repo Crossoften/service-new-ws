@@ -4,9 +4,12 @@ import {
     IsOptional,
     IsBoolean,
     IsInt,
-    MaxLength
+    MaxLength,
+    Max,
+    Min,
+    IsNumber,
 } from 'class-validator';
-
+import { ApiPropertyOptional } from '@nestjs/swagger';
 export class CreateCategoryDto {
     @IsString({ message: 'O nome deve ser um texto válido.' })
     @IsNotEmpty({ message: 'O nome da categoria é obrigatório.' })
@@ -35,4 +38,12 @@ export class CreateCategoryDto {
     @IsOptional()
     @IsInt({ message: 'A ordem de classificação (sortOrder) deve ser um número inteiro.' })
     sortOrder?: number;
+
+    @ApiPropertyOptional({ description: 'Taxa da plataforma sobre o valor do serviço (%)', example: 10 })
+    @IsOptional()
+    @IsNumber()
+    @Min(0)
+    @Max(100)
+    platformFeeRate?: number;
+
 }

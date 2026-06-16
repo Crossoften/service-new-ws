@@ -6,10 +6,12 @@ import { QueryAdminServiceDto } from './dto/query-admin-service.dto';
 import { ResponseAdminServiceClientsDto } from './dto/response-admin-service-clients.dto';
 import { ResponseAdminServiceDto } from './dto/response-admin-service.dto';
 import { ResponseFindAllAdminServiceDto } from './dto/response-admin-service-list.dto';
+import { QueryProviderPercentageDto } from './dto/query-provider-percentage.dto';
+import { ResponseProviderPercentageDto } from './dto/response-provider-percentage.dto';
 
 @Injectable()
 export class AdminServicesService {
-  constructor(private readonly _prisma: PrismaService) {}
+  constructor(private readonly _prisma: PrismaService) { }
 
   private readonly serviceSelect = Prisma.validator<Prisma.ServiceSelect>()({
     id: true,
@@ -22,7 +24,7 @@ export class AdminServicesService {
     isActive: true,
     createdAt: true,
     updatedAt: true,
-    category: { select: { id: true, name: true, iconUrl: true } },
+    category: { select: { id: true, name: true, iconUrl: true, platformFeeRate: true } },
     user: { select: { id: true, name: true, email: true, phone: true, fileUrl: true } },
     _count: { select: { works: true } },
   });
@@ -82,13 +84,16 @@ export class AdminServicesService {
           id: s.id,
           name: s.name,
           type: s.type,
-          category: { id: s.category.id, name: s.category.name },
+          category: { id: s.category.id, name: s.category.name, platformFeeRate: Number(s.category.platformFeeRate) },
           provider: { id: s.user.id, name: s.user.name, fileUrl: s.user.fileUrl ?? undefined },
           price: Number(s.price),
+          platformValueReceived: Number(s.category.platformFeeRate) / 100 * Number(s.price),
           totalReviews: reviews.positive + reviews.negative,
           positiveReviews: reviews.positive,
           negativeReviews: reviews.negative,
           isActive: s.isActive,
+          totalWorks: s._count.works,
+          imageUrl: s.imageUrl ?? undefined
         };
       }),
       currentPage,
@@ -136,6 +141,8 @@ export class AdminServicesService {
       totalWorks: service._count.works,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
+      platformValueReceived: Number(service.category.platformFeeRate) / 100 * Number(service.price),
+      platformFeeRate: Number(service.category.platformFeeRate),
     };
   }
 
@@ -180,9 +187,9 @@ export class AdminServicesService {
     const reviews =
       requesterIds.length > 0
         ? await this._prisma.review.findMany({
-            where: { serviceId: id, requesterId: { in: requesterIds } },
-            select: { requesterId: true, type: true },
-          })
+          where: { serviceId: id, requesterId: { in: requesterIds } },
+          select: { requesterId: true, type: true },
+        })
         : [];
 
     const reviewMap = new Map(reviews.map((r) => [r.requesterId, r.type]));
@@ -202,5 +209,29 @@ export class AdminServicesService {
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
       totalRecords,
     };
+  }
+
+  async listPercentageProvidersByCategory(query: QueryProviderPercentageDto) {
+    const { name, sortBy, sortDirection, take, skip } = query;
+
+    const categories = await this._prisma.serviceCategory.findMany({
+      where: {
+        isActive: true,
+        name: name ? { contains: name } : undefined,
+      },
+      select: {
+        name: true,
+        platformFeeRate: true,
+        sortOrder: true,
+      },
+      orderBy: { [sortBy ?? 'name']: sortDirection ?? 'asc' },
+      take: take ? Number(take) : undefined,
+      skip: skip ? (Number(skip) - 1) * Number(take) : undefined,
+    });
+
+    return categories.map(category => ({
+      name: category.name,
+      providerRate: 100 - Number(category.platformFeeRate),
+    }));
   }
 }

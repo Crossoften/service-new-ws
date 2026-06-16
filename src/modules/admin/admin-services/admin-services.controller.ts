@@ -17,11 +17,15 @@ import { QueryAdminServiceDto } from './dto/query-admin-service.dto';
 import { ResponseAdminServiceClientsDto } from './dto/response-admin-service-clients.dto';
 import { ResponseAdminServiceDto } from './dto/response-admin-service.dto';
 import { ResponseFindAllAdminServiceDto } from './dto/response-admin-service-list.dto';
+import { QueryAdminProviderDto } from '../admin-providers/dto/query-admin-provider.dto';
+import { ResponseFindAllAdminProviderDto } from '../admin-providers/dto/response-admin-provider-list.dto';
+import { ResponseProviderPercentageDto } from './dto/response-provider-percentage.dto';
+import { QueryProviderPercentageDto } from './dto/query-provider-percentage.dto';
 
 @ApiTags('Serviços - Portal Gerencial')
 @Controller('admin-services')
 export class AdminServicesController {
-  constructor(private readonly _adminServicesService: AdminServicesService) {}
+  constructor(private readonly _adminServicesService: AdminServicesService) { }
 
   @Get()
   @ApiOperation({
@@ -39,6 +43,24 @@ export class AdminServicesController {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Services');
     return this._adminServicesService.findAll(query);
+  }
+
+  @Get('/receipt-by-category')
+  @ApiOperation({
+    summary: 'Listar porcentagem de recebimento do fornecedor por categoria de serviço.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseProviderPercentageDto, isArray: true })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async listPercentageByCategory(
+    @CurrentUser() user: User,
+    @Query() query: QueryProviderPercentageDto,
+  ): Promise<ResponseProviderPercentageDto[]> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminServicesService.listPercentageProvidersByCategory(query);
   }
 
   @Get(':id')

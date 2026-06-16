@@ -76,7 +76,7 @@ model UserSocialMedia {
 }
 
 model PlatformSettings {
-  id                       Int     @id @default(1)
+  id  Int   @id @default(1)
   influencerCommissionRate Decimal @default(10) @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt
@@ -99,7 +99,7 @@ model AdminPermission {
 
 model ServiceCategory {
   id Int @id @default(autoincrement())
-
+  platformFeeRate Decimal @default(10) @db.Decimal(5, 2)  
   name      String  @unique @db.VarChar(120)
   slug      String  @unique @db.VarChar(120)
   iconUrl   String? @db.VarChar(1500)

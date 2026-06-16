@@ -37,6 +37,7 @@ export class AdminInfluencersService {
         select: {
           id: true,
           name: true,
+          commissionRate: true,
           email: true,
           phone: true,
           fileUrl: true,
@@ -62,6 +63,7 @@ export class AdminInfluencersService {
         ranking: offset + index + 1,
         totalReferrals: inf._count.referrals,
         status: inf.status,
+        commissionRate: inf.commissionRate ?? undefined,
       })),
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,

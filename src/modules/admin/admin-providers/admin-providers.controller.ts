@@ -24,7 +24,7 @@ import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.
 @ApiTags('Fornecedores - Portal Gerencial')
 @Controller('admin-providers')
 export class AdminProvidersController {
-  constructor(private readonly _adminProvidersService: AdminProvidersService) {}
+  constructor(private readonly _adminProvidersService: AdminProvidersService) { }
 
   @Get()
   @ApiOperation({

@@ -63,6 +63,12 @@ export class ResponseAdminServiceDto {
   })
   description?: string;
 
+  @ApiProperty({ description: 'Taxa da plataforma (%)', example: 10, type: Number })
+  platformFeeRate: number;
+
+  @ApiProperty({ description: 'Valor recebido pela plataforma.', example: 15.0, type: Number })
+  platformValueReceived: number;
+
   @ApiProperty({
     required: false,
     nullable: true,

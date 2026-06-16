@@ -1,67 +1,64 @@
 import { PrismaService } from '@database/PrismaService';
-import { BadRequestException, Body, ConflictException, Get, Injectable, NotFoundException, Param, ParseIntPipe, Patch } from '@nestjs/common';
-import { ApiForbiddenResponse, ApiInternalServerErrorResponse, ApiOkResponse, ApiOperation, ApiUnauthorizedResponse } from '@nestjs/swagger';
-import { PaymentStatusEnum, Role } from '@prisma/client';
-import { CurrentUser } from 'src/modules/auth/decorators/current-user.decorator';
-import handleAccessControl from '@utils/HandleAccessControl';
-import { UpdateCategoryDto } from './dto/update-category.dto';
+import {
+    BadRequestException,
+    ConflictException,
+    Injectable,
+    NotFoundException,
+} from '@nestjs/common';
 import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
+import { UpdatePlatformFeeRateDto } from './dto/update-platformfeerate.dto';
+import { ResponseCategoryDto } from './dto/response-create-category.dto';
+
+type CategoryContext =
+    | 'services'
+    | 'products'
+    | 'accommodations'
+    | 'transportations';
 
 @Injectable()
 export class AdminCategoriesService {
     constructor(private readonly _prisma: PrismaService) { }
 
     private getDelegate(context: string) {
-        const delegates: Record<string, any> = {
+        const delegates: Record<CategoryContext, any> = {
             services: this._prisma.serviceCategory,
             products: this._prisma.productCategory,
             accommodations: this._prisma.accommodationCategory,
             transportations: this._prisma.transportationCategory,
         };
 
-        const delegate = delegates[context];
-        if (!delegate) {
+        if (!(context in delegates)) {
             throw new BadRequestException(
-                'Contexto inválido. Use: services, products, accommodations ou transportations.'
+                'Contexto inválido. Use: services, products, accommodations ou transportations.',
             );
         }
-        return delegate;
+
+        return delegates[context as CategoryContext];
     }
 
-    async update(context: string, id: number, data: UpdateCategoryDto) {
-        const delegate = this.getDelegate(context);
-
-        const categoryExists = await delegate.findUnique({
-            where: { id },
-        });
-
-        if (!categoryExists) {
-            throw new NotFoundException(`Categoria não encontrada no contexto '${context}'.`);
-        }
-
-        const updatedCategory = await delegate.update({
-            where: { id },
-            data,
-        });
-
-        return updatedCategory;
+    private formatCategory(category: any): ResponseCategoryDto {
+        return {
+            ...category,
+            platformFeeRate:
+                category.platformFeeRate !== null && category.platformFeeRate !== undefined
+                    ? Number(category.platformFeeRate)
+                    : undefined,
+        };
     }
 
-    async create(context: string, data: CreateCategoryDto) {
+    async create(context: string, data: CreateCategoryDto): Promise<ResponseCategoryDto> {
         const delegate = this.getDelegate(context);
 
         const categoryExists = await delegate.findFirst({
             where: {
-                OR: [
-                    { name: data.name },
-                    { slug: data.slug }
-                ]
-            }
+                OR: [{ name: data.name }, { slug: data.slug }],
+            },
         });
 
         if (categoryExists) {
             throw new ConflictException(
-                `Já existe uma categoria com o nome '${data.name}' ou slug '${data.slug}' no módulo de ${context}.`
+                `Já existe uma categoria com o nome '${data.name}' ou slug '${data.slug}' no módulo de ${context}.`,
             );
         }
 
@@ -72,45 +69,119 @@ export class AdminCategoriesService {
                 iconUrl: data.iconUrl,
                 iconKey: data.iconKey,
                 isActive: data.isActive ?? true,
-                sortOrder: data.sortOrder ? data.sortOrder : 0
+                sortOrder: data.sortOrder ?? 0,
+                platformFeeRate: data.platformFeeRate ?? 10,
             },
         });
 
-        return newCategory;
+        return this.formatCategory(newCategory);
     }
 
-    async findAll(context: string) {
+    async findAll(context: string): Promise<ResponseCategoryDto[]> {
         const delegate = this.getDelegate(context);
-        return delegate.findMany({
-            orderBy: { sortOrder: 'asc' },
+
+        const categories = await delegate.findMany({
+            select: {
+                id: true,
+                name: true,
+                slug: true,
+                iconUrl: true,
+                iconKey: true,
+                isActive: true,
+                sortOrder: true,
+                platformFeeRate: true,
+                createdAt: true,
+                updatedAt: true,
+            },
+            orderBy: {
+                sortOrder: 'asc',
+            },
         });
+
+        return categories.map((cat: any) => this.formatCategory(cat));
     }
 
-    async findOne(context: string, id: number) {
+    async findOne(context: string, id: number): Promise<ResponseCategoryDto> {
         const delegate = this.getDelegate(context);
+
         const category = await delegate.findUnique({
             where: { id },
         });
 
         if (!category) {
             throw new NotFoundException(
-                `Categoria com ID ${id} não foi encontrada no contexto de ${context}.`
+                `Categoria com ID ${id} não foi encontrada no contexto de ${context}.`,
             );
         }
 
-        return category;
+        return this.formatCategory(category);
     }
 
-    async inactivate(context: string, id: number) {
+    async update(
+        context: string,
+        id: number,
+        data: UpdateCategoryDto,
+    ): Promise<ResponseCategoryDto> {
         const delegate = this.getDelegate(context);
 
-        await this.findOne(context, id);
+        const categoryExists = await delegate.findUnique({
+            where: { id },
+        });
+
+        if (!categoryExists) {
+            throw new NotFoundException(
+                `Categoria não encontrada no contexto '${context}'.`,
+            );
+        }
+
+        const updatedCategory = await delegate.update({
+            where: { id },
+            data,
+        });
+
+        return this.formatCategory(updatedCategory);
+    }
+
+    async updatePlatformFeeRate(
+        id: number,
+        data: UpdatePlatformFeeRateDto,
+    ): Promise<ResponseCategoryDto> {
+        const category = await this._prisma.serviceCategory.findUnique({
+            where: { id },
+        });
+
+        if (!category) {
+            throw new NotFoundException('Categoria não encontrada.');
+        }
+
+        const updatedCategory = await this._prisma.serviceCategory.update({
+            where: { id },
+            data: {
+                platformFeeRate: data.platformFeeRate,
+            },
+        });
+
+        return this.formatCategory(updatedCategory);
+    }
+
+    async inactivate(context: string, id: number): Promise<ResponseCategoryDto> {
+        const delegate = this.getDelegate(context);
+
+        const categoryExists = await delegate.findUnique({
+            where: { id },
+        });
+
+        if (!categoryExists) {
+            throw new NotFoundException(
+                `Categoria com ID ${id} não foi encontrada no contexto de ${context}.`,
+            );
+        }
 
         const inactiveCategory = await delegate.update({
             where: { id },
             data: { isActive: false },
         });
 
-        return inactiveCategory;
+        return this.formatCategory(inactiveCategory);
     }
 }
