@@ -53,6 +53,12 @@ export class ResponsePlanDto {
     example: '2026-03-20T12:00:00.000Z',
   })
   updatedAt: Date;
+
+  @ApiPropertyOptional({
+    description: 'Id da categoria de serviço vinculada ao plano, quando houver.',
+    example: 3,
+  })
+  categoryId?: number;
 }
 
 export class ResponseFindAllPlansDto {

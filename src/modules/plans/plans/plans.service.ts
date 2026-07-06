@@ -19,13 +19,14 @@ type PlanRow = {
   bonusMonths: number;
   isActive: boolean;
   sortOrder: number;
+  categoryId: number | null;
   createdAt: Date;
   updatedAt: Date;
 };
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   private readonly planSelect = Prisma.validator<Prisma.PlanSelect>()({
     id: true,
@@ -38,6 +39,7 @@ export class PlansService {
     bonusMonths: true,
     isActive: true,
     sortOrder: true,
+    categoryId: true,
     createdAt: true,
     updatedAt: true,
   });
@@ -67,6 +69,7 @@ export class PlansService {
       interval: plan.interval as SubscriptionIntervalEnum,
       intervalCount: plan.intervalCount,
       bonusMonths: plan.bonusMonths,
+      categoryId: plan.categoryId ?? undefined,
       monthlyPrice: this.calcMonthlyPrice(
         plan.price,
         plan.interval,
@@ -92,6 +95,9 @@ export class PlansService {
         bonusMonths: payload.bonusMonths ?? 0,
         isActive: payload.isActive ?? true,
         sortOrder: payload.sortOrder ?? 0,
+        category: payload.categoryId
+          ? { connect: { id: payload.categoryId } }
+          : undefined,
       },
       select: this.planSelect,
     });

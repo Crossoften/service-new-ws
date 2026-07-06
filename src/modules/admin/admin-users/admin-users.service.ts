@@ -33,9 +33,28 @@ export class AdminUsersService {
     const currentPage = query.skip ?? 1;
     const search = query.search ? query.search.trim() : undefined;
 
+    // Subscription: monta o filtro de valor só se veio min/max
+    const subscriptionAmountFilter =
+      query.minSubscriptionAmount !== undefined || query.maxSubscriptionAmount !== undefined
+        ? {
+          amount: {
+            ...(query.minSubscriptionAmount !== undefined && { gte: query.minSubscriptionAmount }),
+            ...(query.maxSubscriptionAmount !== undefined && { lte: query.maxSubscriptionAmount }),
+          },
+        }
+        : {};
+
+    const wantsSubscription =
+      query.hasSubscription === 'true' ||
+      query.minSubscriptionAmount !== undefined ||
+      query.maxSubscriptionAmount !== undefined;
+
     const where: Prisma.UserWhereInput = {
       role: Role.User,
       status: query.status,
+      profileType: query.profileType,
+      billingType: query.billingType,
+
       OR: search
         ? [
           { name: { contains: search } },
@@ -44,6 +63,41 @@ export class AdminUsersService {
           { document: { contains: search } },
         ]
         : undefined,
+
+      // Endereço (relação 1:1)
+      ...((query.city || query.state) && {
+        address: {
+          ...(query.city && { city: { contains: query.city.trim() } }),
+          ...(query.state && { state: { contains: query.state.trim() } }),
+        },
+      }),
+
+      // Indicado por um influencer específico (relação referredByInfluencer)
+      ...(query.referredByInfluencerId !== undefined && {
+        referredByInfluencer: {
+          influencerId: query.referredByInfluencerId,
+        },
+      }),
+
+      // Presta serviço em determinada categoria e/ou tem serviço ativo (relação services)
+      ...((query.serviceCategoryId !== undefined || query.hasActiveService === 'true') && {
+        services: {
+          some: {
+            ...(query.hasActiveService === 'true' && { isActive: true }),
+            ...(query.serviceCategoryId !== undefined && { categoryId: query.serviceCategoryId }),
+          },
+        },
+      }),
+
+      // Assinatura ativa e/ou faixa de valor (relação subscriptions)
+      ...(wantsSubscription && {
+        subscriptions: {
+          some: {
+            status: 'Active',
+            ...subscriptionAmountFilter,
+          },
+        },
+      }),
     };
 
     const sortField = query.sortBy ?? 'createdAt';
@@ -52,7 +106,14 @@ export class AdminUsersService {
     const [users, totalRecords] = await Promise.all([
       this._prisma.user.findMany({
         where,
-        select: this.userSelect,
+        select: {
+          ...this.userSelect,
+          billingType: true,
+          address: {
+            select: { id: true, city: true, state: true, street: true, number: true, zipCode: true, neighborhood: true },
+          },
+          _count: { select: { referrals: true } },
+        },
         orderBy: { [sortField]: sortDir } as Prisma.UserOrderByWithRelationInput,
         take,
         skip: (currentPage - 1) * take,
@@ -60,24 +121,28 @@ export class AdminUsersService {
       this._prisma.user.count({ where }),
     ]);
 
+    // Filtro de "mínimo de indicações" — aplicado após o count por depender do _count
+    const filteredUsers =
+      query.minReferrals !== undefined
+        ? users.filter((u) => u._count.referrals >= query.minReferrals!)
+        : users;
+
     const serviceCounts =
-      users.length > 0
+      filteredUsers.length > 0
         ? await this._prisma.service.groupBy({
           by: ['userId'],
           where: {
-            userId: { in: users.map((user) => user.id) },
+            userId: { in: filteredUsers.map((user) => user.id) },
             isActive: true,
           },
-          _count: {
-            _all: true,
-          },
+          _count: { _all: true },
         })
         : [];
 
     const serviceCountMap = new Map(serviceCounts.map((item) => [item.userId, item._count._all]));
 
     return {
-      users: users.map((user) => ({
+      users: filteredUsers.map((user) => ({
         id: user.id,
         name: user.name,
         email: user.email,
@@ -85,9 +150,18 @@ export class AdminUsersService {
         birthDate: user.birthDate ?? undefined,
         profileType: user.profileType as UserProfileType,
         status: user.status,
+        billingType: user.billingType ?? undefined,
+        totalReferrals: user._count.referrals,
         openServices: serviceCountMap.get(user.id) || 0,
         fileUrl: user.fileUrl,
         referralCode: user.referralCode || undefined,
+        address: user.address
+          ? {
+            id: user.address.id,
+            city: user.address.city ?? undefined,
+            state: user.address.state ?? undefined,
+          }
+          : undefined,
       })),
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,

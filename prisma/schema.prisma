@@ -26,7 +26,8 @@ model User {
   referralCode     String?         @unique @db.VarChar(80)
   birthDate        DateTime?
   commissionRate   Decimal?        @db.Decimal(5, 2)
-
+  billingType BillingTypeEnum?
+  
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -54,6 +55,8 @@ model User {
   referrals             Referral[]              @relation("InfluencerReferrals")
   referredByInfluencer  Referral?               @relation("ReferredByInfluencer")
   socialMedias          UserSocialMedia[]
+  addressId Int?     @unique
+  address   Address? @relation(fields: [addressId], references: [id])
 
   @@map("users")
 }
@@ -107,6 +110,7 @@ model ServiceCategory {
   isActive  Boolean @default(true)
   sortOrder Int     @default(0)
 
+  plans Plan[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -261,12 +265,14 @@ model Address {
   city         String? @db.VarChar(120)
   state        String? @db.VarChar(120)
   zipCode      String? @db.VarChar(20)
+  number       String? @db.VarChar(20)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   accommodation Accommodation?
   subscriptions Subscription[]
+  user          User?
 
   @@map("addresses")
 }
@@ -600,6 +606,9 @@ model Plan {
   isActive      Boolean                  @default(true)
   sortOrder     Int                      @default(0)
 
+  categoryId Int?
+  category   ServiceCategory? @relation(fields: [categoryId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -887,6 +896,12 @@ enum ExtraRequestStatus {
 enum ReviewTypeEnum {
   Positive
   Negative
+}
+
+enum BillingTypeEnum {
+  None
+  Subscription
+  Commission
 }
 
 model Referral {

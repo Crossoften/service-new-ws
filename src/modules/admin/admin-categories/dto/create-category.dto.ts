@@ -45,5 +45,4 @@ export class CreateCategoryDto {
     @Min(0)
     @Max(100)
     platformFeeRate?: number;
-
 }

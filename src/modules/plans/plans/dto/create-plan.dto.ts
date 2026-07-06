@@ -69,4 +69,13 @@ export class CreatePlanDto {
   @IsInt({ message: 'A ordem do plano deve ser um número inteiro.' })
   @Min(0)
   sortOrder?: number;
+
+  @ApiPropertyOptional({
+    description: 'Id da categoria de serviço à qual o plano fica vinculado. Se omitido, o plano é global (vale para todas as profissões).',
+    example: 3,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'A categoria deve ser um número inteiro.' })
+  categoryId?: number;
 }

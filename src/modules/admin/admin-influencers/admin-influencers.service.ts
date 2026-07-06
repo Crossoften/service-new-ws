@@ -165,4 +165,56 @@ export class AdminInfluencersService {
     const index = rows.findIndex((r) => Number(r.influencerId) === influencerId);
     return index === -1 ? rows.length + 1 : index + 1;
   }
+
+  async findReferralsById(id: number) {
+    const influencer = await this._prisma.user.findFirst({
+      where: { id, profileType: UserProfileType.Influencer },
+      select: { id: true, name: true, referralCode: true },
+    });
+
+    if (!influencer) throw new NotFoundException('Influencer não encontrado.');
+
+    const referrals = await this._prisma.referral.findMany({
+      where: { influencerId: id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        referredUser: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            phone: true,
+            profileType: true,
+            status: true,
+            createdAt: true,
+          },
+        },
+      },
+    });
+
+    return {
+      influencer: {
+        id: influencer.id,
+        name: influencer.name,
+        referralCode: influencer.referralCode,
+      },
+      referrals: referrals.map((ref) => ({
+        id: ref.id,
+        status: ref.isPaying ? 'Convertido' : 'Aguardando Pagamento',
+        commissionAmount: ref.commissionAmount ? Number(ref.commissionAmount) : null,
+        paidAt: ref.paidAt,
+        createdAt: ref.createdAt,
+        referredUser: {
+          id: ref.referredUser.id,
+          name: ref.referredUser.name,
+          email: ref.referredUser.email,
+          phone: ref.referredUser.phone ?? undefined,
+          profileType: ref.referredUser.profileType,
+          status: ref.referredUser.status,
+          registeredAt: ref.referredUser.createdAt,
+        },
+      })),
+      totalRecords: referrals.length,
+    };
+  }
 }

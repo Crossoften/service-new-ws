@@ -92,4 +92,23 @@ export class AdminInfluencersController {
     handleAccessControl.verifyPermission(user, 'Users');
     return await this._adminInfluencersService.updateCommission(id, body.commissionRate ?? null);
   }
+
+  @Get(':id/referrals')
+  @ApiOperation({
+    summary: 'Lista os usuários indicados por um influencer específico.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ description: 'Lista de indicados do influencer.' })
+  @ApiNotFoundResponse({ description: 'Influencer não encontrado.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async findReferralsById(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<any> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminInfluencersService.findReferralsById(id);
+  }
 }

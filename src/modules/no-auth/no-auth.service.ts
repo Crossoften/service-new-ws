@@ -16,7 +16,6 @@ import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
-import { RegisterAdminDto } from './dto/register-admin.dto';
 import { randomBytes } from 'crypto';
 
 @Injectable()
@@ -77,13 +76,30 @@ export class NoAuthService {
         id: true,
         name: true,
         email: true,
+        document: true,
         phone: true,
+        biography: true,
         role: true,
         profileType: true,
         status: true,
+        fileUrl: true,
+        fileKey: true,
+        referralCode: true,
+        birthDate: true,
+        commissionRate: true,
         createdAt: true,
         updatedAt: true,
-        birthDate: true,
+        socialMedias: {
+          select: {
+            id: true,
+            network: true,
+            url: true,
+            followers: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { network: 'asc' },
+        },
       },
     });
 
@@ -108,13 +124,28 @@ export class NoAuthService {
         id: user.id,
         name: user.name,
         email: user.email,
+        document: user.document || undefined,
         phone: user.phone || undefined,
+        biography: user.biography || undefined,
         role: user.role,
         profileType: user.profileType,
         status: user.status,
+        fileUrl: user.fileUrl || undefined,
+        fileKey: user.fileKey || undefined,
+        referralCode: user.referralCode || undefined,
+        birthDate: user.birthDate || undefined,
+        commissionRate:
+          user.commissionRate !== null ? Number(user.commissionRate) : undefined,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
-        birthDate: user.birthDate || undefined
+        socialMedias: user.socialMedias.map((sm) => ({
+          id: sm.id,
+          network: sm.network,
+          url: sm.url,
+          followers: sm.followers,
+          createdAt: sm.createdAt,
+          updatedAt: sm.updatedAt,
+        })),
       },
     };
   }

@@ -25,7 +25,7 @@ export class AdminUsersController {
 
   @Get()
   @ApiOperation({
-    summary: 'Rota que lista os usuários cadastrados no portal gerencial.',
+    summary: 'Lista e filtra usuários por dados pessoais, serviço/categoria, assinatura, indicações e endereço.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseFindAllAdminUserDto })
