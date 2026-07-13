@@ -101,4 +101,23 @@ export class AdminServicesController {
     handleAccessControl.verifyPermission(user, 'Services');
     return this._adminServicesService.findClients(id, query);
   }
+
+  @Get('ranking/purchases-by-location')
+  @ApiOperation({
+    summary: 'Ranking de cidades/estados onde mais se comprou serviço.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ description: 'Ranking geográfico de compras de serviço, pela cidade do cliente.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async purchasesRankingByLocation(
+    @CurrentUser() user: User,
+    @Query('state') state?: string,
+    @Query('city') city?: string,
+  ) {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminServicesService.getPurchaseRankingByLocation(state, city);
+  }
 }

@@ -111,4 +111,20 @@ export class QueryAdminUserDto {
   @IsOptional()
   @Type(() => Number)
   maxSubscriptionAmount?: number;
+
+  @ApiPropertyOptional({
+    description: 'Retorna apenas usuários que já efetuaram pelo menos um pagamento.',
+    example: true,
+  })
+  @IsOptional()
+  @IsBooleanString()
+  hasPaid?: string;
+
+  @ApiPropertyOptional({
+    description: 'Retorna apenas usuários que já receberam algum pagamento.',
+    example: true,
+  })
+  @IsOptional()
+  @IsBooleanString()
+  hasReceivedPayment?: string
 }

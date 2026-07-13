@@ -7,6 +7,7 @@ import { ResponseFindAllAdminUserDto } from './dto/response-find-all-admin-user.
 import { AdminUserInvalidIdException } from './exceptions/admin-user-invalid-id.exception';
 import { AdminUserNotFoundException } from './exceptions/admin-user-not-found.exception';
 import { UpdateUserDto } from './dto/update-user';
+import { PaymentStatusEnum } from 'src/modules/works/enums/payment-status.enum';
 
 @Injectable()
 export class AdminUsersService {
@@ -33,7 +34,6 @@ export class AdminUsersService {
     const currentPage = query.skip ?? 1;
     const search = query.search ? query.search.trim() : undefined;
 
-    // Subscription: monta o filtro de valor só se veio min/max
     const subscriptionAmountFilter =
       query.minSubscriptionAmount !== undefined || query.maxSubscriptionAmount !== undefined
         ? {
@@ -95,6 +95,22 @@ export class AdminUsersService {
           some: {
             status: 'Active',
             ...subscriptionAmountFilter,
+          },
+        },
+      }),
+
+      ...((query.hasPaid === 'true') && {
+        sentPayments: {
+          some: {
+            status: PaymentStatusEnum.Paid,
+          },
+        },
+      }),
+
+      ...(query.hasReceivedPayment === 'true' && {
+        receivedPayments: {
+          some: {
+            status: PaymentStatusEnum.Paid,
           },
         },
       }),
@@ -307,6 +323,43 @@ export class AdminUsersService {
         },
       })),
       totalRecords: referrals.length,
+    };
+  }
+
+  async getProvidersRankingByLocation(state?: string, city?: string) {
+    const stateFilter = state ? Prisma.sql`AND a.state = ${state}` : Prisma.empty;
+    const cityFilter = city ? Prisma.sql`AND a.city = ${city}` : Prisma.empty;
+
+    type ProviderRankingRow = {
+      city: string | null;
+      state: string | null;
+      totalProviders: bigint;
+      totalServices: bigint;
+    };
+
+    const rows = (await this._prisma.$queryRaw`
+    SELECT a.city, a.state,
+           COUNT(DISTINCT u.id) AS totalProviders,
+           COUNT(s.id) AS totalServices
+    FROM users u
+    INNER JOIN addresses a ON a.id = u.addressId
+    INNER JOIN services s ON s.userId = u.id AND s.isActive = true
+    WHERE u.role = 'User'
+      ${stateFilter}
+      ${cityFilter}
+    GROUP BY a.city, a.state
+    ORDER BY totalServices DESC
+  `) as ProviderRankingRow[];
+
+    return {
+      ranking: rows.map((row, index) => ({
+        position: index + 1,
+        city: row.city ?? undefined,
+        state: row.state ?? undefined,
+        totalProviders: Number(row.totalProviders),
+        totalServices: Number(row.totalServices),
+      })),
+      totalRecords: rows.length,
     };
   }
 }

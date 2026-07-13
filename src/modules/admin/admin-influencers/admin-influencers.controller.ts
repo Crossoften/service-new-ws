@@ -111,4 +111,23 @@ export class AdminInfluencersController {
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminInfluencersService.findReferralsById(id);
   }
+
+  @Get('ranking/location')
+  @ApiOperation({
+    summary: 'Ranking de influencers por cidade/estado.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ description: 'Ranking geográfico de influencers por indicações.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async rankingByLocation(
+    @CurrentUser() user: User,
+    @Query('state') state?: string,
+    @Query('city') city?: string,
+  ) {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminInfluencersService.getRankingByLocation(state, city);
+  }
 }

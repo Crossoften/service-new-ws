@@ -217,4 +217,41 @@ export class AdminInfluencersService {
       totalRecords: referrals.length,
     };
   }
+
+  async getRankingByLocation(state?: string, city?: string) {
+    const stateFilter = state ? Prisma.sql`AND a.state = ${state}` : Prisma.empty;
+    const cityFilter = city ? Prisma.sql`AND a.city = ${city}` : Prisma.empty;
+
+    type RankingRow = {
+      city: string | null;
+      state: string | null;
+      totalInfluencers: bigint;
+      totalReferrals: bigint;
+    };
+
+    const rows = (await this._prisma.$queryRaw`
+    SELECT a.city, a.state,
+           COUNT(DISTINCT u.id) AS totalInfluencers,
+           COUNT(r.id) AS totalReferrals
+    FROM users u
+    INNER JOIN addresses a ON a.id = u.addressId
+    LEFT JOIN referrals r ON r.influencerId = u.id
+    WHERE u.profileType = 'Influencer'
+      ${stateFilter}
+      ${cityFilter}
+    GROUP BY a.city, a.state
+    ORDER BY totalReferrals DESC
+  `) as RankingRow[];
+
+    return {
+      ranking: rows.map((row, index) => ({
+        position: index + 1,
+        city: row.city ?? undefined,
+        state: row.state ?? undefined,
+        totalInfluencers: Number(row.totalInfluencers),
+        totalReferrals: Number(row.totalReferrals),
+      })),
+      totalRecords: rows.length,
+    };
+  }
 }

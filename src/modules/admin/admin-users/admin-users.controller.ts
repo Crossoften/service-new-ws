@@ -138,4 +138,23 @@ export class AdminUsersController {
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminUsersService.updateStatus(id);
   }
+
+  @Get('ranking/providers-by-location')
+  @ApiOperation({
+    summary: 'Ranking de prestadores por serviços prestados, por cidade/estado.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ description: 'Ranking geográfico de prestadores por serviços ativos.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async providersRankingByLocation(
+    @CurrentUser() user: User,
+    @Query('state') state?: string,
+    @Query('city') city?: string,
+  ) {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminUsersService.getProvidersRankingByLocation(state, city);
+  }
 }

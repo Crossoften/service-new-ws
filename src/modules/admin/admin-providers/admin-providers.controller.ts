@@ -104,4 +104,6 @@ export class AdminProvidersController {
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminProvidersService.addSubscriptionBonus(id, subscriptionId, body);
   }
+
+
 }

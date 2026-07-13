@@ -234,4 +234,37 @@ export class AdminServicesService {
       providerRate: 100 - Number(category.platformFeeRate),
     }));
   }
+
+  async getPurchaseRankingByLocation(state?: string, city?: string) {
+    const stateFilter = state ? Prisma.sql`AND a.state = ${state}` : Prisma.empty;
+    const cityFilter = city ? Prisma.sql`AND a.city = ${city}` : Prisma.empty;
+
+    type PurchaseRankingRow = {
+      city: string | null;
+      state: string | null;
+      totalPurchases: bigint;
+    };
+
+    const rows = (await this._prisma.$queryRaw`
+    SELECT a.city, a.state, COUNT(w.id) AS totalPurchases
+    FROM works w
+    INNER JOIN users u ON u.id = w.requesterId
+    INNER JOIN addresses a ON a.id = u.addressId
+    WHERE 1 = 1
+      ${stateFilter}
+      ${cityFilter}
+    GROUP BY a.city, a.state
+    ORDER BY totalPurchases DESC
+  `) as PurchaseRankingRow[];
+
+    return {
+      ranking: rows.map((row, index) => ({
+        position: index + 1,
+        city: row.city ?? undefined,
+        state: row.state ?? undefined,
+        totalPurchases: Number(row.totalPurchases),
+      })),
+      totalRecords: rows.length,
+    };
+  }
 }
