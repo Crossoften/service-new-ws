@@ -26,7 +26,7 @@ type PlanRow = {
 
 @Injectable()
 export class PlansService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   private readonly planSelect = Prisma.validator<Prisma.PlanSelect>()({
     id: true,
@@ -95,9 +95,7 @@ export class PlansService {
         bonusMonths: payload.bonusMonths ?? 0,
         isActive: payload.isActive ?? true,
         sortOrder: payload.sortOrder ?? 0,
-        category: payload.categoryId
-          ? { connect: { id: payload.categoryId } }
-          : undefined,
+        category: payload.categoryId ? { connect: { id: payload.categoryId } } : undefined,
       },
       select: this.planSelect,
     });

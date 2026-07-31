@@ -18,17 +18,26 @@ export class CreateSubscriptionDto {
   @IsEnum(PaymentMethodEnum, { message: 'O método de pagamento informado é inválido.' })
   method: PaymentMethodEnum;
 
-  @ApiPropertyOptional({ description: 'Nome do titular do cartão ou da conta pagadora.', example: 'Paula Maria' })
+  @ApiPropertyOptional({
+    description: 'Nome do titular do cartão ou da conta pagadora.',
+    example: 'Paula Maria',
+  })
   @IsOptional()
   @IsString({ message: 'O nome do titular deve ser um texto.' })
   holderName?: string;
 
-  @ApiPropertyOptional({ description: 'Bandeira do cartão utilizado no pagamento.', example: 'Visa' })
+  @ApiPropertyOptional({
+    description: 'Bandeira do cartão utilizado no pagamento.',
+    example: 'Visa',
+  })
   @IsOptional()
   @IsString({ message: 'A bandeira do cartão deve ser um texto.' })
   cardBrand?: string;
 
-  @ApiPropertyOptional({ description: 'Número do cartão usado para extrair os últimos quatro dígitos.', example: '4111 1111 1111 1111' })
+  @ApiPropertyOptional({
+    description: 'Número do cartão usado para extrair os últimos quatro dígitos.',
+    example: '4111 1111 1111 1111',
+  })
   @IsOptional()
   @IsString({ message: 'O número do cartão deve ser um texto.' })
   cardNumber?: string;

@@ -71,7 +71,8 @@ export class CreatePlanDto {
   sortOrder?: number;
 
   @ApiPropertyOptional({
-    description: 'Id da categoria de serviço à qual o plano fica vinculado. Se omitido, o plano é global (vale para todas as profissões).',
+    description:
+      'Id da categoria de serviço à qual o plano fica vinculado. Se omitido, o plano é global (vale para todas as profissões).',
     example: 3,
   })
   @IsOptional()

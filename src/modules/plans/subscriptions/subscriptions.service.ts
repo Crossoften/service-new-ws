@@ -230,11 +230,11 @@ export class SubscriptionsService {
           }),
         ]);
 
-        const globalRate = platformSettings ? Number(platformSettings.influencerCommissionRate) : 10;
+        const globalRate = platformSettings
+          ? Number(platformSettings.influencerCommissionRate)
+          : 10;
         const rate =
-          influencer && influencer.commissionRate
-            ? Number(influencer.commissionRate)
-            : globalRate;
+          influencer && influencer.commissionRate ? Number(influencer.commissionRate) : globalRate;
         const commissionAmount = new Prisma.Decimal(
           (plan.price.toNumber() * (rate / 100)).toFixed(2),
         );
@@ -242,6 +242,21 @@ export class SubscriptionsService {
         await tx.referral.update({
           where: { id: referral.id },
           data: { isPaying: true, commissionAmount, paidAt: new Date() },
+        });
+
+        await tx.financialTransaction.create({
+          data: {
+            type: FinancialTransactionTypeEnum.Credit,
+            category: FinancialTransactionCategoryEnum.ReferralCommission,
+            status: PaymentStatusEnum.Paid,
+            amount: commissionAmount,
+            description: `Comissão por indicação convertida (assinatura #${subscription.id})`,
+            availableAt: new Date(),
+            referenceType: PaymentReferenceTypeEnum.Referral,
+            referenceId: referral.id,
+            userId: referral.influencerId,
+            paymentId: payment.id,
+          },
         });
       }
 
