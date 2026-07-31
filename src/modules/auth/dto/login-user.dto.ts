@@ -8,7 +8,7 @@ export class LoginUserDto {
   })
   @IsString({ message: 'O email deve ser um texto.' })
   @MinLength(1, { message: 'O email é obrigatório.' })
-  @MaxLength(8)
+  @MaxLength(191)
   @IsEmail({}, { message: 'Informe um email válido.' })
   email: string;
 
@@ -18,6 +18,6 @@ export class LoginUserDto {
   })
   @IsString({ message: 'A senha deve ser um texto.' })
   @MinLength(1, { message: 'A senha é obrigatória.' })
-  @MaxLength(8)
+  @MaxLength(32)
   password: string;
 }

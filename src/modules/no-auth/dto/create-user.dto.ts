@@ -85,7 +85,7 @@ export class CreateUserDto {
 
   @ApiPropertyOptional({
     description: 'Data de nascimento do usuário no formato ISO',
-    example: '1990-01-01'
+    example: '1990-01-01',
   })
   @IsOptional()
   @IsDateString()

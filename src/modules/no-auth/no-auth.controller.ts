@@ -16,7 +16,6 @@ import { ResponseAllUserDto } from '../admin/admin-settings/dto/response-all-use
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
-import { CreateUserDto } from './dto/create-user.dto';
 import { ForgotDto } from './dto/forgot.dto';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { RegisterInfluencerDto } from './dto/register-influencer.dto';
@@ -29,24 +28,7 @@ import { NoAuthService } from './no-auth.service';
 
 @Controller()
 export class NoAuthController {
-  constructor(private readonly noAuthService: NoAuthService) { }
-  /*
-  @IsPublic()
-  @Post('no-auth/register')
-  @ApiTags('Sem autenticação')
-  @ApiOperation({
-    summary: 'Cadastro genérico (profileType no body). Mantido para compatibilidade.',
-    deprecated: true,
-  })
-  @ApiCreatedResponse({ type: RegisterUserResponseDto })
-  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
-  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
-  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async register(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, body.profileType, body.referralCode);
-  }
-  */
-
+  constructor(private readonly noAuthService: NoAuthService) {}
 
   @IsPublic()
   @Post('no-auth/register/client')
@@ -60,20 +42,6 @@ export class NoAuthController {
     return this.noAuthService.register(body, UserProfileType.Client, body.referralCode);
   }
 
-  /*
-  @IsPublic()
-  @Post('no-auth/register/adm')
-  @ApiTags('Sem autenticação')
-  @ApiOperation({ summary: 'Cadastro de fornecedor.' })
-  @ApiCreatedResponse({ type: RegisterUserResponseDto })
-  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
-  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
-  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async registerAdmin(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.registerAdmin(body, UserProfileType.Client);
-  }*/
-
-
   @IsPublic()
   @Post('no-auth/register/supplier')
   @ApiTags('Sem autenticação')
@@ -84,18 +52,6 @@ export class NoAuthController {
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async registerSupplier(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
     return this.noAuthService.register(body, UserProfileType.Supplier, body.referralCode);
-  }
-
-  @IsPublic()
-  @Post('no-auth/register/partner')
-  @ApiTags('Sem autenticação')
-  @ApiOperation({ summary: 'Cadastro de parceiro.' })
-  @ApiCreatedResponse({ type: RegisterUserResponseDto })
-  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
-  @ApiConflictResponse({ description: 'Usuário já cadastrado com os dados informados.' })
-  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async registerPartner(@Body() body: RegisterBaseDto): Promise<RegisterUserResponseDto> {
-    return this.noAuthService.register(body, UserProfileType.Partner, body.referralCode);
   }
 
   @IsPublic()
@@ -189,17 +145,6 @@ export class NoAuthController {
   texts(@Query() query: TextQueriesDto): Promise<ResponseTextDto> {
     return this.noAuthService.texts(query);
   }
-
-  /*
-  @IsPublic()
-  @ApiTags('Sem autenticação')
-  @ApiOperation({ summary: 'Rota para listar todos os usuários (durante desenvolvimento).' })
-  @ApiOkResponse({ type: [ResponseAllUserDto] })
-  @Get('no-auth/users')
-  users() {
-    return this.noAuthService.users();
-  }
-  */
 
   @IsPublic()
   @Get('no-auth/health-check')

@@ -42,7 +42,10 @@ export class RegisterUserDto {
   @ApiProperty({ description: 'Email do usuário.', example: 'joao@email.com' })
   email: string;
 
-  @ApiPropertyOptional({ description: 'Documento do usuário, quando cadastrado.', example: '123.456.789-10' })
+  @ApiPropertyOptional({
+    description: 'Documento do usuário, quando cadastrado.',
+    example: '123.456.789-10',
+  })
   document?: string;
 
   @ApiPropertyOptional({ description: 'Telefone do usuário.', example: '+55 34 99999-0000' })

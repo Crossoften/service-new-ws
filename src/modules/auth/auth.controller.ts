@@ -6,7 +6,9 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { AuthService } from './auth.service';
 import { IsPublic } from './decorators/is-public.decorator';
 import { LoginUserDto } from './dto/login-user.dto';
@@ -32,5 +34,18 @@ export class AuthController {
     const { user } = req;
 
     return this.authService.login(user);
+  }
+
+  @Post('logout')
+  @ApiOperation({
+    summary:
+      'Rota para logout do usuário. O token JWT é stateless, então a invalidação é feita pelo client ao descartar o token.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ImessageEntity })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @HttpCode(HttpStatus.OK)
+  async logout(): Promise<ImessageEntity> {
+    return { message: 'Logout realizado com sucesso.' };
   }
 }

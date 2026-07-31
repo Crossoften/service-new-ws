@@ -6,7 +6,7 @@ import {
   NotFoundException,
   UnprocessableEntityException,
 } from '@nestjs/common';
-import { Role, Status, User, UserProfileType, Prisma } from '@prisma/client';
+import { Role, Status, User, UserProfileType } from '@prisma/client';
 import generateCode from '@utils/generateCode';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { hashSync } from 'bcrypt';
@@ -23,7 +23,7 @@ export class NoAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
-  ) { }
+  ) {}
 
   async register(
     payload: RegisterBaseDto,
@@ -64,12 +64,12 @@ export class NoAuthService {
         referralCode: referralCode ? referralCode.trim() : await this.generateReferralCode(name),
         socialMedias: payload.socialMedias
           ? {
-            create: payload.socialMedias.map((sm) => ({
-              network: sm.network,
-              url: sm.url,
-              followers: sm.followers ?? 0,
-            })),
-          }
+              create: payload.socialMedias.map((sm) => ({
+                network: sm.network,
+                url: sm.url,
+                followers: sm.followers ?? 0,
+              })),
+            }
           : undefined,
       },
       select: {
@@ -134,8 +134,7 @@ export class NoAuthService {
         fileKey: user.fileKey || undefined,
         referralCode: user.referralCode || undefined,
         birthDate: user.birthDate || undefined,
-        commissionRate:
-          user.commissionRate !== null ? Number(user.commissionRate) : undefined,
+        commissionRate: user.commissionRate !== null ? Number(user.commissionRate) : undefined,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
         socialMedias: user.socialMedias.map((sm) => ({
@@ -203,7 +202,6 @@ export class NoAuthService {
     await this.mailService.contactUs(payload);
   }
 
-
   async texts(query: TextQueriesDto) {
     const { type } = query;
 
@@ -262,6 +260,3 @@ export class NoAuthService {
     });
   }
 }
-
-
-
