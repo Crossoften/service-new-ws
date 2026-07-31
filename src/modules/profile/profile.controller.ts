@@ -20,7 +20,7 @@ import { UpdateBillingTypeDto } from './dto/update-billing-type.dto';
 @ApiTags('Perfil')
 @Controller('profile')
 export class ProfileController {
-  constructor(private readonly profileService: ProfileService) { }
+  constructor(private readonly profileService: ProfileService) {}
 
   @Get('me')
   @ApiOperation({

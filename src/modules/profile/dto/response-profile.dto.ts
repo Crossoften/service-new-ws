@@ -1,15 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  BillingTypeEnum,
-  Role,
-  SocialNetworkEnum,
-  Status,
-  UserProfileType,
-} from '@prisma/client';
+import { BillingTypeEnum, Role, SocialNetworkEnum, Status, UserProfileType } from '@prisma/client';
 import { ResponseAddressDto } from './response-address-dto';
 
 export class ResponseProfileSocialMediaDto {
-
   @ApiProperty({
     description: 'Identificador único da rede social cadastrada.',
     example: 1,
@@ -164,8 +157,7 @@ export class ResponseProfileDto {
   birthDate?: Date;
 
   @ApiProperty({
-    description:
-      'Taxa de comissão do usuário em percentual, quando aplicável (perfil Influencer).',
+    description: 'Taxa de comissão do usuário em percentual, quando aplicável (perfil Influencer).',
     required: false,
     nullable: true,
     example: 10.5,
@@ -174,8 +166,7 @@ export class ResponseProfileDto {
   commissionRate?: number;
 
   @ApiProperty({
-    description:
-      'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
+    description: 'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
     type: [ResponseProfileSocialMediaDto],
   })
   socialMedias: ResponseProfileSocialMediaDto[];

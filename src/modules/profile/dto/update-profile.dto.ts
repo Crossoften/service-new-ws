@@ -48,7 +48,8 @@ export class UpdateProfileDto {
   phone?: string;
 
   @ApiProperty({
-    description: 'Biografia pública do fornecedor. Esse campo é permitido apenas para usuários supplier.',
+    description:
+      'Biografia pública do fornecedor. Esse campo é permitido apenas para usuários supplier.',
     required: false,
     example: 'Profissional com 8 anos de experiência em reformas residenciais.',
     type: String,

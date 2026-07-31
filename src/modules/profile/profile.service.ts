@@ -14,7 +14,7 @@ import { UpdateBillingTypeDto } from './dto/update-billing-type.dto';
 
 @Injectable()
 export class ProfileService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async findMine(user: User): Promise<ResponseProfileDto> {
     const profile = await this.prisma.user.findUnique({
@@ -82,8 +82,7 @@ export class ProfileService {
       fileKey: profile.fileKey || undefined,
       referralCode: profile.referralCode || undefined,
       birthDate: profile.birthDate || undefined,
-      commissionRate:
-        profile.commissionRate !== null ? Number(profile.commissionRate) : undefined,
+      commissionRate: profile.commissionRate !== null ? Number(profile.commissionRate) : undefined,
       billingType: profile.billingType ?? undefined,
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
@@ -97,16 +96,16 @@ export class ProfileService {
       })),
       address: profile.address
         ? {
-          id: profile.address.id,
-          street: profile.address.street || undefined,
-          number: profile.address.number || undefined,
-          neighborhood: profile.address.neighborhood || undefined,
-          city: profile.address.city || undefined,
-          state: profile.address.state || undefined,
-          zipCode: profile.address.zipCode || undefined,
-          createdAt: profile.address.createdAt,
-          updatedAt: profile.address.updatedAt,
-        }
+            id: profile.address.id,
+            street: profile.address.street || undefined,
+            number: profile.address.number || undefined,
+            neighborhood: profile.address.neighborhood || undefined,
+            city: profile.address.city || undefined,
+            state: profile.address.state || undefined,
+            zipCode: profile.address.zipCode || undefined,
+            createdAt: profile.address.createdAt,
+            updatedAt: profile.address.updatedAt,
+          }
         : undefined,
     };
   }
@@ -147,10 +146,7 @@ export class ProfileService {
     return this.findMine(user);
   }
 
-  async updateMyAddress(
-    user: User,
-    payload: UpdateAddressDto,
-  ): Promise<ResponseAddressDto> {
+  async updateMyAddress(user: User, payload: UpdateAddressDto): Promise<ResponseAddressDto> {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: user.id },
       select: { id: true, addressId: true },
@@ -203,7 +199,6 @@ export class ProfileService {
     };
   }
 
-
   async updateMyBillingType(
     user: User,
     payload: UpdateBillingTypeDto,
@@ -225,4 +220,3 @@ export class ProfileService {
     return this.findMine(user);
   }
 }
-
