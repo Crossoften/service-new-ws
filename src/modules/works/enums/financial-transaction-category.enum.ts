@@ -6,4 +6,6 @@ export enum FinancialTransactionCategoryEnum {
   Withdrawal = 'Withdrawal',
   Refund = 'Refund',
   Adjustment = 'Adjustment',
+  DeliveryPayout = 'DeliveryPayout',
+  ReferralCommission = 'ReferralCommission',
 }
