@@ -26,6 +26,4 @@ export async function seedServiceCategory(prisma: PrismaClient) {
       },
     });
   }
-
-  
 }

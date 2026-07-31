@@ -13,14 +13,6 @@ export async function seedUser(prisma: PrismaClient) {
         status: Status.Active,
       },
       {
-        name: 'partner one',
-        email: 'partner.one@email.com',
-        password: hashSync('12345678', 10),
-        role: Role.User,
-        profileType: UserProfileType.Partner,
-        status: Status.Active,
-      },
-      {
         name: 'delivery one',
         email: 'delivery.one@email.com',
         password: hashSync('12345678', 10),
@@ -46,5 +38,4 @@ export async function seedUser(prisma: PrismaClient) {
       },
     ],
   });
-
 }

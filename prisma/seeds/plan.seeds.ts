@@ -28,6 +28,4 @@ export async function seedPlan(prisma: PrismaClient) {
       },
     });
   }
-
-  
 }

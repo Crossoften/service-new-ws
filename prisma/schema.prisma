@@ -10,53 +10,64 @@ datasource db {
 model User {
   id Int @id @default(autoincrement())
 
-  name          String
-  email         String          @unique
-  document      String?         @unique @db.VarChar(18)
-  biography     String?         @db.LongText()
-  phone         String?         @unique
-  password      String
-  code          String?         @db.VarChar(4)
-  codeExpiresIn DateTime?
-  role          Role            @default(User)
-  profileType   UserProfileType @default(Client)
-  status        Status          @default(Pending)
-  fileUrl       String?         @db.VarChar(1500)
-  fileKey       String?         @db.VarChar(1500)
-  referralCode     String?         @unique @db.VarChar(80)
-  birthDate        DateTime?
-  commissionRate   Decimal?        @db.Decimal(5, 2)
-  billingType BillingTypeEnum?
-  
+  name           String
+  email          String           @unique
+  document       String?          @unique @db.VarChar(18)
+  biography      String?          @db.LongText()
+  phone          String?          @unique
+  password       String
+  code           String?          @db.VarChar(4)
+  codeExpiresIn  DateTime?
+  role           Role             @default(User)
+  profileType    UserProfileType  @default(Client)
+  status         Status           @default(Pending)
+  fileUrl        String?          @db.VarChar(1500)
+  fileKey        String?          @db.VarChar(1500)
+  referralCode   String?          @unique @db.VarChar(80)
+  birthDate      DateTime?
+  commissionRate Decimal?         @db.Decimal(5, 2)
+  billingType    BillingTypeEnum?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  adminPermissions      AdminPermission[]
-  accommodations        Accommodation[]
-  bankAccount           BankAccount?
-  files                 File[]
-  products              Product[]
-  transportations       Transportation[]
-  services              Service[]
-  reviews               Review[]
-  requestedBudgets      Budget[]                @relation("BudgetRequester")
-  providedBudgets       Budget[]                @relation("BudgetProvider")
-  requestedWorks        Work[]                  @relation("WorkRequester")
-  sentPayments          Payment[]               @relation("PaymentPayer")
-  financialTransactions FinancialTransaction[]
-  providedWorks         Work[]                  @relation("WorkProvider")
-  receivedPayments      Payment[]               @relation("PaymentReceiver")
-  purchases             CommercialTransaction[] @relation("CommercialTransactionBuyer")
-  sales                 CommercialTransaction[] @relation("CommercialTransactionSeller")
-  subscriptions         Subscription[]
-  chatParticipants      ChatParticipant[]
-  chatMessages          ChatMessage[]           @relation("ChatMessageSender")
-  createdChatRooms      ChatRoom[]              @relation("ChatRoomCreator")
-  referrals             Referral[]              @relation("InfluencerReferrals")
-  referredByInfluencer  Referral?               @relation("ReferredByInfluencer")
-  socialMedias          UserSocialMedia[]
-  addressId Int?     @unique
-  address   Address? @relation(fields: [addressId], references: [id])
+  adminPermissions           AdminPermission[]
+  accommodations             Accommodation[]
+  bankAccount                BankAccount?
+  files                      File[]
+  products                   Product[]
+  transportations            Transportation[]
+  services                   Service[]
+  reviews                    Review[]
+  requestedBudgets           Budget[]                @relation("BudgetRequester")
+  providedBudgets            Budget[]                @relation("BudgetProvider")
+  requestedWorks             Work[]                  @relation("WorkRequester")
+  sentPayments               Payment[]               @relation("PaymentPayer")
+  financialTransactions      FinancialTransaction[]
+  providedWorks              Work[]                  @relation("WorkProvider")
+  receivedPayments           Payment[]               @relation("PaymentReceiver")
+  purchases                  CommercialTransaction[] @relation("CommercialTransactionBuyer")
+  sales                      CommercialTransaction[] @relation("CommercialTransactionSeller")
+  subscriptions              Subscription[]
+  chatParticipants           ChatParticipant[]
+  chatMessages               ChatMessage[]           @relation("ChatMessageSender")
+  createdChatRooms           ChatRoom[]              @relation("ChatRoomCreator")
+  referrals                  Referral[]              @relation("InfluencerReferrals")
+  referredByInfluencer       Referral?               @relation("ReferredByInfluencer")
+  socialMedias               UserSocialMedia[]
+  restaurant                 Restaurant?
+  foodOrders                 FoodOrder[]             @relation("FoodOrderCustomer")
+  courierAssignments         DeliveryAssignment[]    @relation("DeliveryAssignmentCourier")
+  rentalsRequested           Rental[]                @relation("RentalRequester")
+  rentalsProvided            Rental[]                @relation("RentalProvider")
+  transportRequestsRequested TransportRequest[]      @relation("TransportRequestRequester")
+  transportRequestsProvided  TransportRequest[]      @relation("TransportRequestProvider")
+  bookingsRequested          Booking[]               @relation("BookingRequester")
+  bookingsProvided           Booking[]               @relation("BookingProvider")
+  jobs                       Job[]                   @relation("JobEmployer")
+  jobApplications            JobApplication[]        @relation("JobApplicant")
+  addressId                  Int?                    @unique
+  address                    Address?                @relation(fields: [addressId], references: [id])
 
   @@map("users")
 }
@@ -79,7 +90,7 @@ model UserSocialMedia {
 }
 
 model PlatformSettings {
-  id  Int   @id @default(1)
+  id                       Int     @id @default(1)
   influencerCommissionRate Decimal @default(0) @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt
@@ -101,16 +112,16 @@ model AdminPermission {
 }
 
 model ServiceCategory {
-  id Int @id @default(autoincrement())
-  platformFeeRate Decimal @default(0) @db.Decimal(5, 2)  
-  name      String  @unique @db.VarChar(120)
-  slug      String  @unique @db.VarChar(120)
-  iconUrl   String? @db.VarChar(1500)
-  iconKey   String? @db.VarChar(1500)
-  isActive  Boolean @default(true)
-  sortOrder Int     @default(0)
+  id              Int     @id @default(autoincrement())
+  platformFeeRate Decimal @default(0) @db.Decimal(5, 2)
+  name            String  @unique @db.VarChar(120)
+  slug            String  @unique @db.VarChar(120)
+  iconUrl         String? @db.VarChar(1500)
+  iconKey         String? @db.VarChar(1500)
+  isActive        Boolean @default(true)
+  sortOrder       Int     @default(0)
 
-  plans Plan[]
+  plans     Plan[]
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -195,6 +206,7 @@ model Product {
   user                   User                    @relation(fields: [userId], references: [id])
   reviews                Review[]
   commercialTransactions CommercialTransaction[]
+  rentals                Rental[]
 
   @@index([categoryId])
   @@index([userId])
@@ -220,9 +232,10 @@ model Transportation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  category TransportationCategory @relation(fields: [categoryId], references: [id])
-  user     User                   @relation(fields: [userId], references: [id])
-  reviews  Review[]
+  category          TransportationCategory @relation(fields: [categoryId], references: [id])
+  user              User                   @relation(fields: [userId], references: [id])
+  reviews           Review[]
+  transportRequests TransportRequest[]
 
   @@index([categoryId])
   @@index([userId])
@@ -246,10 +259,12 @@ model Accommodation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  address  Address?              @relation(fields: [addressId], references: [id])
-  category AccommodationCategory @relation(fields: [categoryId], references: [id])
-  user     User                  @relation(fields: [userId], references: [id])
-  reviews  Review[]
+  address        Address?                    @relation(fields: [addressId], references: [id])
+  category       AccommodationCategory       @relation(fields: [categoryId], references: [id])
+  user           User                        @relation(fields: [userId], references: [id])
+  reviews        Review[]
+  bookings       Booking[]
+  availabilities AccommodationAvailability[]
 
   @@index([addressId])
   @@index([categoryId])
@@ -273,6 +288,8 @@ model Address {
   accommodation Accommodation?
   subscriptions Subscription[]
   user          User?
+  restaurant    Restaurant?
+  foodOrders    FoodOrder[]
 
   @@map("addresses")
 }
@@ -342,6 +359,8 @@ model Review {
   accommodation  Accommodation?  @relation(fields: [accommodationId], references: [id])
   transportation Transportation? @relation(fields: [transportationId], references: [id])
   requester      User            @relation(fields: [requesterId], references: [id])
+  Restaurant     Restaurant?     @relation(fields: [restaurantId], references: [id])
+  restaurantId   Int?
 
   @@unique([serviceId, requesterId])
   @@unique([productId, requesterId])
@@ -741,7 +760,6 @@ enum Role {
 enum UserProfileType {
   Client
   Supplier
-  Partner
   Delivery
   Influencer
 }
@@ -815,6 +833,11 @@ enum ChatContextType {
   Budget
   Work
   CommercialTransaction
+  Rental
+  TransportRequest
+  Booking
+  FoodOrder
+  Job
 }
 
 enum PaymentMethodEnum {
@@ -833,6 +856,8 @@ enum PaymentReferenceTypeEnum {
   Work
   CommercialTransaction
   Subscription
+  FoodOrder
+  Referral
 }
 
 enum CommercialTransactionReferenceTypeEnum {
@@ -861,6 +886,8 @@ enum FinancialTransactionCategoryEnum {
   Withdrawal
   Refund
   Adjustment
+  DeliveryPayout
+  ReferralCommission
 }
 
 enum SubscriptionIntervalEnum {
@@ -905,11 +932,11 @@ enum BillingTypeEnum {
 }
 
 model Referral {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   influencerId     Int
-  referredUserId   Int      @unique
-  isPaying         Boolean  @default(false)
-  commissionAmount Decimal? @db.Decimal(10, 2)
+  referredUserId   Int       @unique
+  isPaying         Boolean   @default(false)
+  commissionAmount Decimal?  @db.Decimal(10, 2)
   paidAt           DateTime?
 
   createdAt DateTime @default(now())
@@ -920,4 +947,444 @@ model Referral {
 
   @@index([influencerId])
   @@map("referrals")
+}
+
+// ============================================================
+// BE-01/BE-02 — Delivery: restaurantes, cardápio e pedidos
+// ============================================================
+
+model RestaurantCategory {
+  id Int @id @default(autoincrement())
+
+  name      String  @unique @db.VarChar(120)
+  slug      String  @unique @db.VarChar(120)
+  iconUrl   String? @db.VarChar(1500)
+  iconKey   String? @db.VarChar(1500)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurants Restaurant[]
+
+  @@map("restaurant_categories")
+}
+
+model Restaurant {
+  id Int @id @default(autoincrement())
+
+  name        String  @db.VarChar(160)
+  description String? @db.LongText()
+  imageUrl    String? @db.VarChar(1500)
+  imageKey    String? @db.VarChar(1500)
+  isActive    Boolean @default(true)
+  isOpen      Boolean @default(true)
+  categoryId  Int
+  userId      Int     @unique
+  addressId   Int?    @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  category       RestaurantCategory @relation(fields: [categoryId], references: [id])
+  user           User               @relation(fields: [userId], references: [id])
+  address        Address?           @relation(fields: [addressId], references: [id])
+  menuCategories MenuCategory[]
+  menuItems      MenuItem[]
+  foodOrders     FoodOrder[]
+  reviews        Review[]
+
+  @@index([categoryId])
+  @@map("restaurants")
+}
+
+model MenuCategory {
+  id Int @id @default(autoincrement())
+
+  name         String @db.VarChar(120)
+  sortOrder    Int    @default(0)
+  restaurantId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id])
+  items      MenuItem[]
+
+  @@index([restaurantId])
+  @@map("menu_categories")
+}
+
+model MenuItem {
+  id Int @id @default(autoincrement())
+
+  name           String  @db.VarChar(160)
+  description    String? @db.LongText()
+  price          Decimal @db.Decimal(10, 2)
+  imageUrl       String? @db.VarChar(1500)
+  imageKey       String? @db.VarChar(1500)
+  isActive       Boolean @default(true)
+  restaurantId   Int
+  menuCategoryId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id])
+  menuCategory MenuCategory       @relation(fields: [menuCategoryId], references: [id])
+  additions    MenuItemAddition[]
+  orderItems   FoodOrderItem[]
+
+  @@index([restaurantId])
+  @@index([menuCategoryId])
+  @@map("menu_items")
+}
+
+model MenuItemAddition {
+  id Int @id @default(autoincrement())
+
+  name       String  @db.VarChar(160)
+  price      Decimal @default(0) @db.Decimal(10, 2)
+  isActive   Boolean @default(true)
+  menuItemId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItem           MenuItem                @relation(fields: [menuItemId], references: [id])
+  orderItemAdditions FoodOrderItemAddition[]
+
+  @@index([menuItemId])
+  @@map("menu_item_additions")
+}
+
+model FoodOrder {
+  id Int @id @default(autoincrement())
+
+  status           FoodOrderStatusEnum @default(Received)
+  itemsValue       Decimal             @db.Decimal(10, 2)
+  deliveryFee      Decimal             @default(0) @db.Decimal(10, 2)
+  totalValue       Decimal             @db.Decimal(10, 2)
+  platformFeeRate  Decimal?            @db.Decimal(5, 2)
+  commissionAmount Decimal?            @db.Decimal(10, 2)
+  paymentMethod    PaymentMethodEnum
+  notes            String?             @db.LongText()
+  cancelReason     String?             @db.LongText()
+  restaurantId     Int
+  customerId       Int
+  addressId        Int?
+  acceptedAt       DateTime?
+  cancelledAt      DateTime?
+  deliveredAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant         Restaurant          @relation(fields: [restaurantId], references: [id])
+  customer           User                @relation("FoodOrderCustomer", fields: [customerId], references: [id])
+  address            Address?            @relation(fields: [addressId], references: [id])
+  items              FoodOrderItem[]
+  deliveryAssignment DeliveryAssignment?
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@index([status])
+  @@map("food_orders")
+}
+
+model FoodOrderItem {
+  id Int @id @default(autoincrement())
+
+  foodOrderId Int
+  menuItemId  Int
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(10, 2)
+  notes       String? @db.VarChar(500)
+
+  createdAt DateTime @default(now())
+
+  foodOrder FoodOrder               @relation(fields: [foodOrderId], references: [id])
+  menuItem  MenuItem                @relation(fields: [menuItemId], references: [id])
+  additions FoodOrderItemAddition[]
+
+  @@index([foodOrderId])
+  @@index([menuItemId])
+  @@map("food_order_items")
+}
+
+model FoodOrderItemAddition {
+  id Int @id @default(autoincrement())
+
+  foodOrderItemId    Int
+  menuItemAdditionId Int
+  price              Decimal @db.Decimal(10, 2)
+
+  foodOrderItem    FoodOrderItem    @relation(fields: [foodOrderItemId], references: [id])
+  menuItemAddition MenuItemAddition @relation(fields: [menuItemAdditionId], references: [id])
+
+  @@index([foodOrderItemId])
+  @@index([menuItemAdditionId])
+  @@map("food_order_item_additions")
+}
+
+// ============================================================
+// BE-03 — Entregador: aceite de pedidos e rastreamento
+// ============================================================
+
+model DeliveryAssignment {
+  id Int @id @default(autoincrement())
+
+  status            DeliveryAssignmentStatusEnum @default(Pending)
+  foodOrderId       Int                          @unique
+  courierId         Int?
+  currentLat        Decimal?                     @db.Decimal(10, 7)
+  currentLng        Decimal?                     @db.Decimal(10, 7)
+  locationUpdatedAt DateTime?
+  acceptedAt        DateTime?
+  rejectedAt        DateTime?
+  pickedUpAt        DateTime?
+  deliveredAt       DateTime?
+  cancelledAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  foodOrder FoodOrder @relation(fields: [foodOrderId], references: [id])
+  courier   User?     @relation("DeliveryAssignmentCourier", fields: [courierId], references: [id])
+
+  @@index([courierId])
+  @@index([status])
+  @@map("delivery_assignments")
+}
+
+// ============================================================
+// BE-04 — Aluguel: entidade transacional
+// ============================================================
+
+model Rental {
+  id Int @id @default(autoincrement())
+
+  status       RentalStatusEnum @default(Requested)
+  startDate    DateTime
+  endDate      DateTime
+  price        Decimal          @db.Decimal(10, 2)
+  conditions   String?          @db.LongText()
+  cancelReason String?          @db.LongText()
+  productId    Int
+  requesterId  Int
+  providerId   Int
+  acceptedAt   DateTime?
+  rejectedAt   DateTime?
+  returnedAt   DateTime?
+  cancelledAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product   Product @relation(fields: [productId], references: [id])
+  requester User    @relation("RentalRequester", fields: [requesterId], references: [id])
+  provider  User    @relation("RentalProvider", fields: [providerId], references: [id])
+
+  @@index([productId])
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@map("rentals")
+}
+
+// ============================================================
+// BE-05 — Transporte: pedido de transporte
+// ============================================================
+
+model TransportRequest {
+  id Int @id @default(autoincrement())
+
+  status           TransportRequestStatusEnum @default(Requested)
+  origin           String                     @db.VarChar(255)
+  destination      String                     @db.VarChar(255)
+  cargoDescription String?                    @db.LongText()
+  quotedValue      Decimal?                   @db.Decimal(10, 2)
+  cancelReason     String?                    @db.LongText()
+  transportationId Int
+  requesterId      Int
+  providerId       Int
+  quotedAt         DateTime?
+  acceptedAt       DateTime?
+  rejectedAt       DateTime?
+  deliveredAt      DateTime?
+  cancelledAt      DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  transportation Transportation @relation(fields: [transportationId], references: [id])
+  requester      User           @relation("TransportRequestRequester", fields: [requesterId], references: [id])
+  provider       User           @relation("TransportRequestProvider", fields: [providerId], references: [id])
+
+  @@index([transportationId])
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@map("transport_requests")
+}
+
+// ============================================================
+// BE-06 — Hospedagem: reserva e calendário de disponibilidade
+// ============================================================
+
+model Booking {
+  id Int @id @default(autoincrement())
+
+  status          BookingStatusEnum @default(Requested)
+  checkIn         DateTime
+  checkOut        DateTime
+  guests          Int               @default(1)
+  totalValue      Decimal           @db.Decimal(10, 2)
+  cancelReason    String?           @db.LongText()
+  accommodationId Int
+  requesterId     Int
+  providerId      Int
+  confirmedAt     DateTime?
+  rejectedAt      DateTime?
+  checkedInAt     DateTime?
+  completedAt     DateTime?
+  cancelledAt     DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  accommodation Accommodation @relation(fields: [accommodationId], references: [id])
+  requester     User          @relation("BookingRequester", fields: [requesterId], references: [id])
+  provider      User          @relation("BookingProvider", fields: [providerId], references: [id])
+
+  @@index([accommodationId])
+  @@index([requesterId])
+  @@index([providerId])
+  @@index([status])
+  @@map("bookings")
+}
+
+model AccommodationAvailability {
+  id Int @id @default(autoincrement())
+
+  accommodationId Int
+  date            DateTime @db.Date
+  isBlocked       Boolean  @default(true)
+  reason          String?  @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+
+  accommodation Accommodation @relation(fields: [accommodationId], references: [id])
+
+  @@unique([accommodationId, date])
+  @@index([accommodationId])
+  @@map("accommodation_availabilities")
+}
+
+// ============================================================
+// BE-07 — Empregos: vagas e candidaturas
+// ============================================================
+
+model Job {
+  id Int @id @default(autoincrement())
+
+  title        String      @db.VarChar(160)
+  type         JobTypeEnum
+  value        Decimal?    @db.Decimal(10, 2)
+  requirements String?     @db.LongText()
+  description  String?     @db.LongText()
+  isActive     Boolean     @default(true)
+  employerId   Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  employer     User             @relation("JobEmployer", fields: [employerId], references: [id])
+  applications JobApplication[]
+
+  @@index([employerId])
+  @@index([isActive])
+  @@map("jobs")
+}
+
+model JobApplication {
+  id Int @id @default(autoincrement())
+
+  status      JobApplicationStatusEnum @default(Applied)
+  message     String?                  @db.LongText()
+  jobId       Int
+  applicantId Int
+  respondedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  job       Job  @relation(fields: [jobId], references: [id])
+  applicant User @relation("JobApplicant", fields: [applicantId], references: [id])
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+  @@index([applicantId])
+  @@map("job_applications")
+}
+
+enum FoodOrderStatusEnum {
+  Received
+  Accepted
+  Preparing
+  OnTheWay
+  Delivered
+  Cancelled
+}
+
+enum DeliveryAssignmentStatusEnum {
+  Pending
+  Accepted
+  Rejected
+  PickedUp
+  OnTheWay
+  Delivered
+  Cancelled
+}
+
+enum RentalStatusEnum {
+  Requested
+  Accepted
+  Rejected
+  Active
+  Returned
+  Cancelled
+}
+
+enum TransportRequestStatusEnum {
+  Requested
+  Quoted
+  Accepted
+  Rejected
+  InTransit
+  Delivered
+  Cancelled
+}
+
+enum BookingStatusEnum {
+  Requested
+  Confirmed
+  Rejected
+  CheckedIn
+  Completed
+  Cancelled
+}
+
+enum JobTypeEnum {
+  CLT
+  PJ
+  Freelance
+  Temporary
+}
+
+enum JobApplicationStatusEnum {
+  Applied
+  Accepted
+  Rejected
 }
