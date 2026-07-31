@@ -28,6 +28,10 @@ lerna-debug.log*
 .settings/
 *.sublime-workspace
 
+# AI tooling
+.claude/
+.serena/
+
 # IDE - VSCode
 .vscode/*
 !.vscode/settings.json
@@ -58,3 +62,6 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Tasks
 TODO.md
 *.deb
+
+# Documentos de integração locais (não versionados)
+INTEGRACAO-WEBAPP.md
