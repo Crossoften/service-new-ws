@@ -17,15 +17,13 @@ import { QueryAdminServiceDto } from './dto/query-admin-service.dto';
 import { ResponseAdminServiceClientsDto } from './dto/response-admin-service-clients.dto';
 import { ResponseAdminServiceDto } from './dto/response-admin-service.dto';
 import { ResponseFindAllAdminServiceDto } from './dto/response-admin-service-list.dto';
-import { QueryAdminProviderDto } from '../admin-providers/dto/query-admin-provider.dto';
-import { ResponseFindAllAdminProviderDto } from '../admin-providers/dto/response-admin-provider-list.dto';
 import { ResponseProviderPercentageDto } from './dto/response-provider-percentage.dto';
 import { QueryProviderPercentageDto } from './dto/query-provider-percentage.dto';
 
 @ApiTags('Serviços - Portal Gerencial')
 @Controller('admin-services')
 export class AdminServicesController {
-  constructor(private readonly _adminServicesService: AdminServicesService) { }
+  constructor(private readonly _adminServicesService: AdminServicesService) {}
 
   @Get()
   @ApiOperation({
@@ -107,7 +105,9 @@ export class AdminServicesController {
     summary: 'Ranking de cidades/estados onde mais se comprou serviço.',
     security: [{ bearerAuth: [] }],
   })
-  @ApiOkResponse({ description: 'Ranking geográfico de compras de serviço, pela cidade do cliente.' })
+  @ApiOkResponse({
+    description: 'Ranking geográfico de compras de serviço, pela cidade do cliente.',
+  })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })

@@ -178,6 +178,4 @@ export class ResponseAdminUserListDto {
     type: String,
   })
   fileUrl?: string;
-
-
 }

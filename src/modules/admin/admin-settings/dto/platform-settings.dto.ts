@@ -15,7 +15,8 @@ export class ResponsePlatformSettingsDto {
 
 export class UpdatePlatformSettingsDto {
   @ApiProperty({
-    description: 'Taxa global de comissão para influencers (0–100). Aplicada quando o influencer não tem taxa customizada.',
+    description:
+      'Taxa global de comissão para influencers (0–100). Aplicada quando o influencer não tem taxa customizada.',
     required: false,
     example: 12.5,
     type: Number,

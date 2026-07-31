@@ -9,14 +9,17 @@ import HandleUpdateUser from '@utils/HandleUpdateUser';
 import { hashSync } from 'bcrypt';
 import { CreateAdminResponseDto } from './dto/create-admin-response.dto';
 import { CreateAdminDto } from './dto/create-admin.dto';
-import { ResponsePlatformSettingsDto, UpdatePlatformSettingsDto } from './dto/platform-settings.dto';
+import {
+  ResponsePlatformSettingsDto,
+  UpdatePlatformSettingsDto,
+} from './dto/platform-settings.dto';
 import { QueryAdminDto } from './dto/query-admin.dto';
 import { ResponseFindAllAdminDto } from './dto/response-find-all-admin.dto';
 import { UpdateAdminDto } from './dto/update-admin.dto';
 
 @Injectable()
 export class AdminSettingsService {
-  constructor(private readonly _prisma: PrismaService) { }
+  constructor(private readonly _prisma: PrismaService) {}
 
   async create(payload: CreateAdminDto): Promise<CreateAdminResponseDto> {
     const { name, document, email, phone, password, adminPermissions, fileUrl, fileKey } = payload;
@@ -60,15 +63,15 @@ export class AdminSettingsService {
       status,
       AND: search
         ? [
-          {
-            OR: [
-              { name: { contains: search } },
-              { email: { contains: search } },
-              { phone: { contains: search } },
-              { document: { contains: search } },
-            ],
-          },
-        ]
+            {
+              OR: [
+                { name: { contains: search } },
+                { email: { contains: search } },
+                { phone: { contains: search } },
+                { document: { contains: search } },
+              ],
+            },
+          ]
         : undefined,
     };
 
@@ -168,7 +171,9 @@ export class AdminSettingsService {
     };
   }
 
-  async updatePlatformSettings(payload: UpdatePlatformSettingsDto): Promise<ResponsePlatformSettingsDto> {
+  async updatePlatformSettings(
+    payload: UpdatePlatformSettingsDto,
+  ): Promise<ResponsePlatformSettingsDto> {
     const settings = await this._prisma.platformSettings.upsert({
       where: { id: 1 },
       create: {

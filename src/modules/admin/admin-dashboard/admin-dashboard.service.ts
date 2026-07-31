@@ -9,7 +9,7 @@ import {
 
 @Injectable()
 export class AdminDashboardService {
-  constructor(private readonly _prisma: PrismaService) { }
+  constructor(private readonly _prisma: PrismaService) {}
 
   async getCards(): Promise<ResponseDashboardCardsDto> {
     const [totalUsers, totalServices, cashAgg] = await Promise.all([

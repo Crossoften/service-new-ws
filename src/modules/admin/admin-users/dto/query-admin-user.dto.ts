@@ -1,18 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  BillingTypeEnum,
-  Status,
-  UserProfileType,
-} from '@prisma/client';
+import { BillingTypeEnum, Status, UserProfileType } from '@prisma/client';
 import { Type } from 'class-transformer';
-import {
-  IsBooleanString,
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  Min,
-} from 'class-validator';
+import { IsBooleanString, IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryAdminUserDto {
   @ApiPropertyOptional({ description: 'Quantidade por página.', example: 10 })
@@ -39,7 +28,11 @@ export class QueryAdminUserDto {
   @IsString()
   sortBy?: string;
 
-  @ApiPropertyOptional({ description: 'Direção da ordenação.', example: 'desc', enum: ['asc', 'desc'] })
+  @ApiPropertyOptional({
+    description: 'Direção da ordenação.',
+    example: 'desc',
+    enum: ['asc', 'desc'],
+  })
   @IsOptional()
   @IsString()
   sortDirection?: 'asc' | 'desc';
@@ -77,7 +70,10 @@ export class QueryAdminUserDto {
   @IsInt()
   referredByInfluencerId?: number;
 
-  @ApiPropertyOptional({ description: 'Mínimo de indicações feitas pelo usuário (para influencers).', example: 3 })
+  @ApiPropertyOptional({
+    description: 'Mínimo de indicações feitas pelo usuário (para influencers).',
+    example: 3,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -85,19 +81,28 @@ export class QueryAdminUserDto {
   minReferrals?: number;
 
   // ---- Serviço / profissão ----
-  @ApiPropertyOptional({ description: 'Id da categoria de serviço prestado (profissão).', example: 1 })
+  @ApiPropertyOptional({
+    description: 'Id da categoria de serviço prestado (profissão).',
+    example: 1,
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   serviceCategoryId?: number;
 
-  @ApiPropertyOptional({ description: 'Filtrar apenas quem presta algum serviço ativo.', example: 'true' })
+  @ApiPropertyOptional({
+    description: 'Filtrar apenas quem presta algum serviço ativo.',
+    example: 'true',
+  })
   @IsOptional()
   @IsBooleanString()
   hasActiveService?: string;
 
   // ---- Assinatura ----
-  @ApiPropertyOptional({ description: 'Filtrar apenas quem tem assinatura ativa.', example: 'true' })
+  @ApiPropertyOptional({
+    description: 'Filtrar apenas quem tem assinatura ativa.',
+    example: 'true',
+  })
   @IsOptional()
   @IsBooleanString()
   hasSubscription?: string;
@@ -126,5 +131,5 @@ export class QueryAdminUserDto {
   })
   @IsOptional()
   @IsBooleanString()
-  hasReceivedPayment?: string
+  hasReceivedPayment?: string;
 }

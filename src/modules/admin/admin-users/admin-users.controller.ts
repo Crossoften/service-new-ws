@@ -21,11 +21,12 @@ import { ResponseFindAllReferralsDto } from './dto/response-all-referrals.dto';
 @ApiTags('Usuarios - Portal Gerencial')
 @Controller('admin-users')
 export class AdminUsersController {
-  constructor(private readonly _adminUsersService: AdminUsersService) { }
+  constructor(private readonly _adminUsersService: AdminUsersService) {}
 
   @Get()
   @ApiOperation({
-    summary: 'Lista e filtra usuários por dados pessoais, serviço/categoria, assinatura, indicações e endereço.',
+    summary:
+      'Lista e filtra usuários por dados pessoais, serviço/categoria, assinatura, indicações e endereço.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseFindAllAdminUserDto })
@@ -52,17 +53,14 @@ export class AdminUsersController {
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async findAllReferrals(
-    @CurrentUser() user: User,
-  ) {
+  async findAllReferrals(@CurrentUser() user: User) {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
 
     return this._adminUsersService.findAllReferrals();
   }
 
-
-  @Get("/actives")
+  @Get('/actives')
   @ApiOperation({
     summary: 'Rota que lista apenas os usuários ativos cadastrados no portal gerencial.',
     security: [{ bearerAuth: [] }],
@@ -113,9 +111,11 @@ export class AdminUsersController {
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  update(@Param('id', ParseIntPipe) UserId: number,
+  update(
+    @Param('id', ParseIntPipe) UserId: number,
     @CurrentUser() adminUser: User,
-    @Body() body: UpdateUserDto): Promise<ResponseAdminUserDto> {
+    @Body() body: UpdateUserDto,
+  ): Promise<ResponseAdminUserDto> {
     handleAccessControl.verifyAdminRole(adminUser);
     handleAccessControl.verifyPermission(adminUser, 'Users');
     return this._adminUsersService.update(UserId, body);

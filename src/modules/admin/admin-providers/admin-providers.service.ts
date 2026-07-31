@@ -11,7 +11,7 @@ import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.
 
 @Injectable()
 export class AdminProvidersService {
-  constructor(private readonly _prisma: PrismaService) { }
+  constructor(private readonly _prisma: PrismaService) {}
 
   async findAll(query: QueryAdminProviderDto): Promise<ResponseFindAllAdminProviderDto> {
     const take = query.take ?? 10;
@@ -100,10 +100,10 @@ export class AdminProvidersService {
     const reviewCounts =
       serviceIds.length > 0
         ? await this._prisma.review.groupBy({
-          by: ['type'],
-          where: { serviceId: { in: serviceIds } },
-          _count: { _all: true },
-        })
+            by: ['type'],
+            where: { serviceId: { in: serviceIds } },
+            _count: { _all: true },
+          })
         : [];
 
     const positiveReviews =
@@ -233,5 +233,4 @@ export class AdminProvidersService {
       status: updated.status,
     };
   }
-
 }

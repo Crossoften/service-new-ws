@@ -11,7 +11,7 @@ import { PaymentStatusEnum } from 'src/modules/works/enums/payment-status.enum';
 
 @Injectable()
 export class AdminUsersService {
-  constructor(private readonly _prisma: PrismaService) { }
+  constructor(private readonly _prisma: PrismaService) {}
 
   private readonly userSelect = Prisma.validator<Prisma.UserSelect>()({
     id: true,
@@ -26,7 +26,7 @@ export class AdminUsersService {
     fileKey: true,
     createdAt: true,
     updatedAt: true,
-    referralCode: true
+    referralCode: true,
   });
 
   async findAll(query: QueryAdminUserDto): Promise<ResponseFindAllAdminUserDto> {
@@ -37,11 +37,15 @@ export class AdminUsersService {
     const subscriptionAmountFilter =
       query.minSubscriptionAmount !== undefined || query.maxSubscriptionAmount !== undefined
         ? {
-          amount: {
-            ...(query.minSubscriptionAmount !== undefined && { gte: query.minSubscriptionAmount }),
-            ...(query.maxSubscriptionAmount !== undefined && { lte: query.maxSubscriptionAmount }),
-          },
-        }
+            amount: {
+              ...(query.minSubscriptionAmount !== undefined && {
+                gte: query.minSubscriptionAmount,
+              }),
+              ...(query.maxSubscriptionAmount !== undefined && {
+                lte: query.maxSubscriptionAmount,
+              }),
+            },
+          }
         : {};
 
     const wantsSubscription =
@@ -57,11 +61,11 @@ export class AdminUsersService {
 
       OR: search
         ? [
-          { name: { contains: search } },
-          { email: { contains: search } },
-          { phone: { contains: search } },
-          { document: { contains: search } },
-        ]
+            { name: { contains: search } },
+            { email: { contains: search } },
+            { phone: { contains: search } },
+            { document: { contains: search } },
+          ]
         : undefined,
 
       // Endereço (relação 1:1)
@@ -99,7 +103,7 @@ export class AdminUsersService {
         },
       }),
 
-      ...((query.hasPaid === 'true') && {
+      ...(query.hasPaid === 'true' && {
         sentPayments: {
           some: {
             status: PaymentStatusEnum.Paid,
@@ -126,7 +130,15 @@ export class AdminUsersService {
           ...this.userSelect,
           billingType: true,
           address: {
-            select: { id: true, city: true, state: true, street: true, number: true, zipCode: true, neighborhood: true },
+            select: {
+              id: true,
+              city: true,
+              state: true,
+              street: true,
+              number: true,
+              zipCode: true,
+              neighborhood: true,
+            },
           },
           _count: { select: { referrals: true } },
         },
@@ -146,13 +158,13 @@ export class AdminUsersService {
     const serviceCounts =
       filteredUsers.length > 0
         ? await this._prisma.service.groupBy({
-          by: ['userId'],
-          where: {
-            userId: { in: filteredUsers.map((user) => user.id) },
-            isActive: true,
-          },
-          _count: { _all: true },
-        })
+            by: ['userId'],
+            where: {
+              userId: { in: filteredUsers.map((user) => user.id) },
+              isActive: true,
+            },
+            _count: { _all: true },
+          })
         : [];
 
     const serviceCountMap = new Map(serviceCounts.map((item) => [item.userId, item._count._all]));
@@ -173,10 +185,10 @@ export class AdminUsersService {
         referralCode: user.referralCode || undefined,
         address: user.address
           ? {
-            id: user.address.id,
-            city: user.address.city ?? undefined,
-            state: user.address.state ?? undefined,
-          }
+              id: user.address.id,
+              city: user.address.city ?? undefined,
+              state: user.address.state ?? undefined,
+            }
           : undefined,
       })),
       currentPage,
@@ -235,12 +247,11 @@ export class AdminUsersService {
       where: { id, role: Role.User },
     });
 
-
     if (!user) throw new AdminUserNotFoundException();
 
     await this._prisma.user.update({
       where: { id },
-      data: { status: user.status === 'Active' ? "Inactive" : "Active" },
+      data: { status: user.status === 'Active' ? 'Inactive' : 'Active' },
     });
 
     return this.findById(id);
@@ -273,7 +284,6 @@ export class AdminUsersService {
     const referrals = await this._prisma.referral.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
-
         influencer: {
           select: {
             id: true,
@@ -304,7 +314,6 @@ export class AdminUsersService {
         paidAt: ref.paidAt,
         createdAt: ref.createdAt,
 
-
         referrer: {
           id: ref.influencer.id,
           name: ref.influencer.name,
@@ -312,7 +321,6 @@ export class AdminUsersService {
           referralCode: ref.influencer.referralCode,
           profileType: ref.influencer.profileType,
         },
-
 
         referredUser: {
           id: ref.referredUser.id,

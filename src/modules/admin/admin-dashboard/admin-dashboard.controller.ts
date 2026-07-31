@@ -18,7 +18,7 @@ import { ResponseDashboardChartDto } from './dto/response-dashboard-chart.dto';
 @ApiTags('Dashboard - Portal Gerencial')
 @Controller('admin-dashboard')
 export class AdminDashboardController {
-  constructor(private readonly _adminDashboardService: AdminDashboardService) { }
+  constructor(private readonly _adminDashboardService: AdminDashboardService) {}
 
   @Get('cards')
   @ApiOperation({

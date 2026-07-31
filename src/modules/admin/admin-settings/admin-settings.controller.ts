@@ -30,7 +30,7 @@ import { UpdateAdminDto } from './dto/update-admin.dto';
 @ApiTags('Configurações - Portal Gerencial')
 @Controller('admin-settings')
 export class AdminSettingsController {
-  constructor(private readonly _adminSettingsService: AdminSettingsService) { }
+  constructor(private readonly _adminSettingsService: AdminSettingsService) {}
 
   @Post()
   @ApiOperation({

@@ -17,7 +17,24 @@ import { AdminCategoriesController } from './admin-categories/admin-categories.c
 import { AdminCategoriesService } from './admin-categories/admin-categories.service';
 
 @Module({
-  controllers: [AdminSettingsController, AdminUsersController, AdminDashboardController, AdminServicesController, AdminProvidersController, AdminInfluencersController, AdminCategoriesController],
-  providers: [PrismaService, AdminSettingsService, AdminUsersService, AdminDashboardService, AdminServicesService, AdminProvidersService, AdminInfluencersService, AdminCategoriesService],
+  controllers: [
+    AdminSettingsController,
+    AdminUsersController,
+    AdminDashboardController,
+    AdminServicesController,
+    AdminProvidersController,
+    AdminInfluencersController,
+    AdminCategoriesController,
+  ],
+  providers: [
+    PrismaService,
+    AdminSettingsService,
+    AdminUsersService,
+    AdminDashboardService,
+    AdminServicesService,
+    AdminProvidersService,
+    AdminInfluencersService,
+    AdminCategoriesService,
+  ],
 })
-export class AdminModule { }
+export class AdminModule {}
