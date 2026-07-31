@@ -19,10 +19,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { User } from '@prisma/client';
+import { User, UserProfileType } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { CreateProductResponseDto } from './dto/create-product-response.dto';
 import { CreateProductReviewResponseDto } from './dto/create-product-review-response.dto';
 import { CreateProductReviewDto } from './dto/create-product-review.dto';
@@ -40,6 +41,7 @@ export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Rota para cadastrar um novo produto.',
     security: [{ bearerAuth: [] }],

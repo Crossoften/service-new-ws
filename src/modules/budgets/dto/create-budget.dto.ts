@@ -4,7 +4,10 @@ import { ArrayMaxSize, IsArray, IsInt, IsOptional, IsString, Min } from 'class-v
 import { CreateBudgetFileDto } from './create-budget-file.dto';
 
 export class CreateBudgetDto {
-  @ApiProperty({ description: 'Identificador do serviço para o qual o orçamento será solicitado.', example: 3 })
+  @ApiProperty({
+    description: 'Identificador do serviço para o qual o orçamento será solicitado.',
+    example: 3,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O id do serviço deve ser um número inteiro.' })
   @Min(1)

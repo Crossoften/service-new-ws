@@ -23,6 +23,8 @@ import { User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { UserProfileType } from '@prisma/client';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { CreateTransportationResponseDto } from './dto/create-transportation-response.dto';
 import { CreateTransportationReviewResponseDto } from './dto/create-transportation-review-response.dto';
 import { CreateTransportationReviewDto } from './dto/create-transportation-review.dto';
@@ -40,6 +42,7 @@ export class TransportationsController {
   constructor(private readonly transportationsService: TransportationsService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Rota para cadastrar um novo transporte.',
     security: [{ bearerAuth: [] }],

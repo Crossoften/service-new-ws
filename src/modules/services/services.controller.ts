@@ -23,6 +23,8 @@ import { User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { UserProfileType } from '@prisma/client';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { CreateServiceResponseDto } from './dto/create-service-response.dto';
 import { CreateServiceReviewDto } from './dto/create-service-review.dto';
 import { CreateServiceReviewResponseDto } from './dto/create-service-review-response.dto';
@@ -40,6 +42,7 @@ export class ServicesController {
   constructor(private readonly servicesService: ServicesService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Rota para cadastrar um novo serviço.',
     security: [{ bearerAuth: [] }],

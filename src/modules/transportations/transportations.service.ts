@@ -17,11 +17,15 @@ import { TransportationCategoryNotFoundException } from './exceptions/transporta
 import { TransportationNotFoundException } from './exceptions/transportation-not-found.exception';
 import { TransportationPersistenceException } from './exceptions/transportation-persistence.exception';
 import { TransportationSelfReviewNotAllowedException } from './exceptions/transportation-self-review-not-allowed.exception';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 import { ReviewTypeEnum } from 'src/modules/services/enums/service-review-type.enum';
 
 @Injectable()
 export class TransportationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly transportationSelect = Prisma.validator<Prisma.TransportationSelect>()({
     id: true,
@@ -94,6 +98,8 @@ export class TransportationsService {
     user: User,
     payload: CreateTransportationDto,
   ): Promise<CreateTransportationResponseDto> {
+    await this.subscriptionGuard.assertActiveSubscription(user);
+
     const category = await this.prisma.transportationCategory.findFirst({
       where: { id: payload.categoryId, isActive: true },
     });

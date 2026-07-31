@@ -34,7 +34,11 @@ export class QueryBudgetDto {
   @IsOptional()
   serviceId?: number;
 
-  @ApiProperty({ description: 'Filtro textual por nome do cliente ou serviço.', required: false, example: 'Susana' })
+  @ApiProperty({
+    description: 'Filtro textual por nome do cliente ou serviço.',
+    required: false,
+    example: 'Susana',
+  })
   @IsString({ message: 'O termo de busca deve ser um texto.' })
   @IsOptional()
   search?: string;
@@ -46,7 +50,11 @@ export class QueryBudgetDto {
   @IsOptional()
   take?: number;
 
-  @ApiProperty({ description: 'Página atual para cálculo de paginação.', required: false, example: 1 })
+  @ApiProperty({
+    description: 'Página atual para cálculo de paginação.',
+    required: false,
+    example: 1,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O campo skip deve ser um número inteiro.' })
   @Min(1)

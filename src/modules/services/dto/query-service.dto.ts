@@ -40,7 +40,11 @@ export class QueryServiceDto {
   @IsOptional()
   type?: ServiceTypeEnum;
 
-  @ApiProperty({ description: 'Filtro por id do usuário dono do serviço.', required: false, example: 10 })
+  @ApiProperty({
+    description: 'Filtro por id do usuário dono do serviço.',
+    required: false,
+    example: 10,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O campo userId deve ser um número inteiro.' })
   @Min(1)
@@ -64,7 +68,11 @@ export class QueryServiceDto {
   @IsOptional()
   take?: number;
 
-  @ApiProperty({ description: 'Página atual para cálculo de paginação.', required: false, example: 1 })
+  @ApiProperty({
+    description: 'Página atual para cálculo de paginação.',
+    required: false,
+    example: 1,
+  })
   @Type(() => Number)
   @IsInt({ message: 'O campo skip deve ser um número inteiro.' })
   @Min(1)

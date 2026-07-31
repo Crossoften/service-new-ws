@@ -17,12 +17,21 @@ export class UpdateBudgetDto extends PartialType(CreateBudgetDto) {
   @IsOptional()
   status?: BudgetStatusEnum;
 
-  @ApiProperty({ description: 'Descrição da resposta do fornecedor.', required: false, nullable: true, example: 'Consigo realizar o serviço em até 3 dias.' })
+  @ApiProperty({
+    description: 'Descrição da resposta do fornecedor.',
+    required: false,
+    nullable: true,
+    example: 'Consigo realizar o serviço em até 3 dias.',
+  })
   @IsString({ message: 'A descrição da resposta deve ser um texto.' })
   @IsOptional()
   responseDescription?: string;
 
-  @ApiProperty({ description: 'Valor respondido para o orçamento.', required: false, example: 350.0 })
+  @ApiProperty({
+    description: 'Valor respondido para o orçamento.',
+    required: false,
+    example: 350.0,
+  })
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O valor da resposta deve ser um número válido.' })
   @Min(0)

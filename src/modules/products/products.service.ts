@@ -19,10 +19,14 @@ import { ProductPersistenceException } from './exceptions/product-persistence.ex
 import { ProductSelfReviewNotAllowedException } from './exceptions/product-self-review-not-allowed.exception';
 import { ProductTransactionTypeEnum } from './enums/product-transaction-type.enum';
 import { ReviewTypeEnum } from 'src/modules/services/enums/service-review-type.enum';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class ProductsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly productSelect = Prisma.validator<Prisma.ProductSelect>()({
     id: true,
@@ -90,6 +94,8 @@ export class ProductsService {
   });
 
   async create(user: User, payload: CreateProductDto): Promise<CreateProductResponseDto> {
+    await this.subscriptionGuard.assertActiveSubscription(user);
+
     const category = await this.prisma.productCategory.findFirst({
       where: { id: payload.categoryId, isActive: true },
     });

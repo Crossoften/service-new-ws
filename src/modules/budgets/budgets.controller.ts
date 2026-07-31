@@ -22,6 +22,8 @@ import {
 import { User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { UserProfileType } from '@prisma/client';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { BudgetsService } from './budgets.service';
 import { CreateBudgetResponseDto } from './dto/create-budget-response.dto';
 import { CreateBudgetDto } from './dto/create-budget.dto';
@@ -40,6 +42,7 @@ export class BudgetsController {
   constructor(private readonly budgetsService: BudgetsService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Client)
   @ApiOperation({
     summary: 'Rota para cadastrar um novo orçamento.',
     security: [{ bearerAuth: [] }],

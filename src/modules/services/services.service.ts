@@ -19,10 +19,14 @@ import { ServiceReviewNotAllowedException } from './exceptions/service-review-no
 import { ServiceSelfReviewNotAllowedException } from './exceptions/service-self-review-not-allowed.exception';
 import { ServiceTypeEnum } from './enums/service-type.enum';
 import { UpdateServiceDto } from './dto/update-service.dto';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class ServicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly serviceSelect = Prisma.validator<Prisma.ServiceSelect>()({
     id: true,
@@ -87,6 +91,8 @@ export class ServicesService {
   });
 
   async create(user: User, payload: CreateServiceDto): Promise<CreateServiceResponseDto> {
+    await this.subscriptionGuard.assertActiveSubscription(user);
+
     const category = await this.prisma.serviceCategory.findFirst({
       where: { id: payload.categoryId, isActive: true },
     });
@@ -595,5 +601,4 @@ export class ServicesService {
 
     return { message: 'Serviço deletado com sucesso.' };
   }
-
 }

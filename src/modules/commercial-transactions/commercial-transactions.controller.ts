@@ -10,7 +10,9 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { User } from '@prisma/client';
+import { UserProfileType } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
 import { QueryCommercialTransactionDto } from './dto/query-commercial-transaction.dto';
@@ -28,6 +30,7 @@ export class CommercialTransactionsController {
   constructor(private readonly commercialTransactionsService: CommercialTransactionsService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Client)
   @ApiOperation({
     summary: 'Rota para abrir uma nova negociação comercial.',
     security: [{ bearerAuth: [] }],

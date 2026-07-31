@@ -18,10 +18,14 @@ import { AccommodationNotFoundException } from './exceptions/accommodation-not-f
 import { AccommodationPersistenceException } from './exceptions/accommodation-persistence.exception';
 import { AccommodationSelfReviewNotAllowedException } from './exceptions/accommodation-self-review-not-allowed.exception';
 import { ReviewTypeEnum } from '../services/enums/service-review-type.enum';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class AccommodationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly accommodationSelect = Prisma.validator<Prisma.AccommodationSelect>()({
     id: true,
@@ -103,6 +107,8 @@ export class AccommodationsService {
     user: User,
     payload: CreateAccommodationDto,
   ): Promise<CreateAccommodationResponseDto> {
+    await this.subscriptionGuard.assertActiveSubscription(user);
+
     const category = await this.prisma.accommodationCategory.findFirst({
       where: { id: payload.categoryId, isActive: true },
     });

@@ -32,7 +32,12 @@ export class CreateServiceDto {
   @IsEnum(ServiceTypeEnum, { message: 'O tipo de serviço informado é inválido.' })
   type: ServiceTypeEnum;
 
-  @ApiProperty({ description: 'Registro profissional.', required: false, nullable: true, example: 'CRO 12345' })
+  @ApiProperty({
+    description: 'Registro profissional.',
+    required: false,
+    nullable: true,
+    example: 'CRO 12345',
+  })
   @IsString({ message: 'O registro profissional deve ser um texto.' })
   @IsOptional()
   @MaxLength(80, { message: 'O registro profissional deve ter no máximo 80 caracteres.' })
@@ -49,13 +54,21 @@ export class CreateServiceDto {
   @IsOptional()
   description?: string;
 
-  @ApiProperty({ description: 'URL pública da imagem do serviço.', required: false, nullable: true })
+  @ApiProperty({
+    description: 'URL pública da imagem do serviço.',
+    required: false,
+    nullable: true,
+  })
   @IsUrl({}, { message: 'A URL da imagem do serviço é inválida.' })
   @IsOptional()
   @MaxLength(1500, { message: 'A URL da imagem deve ter no máximo 1500 caracteres.' })
   imageUrl?: string;
 
-  @ApiProperty({ description: 'Chave do arquivo da imagem no storage.', required: false, nullable: true })
+  @ApiProperty({
+    description: 'Chave do arquivo da imagem no storage.',
+    required: false,
+    nullable: true,
+  })
   @IsString({ message: 'A chave da imagem do serviço deve ser um texto.' })
   @IsOptional()
   @MaxLength(1500, { message: 'A chave da imagem deve ter no máximo 1500 caracteres.' })
@@ -67,7 +80,11 @@ export class CreateServiceDto {
   @Min(1)
   categoryId: number;
 
-  @ApiProperty({ description: 'Indica se o serviço já deve nascer ativo.', required: false, example: true })
+  @ApiProperty({
+    description: 'Indica se o serviço já deve nascer ativo.',
+    required: false,
+    example: true,
+  })
   @Transform(({ value }) => {
     if (value === 'true' || value === true) return true;
     if (value === 'false' || value === false) return false;

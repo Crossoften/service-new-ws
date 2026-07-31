@@ -23,6 +23,8 @@ import { User } from '@prisma/client';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { UserProfileType } from '@prisma/client';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { AccommodationsService } from './accommodations.service';
 import { CreateAccommodationReviewResponseDto } from './dto/create-accommodation-review-response.dto';
 import { CreateAccommodationReviewDto } from './dto/create-accommodation-review.dto';
@@ -40,6 +42,7 @@ export class AccommodationsController {
   constructor(private readonly accommodationsService: AccommodationsService) {}
 
   @Post()
+  @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Rota para cadastrar uma nova hospedagem.',
     security: [{ bearerAuth: [] }],
