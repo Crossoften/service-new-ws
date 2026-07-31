@@ -31,7 +31,7 @@ import { ResponseFindAllAdminInfluencerDto } from './dto/response-admin-influenc
 @ApiTags('Influencers - Portal Gerencial')
 @Controller('admin-influencers')
 export class AdminInfluencersController {
-  constructor(private readonly _adminInfluencersService: AdminInfluencersService) { }
+  constructor(private readonly _adminInfluencersService: AdminInfluencersService) {}
 
   @Get()
   @ApiOperation({
@@ -87,7 +87,7 @@ export class AdminInfluencersController {
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
     @Body() body: UpdateInfluencerCommissionDto,
-  ): Promise<{ message: string, id: number }> {
+  ): Promise<{ message: string; id: number }> {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
     return await this._adminInfluencersService.updateCommission(id, body.commissionRate ?? null);

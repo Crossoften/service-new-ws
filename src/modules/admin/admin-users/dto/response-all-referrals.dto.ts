@@ -63,7 +63,7 @@ export class ReferralListItemDto {
 
   @ApiPropertyOptional({
     description: 'Valor da comissão gerada em Reais (R$).',
-    example: 50.00,
+    example: 50.0,
     nullable: true,
   })
   commissionAmount?: number | null;

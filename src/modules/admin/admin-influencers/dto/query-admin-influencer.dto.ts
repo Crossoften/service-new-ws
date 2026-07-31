@@ -4,12 +4,21 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsIn, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class QueryAdminInfluencerDto {
-  @ApiProperty({ description: 'Busca por nome, email ou telefone.', required: false, example: 'João' })
+  @ApiProperty({
+    description: 'Busca por nome, email ou telefone.',
+    required: false,
+    example: 'João',
+  })
   @IsString()
   @IsOptional()
   search?: string;
 
-  @ApiProperty({ description: 'Filtro pelo status.', enum: Status, enumName: 'Status', required: false })
+  @ApiProperty({
+    description: 'Filtro pelo status.',
+    enum: Status,
+    enumName: 'Status',
+    required: false,
+  })
   @IsEnum(Status)
   @IsOptional()
   status?: Status;
