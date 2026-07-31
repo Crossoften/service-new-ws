@@ -4,6 +4,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { LoginModule } from './modules/login/login.module';
 import { APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
+import { ProfileTypesGuard } from './modules/auth/guards/profile-types.guard';
 import { UploadModule } from './modules/upload/upload.module';
 import { ConfigModule } from '@nestjs/config';
 import { MailModule } from './modules/mail/mail.module';
@@ -23,6 +24,14 @@ import { WebModule } from './modules/web/web.module';
 import { WorksModule } from './modules/works/works.module';
 import { ChatsModule } from './modules/chats/chats.module';
 import { CommercialTransactionsModule } from './modules/commercial-transactions/commercial-transactions.module';
+import { ReferralsModule } from './modules/referrals/referrals.module';
+import { RentalsModule } from './modules/rentals/rentals.module';
+import { TransportRequestsModule } from './modules/transport-requests/transport-requests.module';
+import { BookingsModule } from './modules/bookings/bookings.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { RestaurantsModule } from './modules/restaurants/restaurants.module';
+import { FoodOrdersModule } from './modules/food-orders/food-orders.module';
+import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 
 @Module({
   imports: [
@@ -58,6 +67,14 @@ import { CommercialTransactionsModule } from './modules/commercial-transactions/
     WorksModule,
     ChatsModule,
     CommercialTransactionsModule,
+    ReferralsModule,
+    RentalsModule,
+    TransportRequestsModule,
+    BookingsModule,
+    JobsModule,
+    RestaurantsModule,
+    FoodOrdersModule,
+    DeliveriesModule,
 
     //
     WebModule,
@@ -65,6 +82,7 @@ import { CommercialTransactionsModule } from './modules/commercial-transactions/
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: ProfileTypesGuard },
   ],
 })
 export class AppModule {}
