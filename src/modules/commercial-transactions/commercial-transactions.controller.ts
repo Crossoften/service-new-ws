@@ -6,6 +6,7 @@ import {
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -18,6 +19,7 @@ import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dt
 import { QueryCommercialTransactionDto } from './dto/query-commercial-transaction.dto';
 import {
   CreateCommercialTransactionResponseDto,
+  PayCommercialTransactionResponseDto,
   ResponseCommercialTransactionDto,
   ResponseFindAllCommercialTransactionDto,
 } from './dto/response-commercial-transaction.dto';
@@ -100,19 +102,23 @@ export class CommercialTransactionsController {
 
   @Post(':id/pay')
   @ApiOperation({
-    summary: 'Rota para registrar o pagamento de uma negociação aceita.',
+    summary:
+      'Rota para gerar o checkout de pagamento (Mercado Pago) de uma negociação aceita. A confirmação do pagamento ocorre de forma assíncrona via webhook.',
     security: [{ bearerAuth: [] }],
   })
-  @ApiCreatedResponse({ type: ResponseCommercialTransactionDto })
+  @ApiCreatedResponse({ type: PayCommercialTransactionResponseDto })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiServiceUnavailableResponse({
+    description: 'Integração com Mercado Pago não configurada no servidor.',
+  })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async pay(
     @CurrentUser() user: User,
     @Param('id', ParseIntPipe) id: number,
     @Body() payload: PayCommercialTransactionDto,
-  ): Promise<ResponseCommercialTransactionDto> {
+  ): Promise<PayCommercialTransactionResponseDto> {
     return this.commercialTransactionsService.pay(user, id, payload);
   }
 

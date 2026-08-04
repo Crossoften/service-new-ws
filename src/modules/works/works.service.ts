@@ -8,7 +8,9 @@ import {
   User,
   WarrantyRequestStatus,
 } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
+import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
@@ -27,8 +29,6 @@ import { UpdateWorkDto } from './dto/update-work.dto';
 import { PaymentMethodEnum } from './enums/payment-method.enum';
 import { PaymentReferenceTypeEnum } from './enums/payment-reference-type.enum';
 import { PaymentStatusEnum } from './enums/payment-status.enum';
-import { FinancialTransactionCategoryEnum } from './enums/financial-transaction-category.enum';
-import { FinancialTransactionTypeEnum } from './enums/financial-transaction-type.enum';
 import { WorkFileTypeEnum } from './enums/work-file-type.enum';
 import { WorkScopeEnum } from './enums/work-scope.enum';
 import { WorkStatusEnum } from './enums/work-status.enum';
@@ -45,7 +45,10 @@ import { WorkUpdateFailedException } from './exceptions/work-update-failed.excep
 
 @Injectable()
 export class WorksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mercadoPagoService: MercadoPagoService,
+  ) {}
 
   private readonly workSelect = Prisma.validator<Prisma.WorkSelect>()({
     id: true,
@@ -884,61 +887,31 @@ export class WorksService {
       throw new WorkPaymentOnlyAfterFinishException();
     }
 
-    const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
-    const cardLast4 =
-      trimmedCardNumber.length >= 4
-        ? trimmedCardNumber.slice(trimmedCardNumber.length - 4)
-        : undefined;
+    const externalReference = randomUUID();
 
-    await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          method: payload.method,
-          status: PaymentStatusEnum.Paid,
-          referenceType: PaymentReferenceTypeEnum.Work,
-          referenceId: work.id,
-          holderName: payload.holderName ? payload.holderName.trim() : null,
-          cardBrand: payload.cardBrand ? payload.cardBrand.trim() : null,
-          cardLast4: cardLast4 || null,
-          amount,
-          paidAt: new Date(),
-          payerId: work.requesterId,
-          receiverId: work.providerId,
-        },
-      });
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Trabalho #${work.id}`,
+      unitPrice: Number(amount),
+      externalReference,
+      payerEmail: payload.payerEmail,
+    });
 
-      await tx.financialTransaction.createMany({
-        data: [
-          {
-            type: FinancialTransactionTypeEnum.Debit,
-            category: FinancialTransactionCategoryEnum.WorkPayment,
-            status: PaymentStatusEnum.Paid,
-            amount,
-            description: `Pagamento do trabalho #${work.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.Work,
-            referenceId: work.id,
-            userId: work.requesterId,
-            paymentId: payment.id,
-          },
-          {
-            type: FinancialTransactionTypeEnum.Credit,
-            category: FinancialTransactionCategoryEnum.WorkPayment,
-            status: PaymentStatusEnum.Paid,
-            amount,
-            description: `Recebimento do trabalho #${work.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.Work,
-            referenceId: work.id,
-            userId: work.providerId,
-            paymentId: payment.id,
-          },
-        ],
-      });
+    await this.prisma.payment.create({
+      data: {
+        status: PaymentStatusEnum.Pending,
+        referenceType: PaymentReferenceTypeEnum.Work,
+        referenceId: work.id,
+        amount,
+        payerId: work.requesterId,
+        receiverId: work.providerId,
+        externalReference,
+        mpPreferenceId: preferenceId,
+      },
     });
 
     return {
-      message: 'Pagamento registrado com sucesso.',
+      message: 'Checkout de pagamento gerado com sucesso.',
+      checkoutUrl,
       work: await this.findById(user, id),
     };
   }

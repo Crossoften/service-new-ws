@@ -1,16 +1,17 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { ChatContextType, Prisma, Role, User } from '@prisma/client';
-import { FinancialTransactionCategoryEnum } from '../works/enums/financial-transaction-category.enum';
+import { randomUUID } from 'crypto';
 import { PaymentReferenceTypeEnum } from '../works/enums/payment-reference-type.enum';
 import { ProductNotFoundException } from '../products/exceptions/product-not-found.exception';
-import { FinancialTransactionTypeEnum } from '../works/enums/financial-transaction-type.enum';
 import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
+import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
 import {
   CreateCommercialTransactionResponseDto,
+  PayCommercialTransactionResponseDto,
   ResponseCommercialTransactionDto,
   ResponseFindAllCommercialTransactionDto,
 } from './dto/response-commercial-transaction.dto';
@@ -37,7 +38,10 @@ import { CommercialTransactionUnsupportedReferenceTypeException } from './except
 
 @Injectable()
 export class CommercialTransactionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mercadoPagoService: MercadoPagoService,
+  ) {}
 
   private readonly transactionSelect = Prisma.validator<Prisma.CommercialTransactionSelect>()({
     id: true,
@@ -529,7 +533,7 @@ export class CommercialTransactionsService {
     user: User,
     id: number,
     payload: PayCommercialTransactionDto,
-  ): Promise<ResponseCommercialTransactionDto> {
+  ): Promise<PayCommercialTransactionResponseDto> {
     const transaction = await this.prisma.commercialTransaction.findUnique({
       where: { id },
       select: {
@@ -567,68 +571,33 @@ export class CommercialTransactionsService {
     }
 
     const amount = transaction.agreedAmount || transaction.requestedAmount;
-    const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
-    const cardLast4 =
-      trimmedCardNumber.length >= 4
-        ? trimmedCardNumber.slice(trimmedCardNumber.length - 4)
-        : undefined;
+    const externalReference = randomUUID();
 
-    await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          method: payload.method as PaymentMethodEnum,
-          status: PaymentStatusEnum.Paid,
-          referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
-          referenceId: transaction.id,
-          holderName: payload.holderName?.trim() || null,
-          cardBrand: payload.cardBrand?.trim() || null,
-          cardLast4: cardLast4 || null,
-          amount,
-          paidAt: new Date(),
-          payerId: transaction.buyerId,
-          receiverId: transaction.sellerId,
-        },
-      });
-
-      await tx.financialTransaction.createMany({
-        data: [
-          {
-            type: FinancialTransactionTypeEnum.Debit,
-            category: FinancialTransactionCategoryEnum.CommercialTransaction,
-            status: PaymentStatusEnum.Paid,
-            amount,
-            description: `Pagamento da negociação #${transaction.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
-            referenceId: transaction.id,
-            userId: transaction.buyerId,
-            paymentId: payment.id,
-          },
-          {
-            type: FinancialTransactionTypeEnum.Credit,
-            category: FinancialTransactionCategoryEnum.CommercialTransaction,
-            status: PaymentStatusEnum.Paid,
-            amount,
-            description: `Recebimento da negociação #${transaction.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
-            referenceId: transaction.id,
-            userId: transaction.sellerId,
-            paymentId: payment.id,
-          },
-        ],
-      });
-
-      await tx.commercialTransaction.update({
-        where: { id: transaction.id },
-        data: {
-          status: CommercialTransactionStatusEnum.Paid,
-          paidAt: new Date(),
-        },
-      });
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Negociação #${transaction.id}`,
+      unitPrice: Number(amount),
+      externalReference,
+      payerEmail: payload.payerEmail,
     });
 
-    return this.findById(user, id);
+    await this.prisma.payment.create({
+      data: {
+        status: PaymentStatusEnum.Pending,
+        referenceType: PaymentReferenceTypeEnum.CommercialTransaction,
+        referenceId: transaction.id,
+        amount,
+        payerId: transaction.buyerId,
+        receiverId: transaction.sellerId,
+        externalReference,
+        mpPreferenceId: preferenceId,
+      },
+    });
+
+    return {
+      message: 'Checkout de pagamento gerado com sucesso.',
+      checkoutUrl,
+      transaction: await this.findById(user, id),
+    };
   }
 
   async complete(user: User, id: number): Promise<ResponseCommercialTransactionDto> {

@@ -1,7 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
-import { PaymentMethodEnum } from 'src/modules/works/enums/payment-method.enum';
+import { IsEmail, IsInt, IsOptional, IsString, Min } from 'class-validator';
 
 export class CreateSubscriptionDto {
   @ApiProperty({ description: 'Id do plano a ser assinado.', example: 1 })
@@ -10,37 +9,15 @@ export class CreateSubscriptionDto {
   @Min(1)
   planId: number;
 
-  @ApiProperty({
-    description: 'Método de pagamento utilizado na assinatura.',
-    enum: PaymentMethodEnum,
-    example: PaymentMethodEnum.CreditCard,
-  })
-  @IsEnum(PaymentMethodEnum, { message: 'O método de pagamento informado é inválido.' })
-  method: PaymentMethodEnum;
-
   @ApiPropertyOptional({
-    description: 'Nome do titular do cartão ou da conta pagadora.',
-    example: 'Paula Maria',
+    description:
+      'Email do pagador, usado para pré-preencher o checkout do Mercado Pago (opcional).',
+    example: 'assinante@example.com',
+    type: String,
   })
   @IsOptional()
-  @IsString({ message: 'O nome do titular deve ser um texto.' })
-  holderName?: string;
-
-  @ApiPropertyOptional({
-    description: 'Bandeira do cartão utilizado no pagamento.',
-    example: 'Visa',
-  })
-  @IsOptional()
-  @IsString({ message: 'A bandeira do cartão deve ser um texto.' })
-  cardBrand?: string;
-
-  @ApiPropertyOptional({
-    description: 'Número do cartão usado para extrair os últimos quatro dígitos.',
-    example: '4111 1111 1111 1111',
-  })
-  @IsOptional()
-  @IsString({ message: 'O número do cartão deve ser um texto.' })
-  cardNumber?: string;
+  @IsEmail({}, { message: 'O email do pagador é inválido.' })
+  payerEmail?: string;
 
   @ApiPropertyOptional({ description: 'Rua do endereço de cobrança.', example: 'Rua 123' })
   @IsOptional()

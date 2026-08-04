@@ -32,6 +32,7 @@ import { JobsModule } from './modules/jobs/jobs.module';
 import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { FoodOrdersModule } from './modules/food-orders/food-orders.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -75,6 +76,7 @@ import { DeliveriesModule } from './modules/deliveries/deliveries.module';
     RestaurantsModule,
     FoodOrdersModule,
     DeliveriesModule,
+    WebhooksModule,
 
     //
     WebModule,

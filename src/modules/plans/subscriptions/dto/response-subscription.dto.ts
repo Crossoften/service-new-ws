@@ -144,11 +144,21 @@ export class ResponseSubscriptionDto {
 export class CreateSubscriptionResponseDto {
   @ApiProperty({
     description: 'Mensagem de sucesso da operação.',
-    example: 'Assinatura criada com sucesso.',
+    example: 'Assinatura criada com sucesso. Finalize o pagamento para ativá-la.',
   })
   message: string;
 
-  @ApiProperty({ description: 'Assinatura criada.', type: ResponseSubscriptionDto })
+  @ApiProperty({
+    description: 'URL do checkout do Mercado Pago para o assinante concluir o pagamento.',
+    example: 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=123456789',
+    type: String,
+  })
+  checkoutUrl: string;
+
+  @ApiProperty({
+    description: 'Assinatura criada (status pendente até a confirmação do pagamento).',
+    type: ResponseSubscriptionDto,
+  })
   subscription: ResponseSubscriptionDto;
 }
 

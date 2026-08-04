@@ -16,6 +16,7 @@ import {
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -179,13 +180,17 @@ export class WorksController {
 
   @Post(':id/pay')
   @ApiOperation({
-    summary: 'Rota para registrar o pagamento de um trabalho concluído.',
+    summary:
+      'Rota para gerar o checkout de pagamento (Mercado Pago) de um trabalho concluído. A confirmação do pagamento ocorre de forma assíncrona via webhook.',
     security: [{ bearerAuth: [] }],
   })
   @ApiCreatedResponse({ type: PayWorkResponseDto })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiServiceUnavailableResponse({
+    description: 'Integração com Mercado Pago não configurada no servidor.',
+  })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async pay(
     @CurrentUser() user: User,

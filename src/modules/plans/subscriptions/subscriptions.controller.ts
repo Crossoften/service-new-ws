@@ -6,6 +6,7 @@ import {
   ApiInternalServerErrorResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiServiceUnavailableResponse,
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
@@ -26,13 +27,17 @@ export class SubscriptionsController {
 
   @Post()
   @ApiOperation({
-    summary: 'Rota para criar uma assinatura e registrar o pagamento inicial.',
+    summary:
+      'Rota para criar uma assinatura (pendente) e gerar o checkout de pagamento (Mercado Pago). A confirmação do pagamento ocorre de forma assíncrona via webhook.',
     security: [{ bearerAuth: [] }],
   })
   @ApiCreatedResponse({ type: CreateSubscriptionResponseDto })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiServiceUnavailableResponse({
+    description: 'Integração com Mercado Pago não configurada no servidor.',
+  })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async create(
     @CurrentUser() user: User,

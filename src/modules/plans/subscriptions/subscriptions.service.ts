@@ -1,9 +1,10 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 
-import { FinancialTransactionTypeEnum } from '../../works/enums/financial-transaction-type.enum';
 import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
+import { MercadoPagoService } from '../../mercado-pago/mercado-pago.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import {
   CreateSubscriptionResponseDto,
@@ -21,12 +22,14 @@ import { SubscriptionCancelOnlyActiveException } from './exceptions/subscription
 import { SubscriptionNotFoundException } from './exceptions/subscription-not-found.exception';
 import { SubscriptionReceiverNotFoundException } from './exceptions/subscription-receiver-not-found.exception';
 import { Prisma, User, Role } from '@prisma/client';
-import { FinancialTransactionCategoryEnum } from '../../works/enums/financial-transaction-category.enum';
 import { PaymentReferenceTypeEnum } from '../../works/enums/payment-reference-type.enum';
 
 @Injectable()
 export class SubscriptionsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly mercadoPagoService: MercadoPagoService,
+  ) {}
 
   private readonly subscriptionSelect = Prisma.validator<Prisma.SubscriptionSelect>()({
     id: true,
@@ -113,25 +116,16 @@ export class SubscriptionsService {
       throw new SubscriptionReceiverNotFoundException();
     }
 
-    const periodStart = new Date();
-    const interval = plan.interval as SubscriptionIntervalEnum;
-    const periodEnd = new Date(periodStart);
-    if (interval === SubscriptionIntervalEnum.Year) {
-      periodEnd.setFullYear(periodEnd.getFullYear() + plan.intervalCount);
-    } else {
-      periodEnd.setMonth(periodEnd.getMonth() + plan.intervalCount);
-    }
-    if (plan.bonusMonths > 0) {
-      periodEnd.setMonth(periodEnd.getMonth() + plan.bonusMonths);
-    }
+    const externalReference = randomUUID();
 
-    const trimmedCardNumber = payload.cardNumber ? payload.cardNumber.replace(/\s+/g, '') : '';
-    const cardLast4 =
-      trimmedCardNumber.length >= 4
-        ? trimmedCardNumber.slice(trimmedCardNumber.length - 4)
-        : undefined;
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Assinatura ${plan.name}`,
+      unitPrice: Number(plan.price),
+      externalReference,
+      payerEmail: payload.payerEmail,
+    });
 
-    const created = await this.prisma.$transaction(async (tx) => {
+    const subscription = await this.prisma.$transaction(async (tx) => {
       const address =
         payload.billingStreet?.trim() ||
         payload.billingNeighborhood?.trim() ||
@@ -150,122 +144,41 @@ export class SubscriptionsService {
             })
           : null;
 
-      const subscription = await tx.subscription.create({
+      const createdSubscription = await tx.subscription.create({
         data: {
           userId: user.id,
           planId: plan.id,
-          status: SubscriptionStatusEnum.Active,
+          status: SubscriptionStatusEnum.Pending,
           amount: plan.price,
           planName: plan.name,
           planInterval: plan.interval,
           intervalCount: plan.intervalCount,
           bonusMonths: plan.bonusMonths,
           addressId: address?.id || null,
-          startedAt: periodStart,
-          currentPeriodStart: periodStart,
-          currentPeriodEnd: periodEnd,
         },
         select: { id: true },
       });
 
-      const payment = await tx.payment.create({
+      await tx.payment.create({
         data: {
-          method: payload.method as PaymentMethodEnum,
-          status: PaymentStatusEnum.Paid,
+          status: PaymentStatusEnum.Pending,
           referenceType: PaymentReferenceTypeEnum.Subscription,
-          referenceId: subscription.id,
-          holderName: payload.holderName?.trim() || null,
-          cardBrand: payload.cardBrand?.trim() || null,
-          cardLast4: cardLast4 || null,
+          referenceId: createdSubscription.id,
           amount: plan.price,
-          paidAt: new Date(),
           payerId: user.id,
           receiverId: receiver.id,
+          externalReference,
+          mpPreferenceId: preferenceId,
         },
       });
 
-      await tx.financialTransaction.createMany({
-        data: [
-          {
-            type: FinancialTransactionTypeEnum.Debit,
-            category: FinancialTransactionCategoryEnum.Subscription,
-            status: PaymentStatusEnum.Paid,
-            amount: plan.price,
-            description: `Pagamento da assinatura #${subscription.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.Subscription,
-            referenceId: subscription.id,
-            userId: user.id,
-            paymentId: payment.id,
-          },
-          {
-            type: FinancialTransactionTypeEnum.Credit,
-            category: FinancialTransactionCategoryEnum.Subscription,
-            status: PaymentStatusEnum.Paid,
-            amount: plan.price,
-            description: `Recebimento da assinatura #${subscription.id}`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.Subscription,
-            referenceId: subscription.id,
-            userId: receiver.id,
-            paymentId: payment.id,
-          },
-        ],
-      });
-
-      const referral = await tx.referral.findUnique({
-        where: { referredUserId: user.id },
-        select: { id: true, influencerId: true, isPaying: true },
-      });
-
-      if (referral && !referral.isPaying) {
-        const [influencer, platformSettings] = await Promise.all([
-          tx.user.findUnique({
-            where: { id: referral.influencerId },
-            select: { commissionRate: true },
-          }),
-          tx.platformSettings.findUnique({
-            where: { id: 1 },
-            select: { influencerCommissionRate: true },
-          }),
-        ]);
-
-        const globalRate = platformSettings
-          ? Number(platformSettings.influencerCommissionRate)
-          : 10;
-        const rate =
-          influencer && influencer.commissionRate ? Number(influencer.commissionRate) : globalRate;
-        const commissionAmount = new Prisma.Decimal(
-          (plan.price.toNumber() * (rate / 100)).toFixed(2),
-        );
-
-        await tx.referral.update({
-          where: { id: referral.id },
-          data: { isPaying: true, commissionAmount, paidAt: new Date() },
-        });
-
-        await tx.financialTransaction.create({
-          data: {
-            type: FinancialTransactionTypeEnum.Credit,
-            category: FinancialTransactionCategoryEnum.ReferralCommission,
-            status: PaymentStatusEnum.Paid,
-            amount: commissionAmount,
-            description: `Comissão por indicação convertida (assinatura #${subscription.id})`,
-            availableAt: new Date(),
-            referenceType: PaymentReferenceTypeEnum.Referral,
-            referenceId: referral.id,
-            userId: referral.influencerId,
-            paymentId: payment.id,
-          },
-        });
-      }
-
-      return subscription.id;
+      return createdSubscription;
     });
 
     return {
-      message: 'Assinatura criada com sucesso.',
-      subscription: await this.findById(user, created),
+      message: 'Assinatura criada com sucesso. Finalize o pagamento para ativá-la.',
+      checkoutUrl,
+      subscription: await this.findById(user, subscription.id),
     };
   }
 

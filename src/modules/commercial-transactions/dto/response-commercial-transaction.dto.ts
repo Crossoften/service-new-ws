@@ -128,6 +128,26 @@ export class CreateCommercialTransactionResponseDto {
   transaction: ResponseCommercialTransactionDto;
 }
 
+export class PayCommercialTransactionResponseDto {
+  @ApiProperty({
+    description: 'Mensagem de confirmação da geração do checkout de pagamento.',
+    example: 'Checkout de pagamento gerado com sucesso.',
+  })
+  message: string;
+
+  @ApiProperty({
+    description: 'URL do checkout do Mercado Pago para o comprador concluir o pagamento.',
+    example: 'https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=123456789',
+  })
+  checkoutUrl: string;
+
+  @ApiProperty({
+    description: 'Negociação (status pendente até a confirmação do pagamento).',
+    type: ResponseCommercialTransactionDto,
+  })
+  transaction: ResponseCommercialTransactionDto;
+}
+
 export class ResponseFindAllCommercialTransactionDto {
   @ApiProperty({ type: [ResponseCommercialTransactionDto] })
   transactions: ResponseCommercialTransactionDto[];
