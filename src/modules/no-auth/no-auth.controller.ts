@@ -17,6 +17,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { ForgotDto } from './dto/forgot.dto';
+import { ForgotChannelEnum } from './enums/forgot-channel.enum';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { RegisterInfluencerDto } from './dto/register-influencer.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -85,14 +86,20 @@ export class NoAuthController {
   @IsPublic()
   @Post('no-auth/forgot')
   @ApiTags('Sem autenticação')
-  @ApiOperation({ summary: 'Rota para envio de código ao email.' })
+  @ApiOperation({ summary: 'Rota para envio de código de recuperação de senha por email ou sms.' })
   @ApiOkResponse({ type: ImessageEntity })
   @ApiBadRequestResponse({ description: 'Requisição inválida' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async forgot(@Body() body: ForgotDto): Promise<ImessageEntity> {
-    const { email } = body;
-    await this.noAuthService.forgot(email);
-    return { message: 'Email enviado com sucesso!' };
+    const { channel, identifier } = body;
+    await this.noAuthService.forgot(channel, identifier);
+
+    return {
+      message:
+        channel === ForgotChannelEnum.Email
+          ? 'Email enviado com sucesso!'
+          : 'SMS enviado com sucesso!',
+    };
   }
 
   @IsPublic()

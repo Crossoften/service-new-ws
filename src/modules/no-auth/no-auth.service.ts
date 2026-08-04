@@ -12,6 +12,8 @@ import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
+import { SmsService } from '../sms/sms.service';
+import { ForgotChannelEnum } from './enums/forgot-channel.enum';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
@@ -23,6 +25,7 @@ export class NoAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
+    private readonly smsService: SmsService,
   ) {}
 
   async register(
@@ -149,8 +152,15 @@ export class NoAuthService {
     };
   }
 
-  async forgot(email: string): Promise<void> {
-    const user: User | null = await this.prisma.user.findFirst({ where: { email } });
+  async forgot(channel: ForgotChannelEnum, identifier: string): Promise<void> {
+    const trimmedIdentifier = identifier.trim();
+
+    const user: User | null = await this.prisma.user.findFirst({
+      where:
+        channel === ForgotChannelEnum.Email
+          ? { email: trimmedIdentifier }
+          : { phone: trimmedIdentifier },
+    });
 
     if (!user) throw new NotFoundException();
 
@@ -162,7 +172,11 @@ export class NoAuthService {
       data: { code, codeExpiresIn: new Date(date.setHours(date.getHours() + 4)) },
     });
 
-    await this.mailService.forgotPassword(email, code);
+    if (channel === ForgotChannelEnum.Email) {
+      await this.mailService.forgotPassword(trimmedIdentifier, code);
+    } else {
+      await this.smsService.sendPasswordResetCode(trimmedIdentifier, code);
+    }
   }
 
   async verifyCode(code: string): Promise<void> {
