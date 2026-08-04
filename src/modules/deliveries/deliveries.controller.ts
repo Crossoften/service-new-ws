@@ -69,7 +69,10 @@ export class DeliveriesController {
 
   @Patch(':id/pickup')
   @ProfileTypes(UserProfileType.Delivery)
-  @ApiOperation({ summary: 'Entregador confirma a coleta do pedido no restaurante.' })
+  @ApiOperation({
+    summary: 'Entregador confirma a coleta do pedido no restaurante.',
+    description: 'Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.',
+  })
   @ApiOkResponse({ type: ResponseDeliveryDto })
   @ApiForbiddenResponse({ description: 'Apenas o entregador responsável pode coletar o pedido.' })
   pickup(@CurrentUser() user, @Param('id', ParseIntPipe) id: number) {
@@ -93,7 +96,10 @@ export class DeliveriesController {
 
   @Patch(':id/deliver')
   @ProfileTypes(UserProfileType.Delivery)
-  @ApiOperation({ summary: 'Entregador confirma a entrega do pedido ao cliente.' })
+  @ApiOperation({
+    summary: 'Entregador confirma a entrega do pedido ao cliente.',
+    description: 'Ao ser processada, notifica o cliente via WhatsApp que o pedido foi entregue.',
+  })
   @ApiOkResponse({ type: ResponseDeliveryDto })
   @ApiForbiddenResponse({
     description: 'Apenas o entregador responsável pode finalizar a entrega.',

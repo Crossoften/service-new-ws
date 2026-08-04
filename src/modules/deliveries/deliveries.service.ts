@@ -17,6 +17,7 @@ import { DeliveryNotFoundException } from './exceptions/delivery-not-found.excep
 import { DeliveryAccessDeniedException } from './exceptions/delivery-access-denied.exception';
 import { DeliveryInvalidStatusException } from './exceptions/delivery-invalid-status.exception';
 import { DeliveryAlreadyTakenException } from './exceptions/delivery-already-taken.exception';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class DeliveriesService {
@@ -24,6 +25,7 @@ export class DeliveriesService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => DeliveriesGateway))
     private readonly deliveriesGateway: DeliveriesGateway,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   private readonly deliverySelect = Prisma.validator<Prisma.DeliveryAssignmentSelect>()({
@@ -151,6 +153,11 @@ export class DeliveriesService {
       throw new DeliveryInvalidStatusException('Somente entregas aceitas podem ser coletadas.');
     }
 
+    const foodOrder = await this.prisma.foodOrder.findUnique({
+      where: { id: delivery.foodOrderId },
+      select: { id: true, customerId: true },
+    });
+
     await this.prisma.$transaction([
       this.prisma.deliveryAssignment.update({
         where: { id },
@@ -163,6 +170,11 @@ export class DeliveriesService {
     ]);
 
     this.deliveriesGateway.emitStatusChange(id, DeliveryAssignmentStatusEnum.PickedUp);
+
+    void this.whatsappService.notifyUser(
+      foodOrder.customerId,
+      `Olá! Seu pedido #${foodOrder.id} saiu para entrega.`,
+    );
 
     return this.findById(user, id);
   }
@@ -218,7 +230,7 @@ export class DeliveriesService {
 
     const foodOrder = await this.prisma.foodOrder.findUnique({
       where: { id: delivery.foodOrderId },
-      select: { id: true, deliveryFee: true },
+      select: { id: true, deliveryFee: true, customerId: true },
     });
 
     const now = new Date();
@@ -247,6 +259,11 @@ export class DeliveriesService {
     ]);
 
     this.deliveriesGateway.emitStatusChange(id, DeliveryAssignmentStatusEnum.Delivered);
+
+    void this.whatsappService.notifyUser(
+      foodOrder.customerId,
+      `Olá! Seu pedido #${foodOrder.id} foi entregue. Bom apetite!`,
+    );
 
     return this.findById(user, id);
   }

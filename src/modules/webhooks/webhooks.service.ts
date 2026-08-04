@@ -9,6 +9,7 @@ import { FinancialTransactionCategoryEnum } from '../works/enums/financial-trans
 import { CommercialTransactionStatusEnum } from '../commercial-transactions/enums/commercial-transaction-status.enum';
 import { SubscriptionStatusEnum } from '../plans/enums/subscription-status.enum';
 import { SubscriptionIntervalEnum } from '../plans/enums/subscription-interval.enum';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 @Injectable()
 export class WebhooksService {
@@ -17,6 +18,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   async handleMercadoPagoNotification(
@@ -122,6 +124,11 @@ export class WebhooksService {
         });
       }
     });
+
+    void this.whatsappService.notifyUser(
+      localPayment.payerId,
+      'Olá! Seu pagamento não foi aprovado ou foi cancelado. Você pode tentar novamente pelo app.',
+    );
   }
 
   private async confirmCommercialTransactionPayment(
@@ -171,6 +178,15 @@ export class WebhooksService {
         ],
       });
     });
+
+    void this.whatsappService.notifyUser(
+      localPayment.payerId,
+      'Olá! Seu pagamento foi confirmado com sucesso.',
+    );
+    void this.whatsappService.notifyUser(
+      localPayment.receiverId,
+      'Olá! Você recebeu um pagamento pela negociação.',
+    );
   }
 
   private async confirmWorkPayment(
@@ -215,6 +231,15 @@ export class WebhooksService {
         ],
       });
     });
+
+    void this.whatsappService.notifyUser(
+      localPayment.payerId,
+      'Olá! Seu pagamento foi confirmado com sucesso.',
+    );
+    void this.whatsappService.notifyUser(
+      localPayment.receiverId,
+      'Olá! Você recebeu um pagamento pelo trabalho.',
+    );
   }
 
   private async confirmSubscriptionPayment(
@@ -345,5 +370,14 @@ export class WebhooksService {
         });
       }
     });
+
+    void this.whatsappService.notifyUser(
+      localPayment.payerId,
+      'Olá! Seu pagamento foi confirmado com sucesso.',
+    );
+    void this.whatsappService.notifyUser(
+      localPayment.receiverId,
+      'Olá! Você recebeu um pagamento pela assinatura.',
+    );
   }
 }

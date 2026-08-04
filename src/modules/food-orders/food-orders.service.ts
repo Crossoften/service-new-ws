@@ -17,13 +17,17 @@ import { RestaurantClosedException } from './exceptions/restaurant-closed.except
 import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-restaurant-not-found.exception';
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 
 const DEFAULT_DELIVERY_FEE = 8;
 const DEFAULT_COMMISSION_RATE = 20;
 
 @Injectable()
 export class FoodOrdersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly whatsappService: WhatsappService,
+  ) {}
 
   private readonly foodOrderSelect = Prisma.validator<Prisma.FoodOrderSelect>()({
     id: true,
@@ -274,6 +278,13 @@ export class FoodOrdersService {
       });
     }
 
+    void this.whatsappService.notifyUser(
+      foodOrder.customerId,
+      payload.status === FoodOrderStatusEnum.Accepted
+        ? `Olá! Seu pedido #${foodOrder.id} foi aceito pelo restaurante e já está sendo preparado.`
+        : `Olá! Seu pedido #${foodOrder.id} foi recusado pelo restaurante.`,
+    );
+
     return this.findById(user, id);
   }
 
@@ -313,6 +324,11 @@ export class FoodOrdersService {
         cancelReason: payload.cancelReason?.trim() || null,
       },
     });
+
+    void this.whatsappService.notifyUser(
+      user.id === foodOrder.customerId ? foodOrder.restaurant.userId : foodOrder.customerId,
+      `Olá! O pedido #${foodOrder.id} foi cancelado.`,
+    );
 
     return this.findById(user, id);
   }

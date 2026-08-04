@@ -82,6 +82,7 @@ export class SubscriptionsController {
   @Patch(':id/cancel')
   @ApiOperation({
     summary: 'Rota para cancelar uma assinatura ativa.',
+    description: 'Ao ser processada, notifica o assinante via WhatsApp sobre o cancelamento.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseSubscriptionDto })

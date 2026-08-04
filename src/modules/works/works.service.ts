@@ -11,6 +11,7 @@ import {
 import { randomUUID } from 'crypto';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
@@ -48,6 +49,7 @@ export class WorksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   private readonly workSelect = Prisma.validator<Prisma.WorkSelect>()({
@@ -725,7 +727,7 @@ export class WorksService {
   async start(user: User, id: number): Promise<ResponseWorkDto> {
     const work = await this.prisma.work.findUnique({
       where: { id },
-      select: { id: true, providerId: true, status: true },
+      select: { id: true, providerId: true, requesterId: true, status: true },
     });
 
     if (!work) {
@@ -750,6 +752,11 @@ export class WorksService {
         cancelledAt: null,
       },
     });
+
+    void this.whatsappService.notifyUser(
+      work.requesterId,
+      `Olá! O prestador iniciou o atendimento do seu trabalho #${work.id}.`,
+    );
 
     return this.findById(user, id);
   }
@@ -793,7 +800,7 @@ export class WorksService {
   async finish(user: User, id: number, payload: FinishWorkDto): Promise<ResponseWorkDto> {
     const work = await this.prisma.work.findUnique({
       where: { id },
-      select: { id: true, providerId: true, status: true },
+      select: { id: true, providerId: true, requesterId: true, status: true },
     });
 
     if (!work) {
@@ -840,6 +847,11 @@ export class WorksService {
           : undefined,
       },
     });
+
+    void this.whatsappService.notifyUser(
+      work.requesterId,
+      `Olá! Seu trabalho #${work.id} foi concluído pelo prestador.`,
+    );
 
     return this.findById(user, id);
   }
@@ -1153,6 +1165,19 @@ export class WorksService {
         cancelledAt: new Date(),
       },
     });
+
+    const notifyIds =
+      user.id === work.requesterId
+        ? [work.providerId]
+        : user.id === work.providerId
+          ? [work.requesterId]
+          : [work.requesterId, work.providerId];
+    for (const notifyId of notifyIds) {
+      void this.whatsappService.notifyUser(
+        notifyId,
+        `Olá! O trabalho #${work.id} foi cancelado.`,
+      );
+    }
 
     return this.findById(user, id);
   }

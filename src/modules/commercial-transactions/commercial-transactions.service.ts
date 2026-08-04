@@ -7,6 +7,7 @@ import { ProductNotFoundException } from '../products/exceptions/product-not-fou
 import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
+import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
 import {
@@ -41,6 +42,7 @@ export class CommercialTransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   private readonly transactionSelect = Prisma.validator<Prisma.CommercialTransactionSelect>()({
@@ -525,6 +527,13 @@ export class CommercialTransactionsService {
         });
       }
     });
+
+    void this.whatsappService.notifyUser(
+      transaction.buyerId,
+      payload.status === CommercialTransactionStatusEnum.Accepted
+        ? `Olá! Sua negociação #${transaction.id} foi aceita pelo vendedor. Finalize o pagamento para prosseguir.`
+        : `Olá! Sua negociação #${transaction.id} foi recusada pelo vendedor.`,
+    );
 
     return this.findById(user, id);
   }

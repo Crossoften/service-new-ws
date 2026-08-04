@@ -5,6 +5,7 @@ import { randomUUID } from 'crypto';
 import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
 import { MercadoPagoService } from '../../mercado-pago/mercado-pago.service';
+import { WhatsappService } from '../../whatsapp/whatsapp.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
 import {
   CreateSubscriptionResponseDto,
@@ -29,6 +30,7 @@ export class SubscriptionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly whatsappService: WhatsappService,
   ) {}
 
   private readonly subscriptionSelect = Prisma.validator<Prisma.SubscriptionSelect>()({
@@ -486,6 +488,11 @@ export class SubscriptionsService {
         cancelledAt: new Date(),
       },
     });
+
+    void this.whatsappService.notifyUser(
+      subscription.userId,
+      `Olá! Sua assinatura #${subscription.id} foi cancelada.`,
+    );
 
     return this.findById(user, id);
   }

@@ -15,7 +15,7 @@ export class WebhooksController {
     summary:
       'Rota pública para receber notificações assíncronas de pagamento do Mercado Pago (Checkout Pro).',
     description:
-      'Recebe notificações do tipo "payment" enviadas pelo Mercado Pago (via body ou query string), busca o pagamento oficial na API do Mercado Pago e confirma/cancela o pagamento local correspondente. Sempre responde 200 para evitar reenvios em loop, mesmo em casos de referência desconhecida ou credenciais não configuradas.',
+      'Recebe notificações do tipo "payment" enviadas pelo Mercado Pago (via body ou query string), busca o pagamento oficial na API do Mercado Pago e confirma/cancela o pagamento local correspondente. Sempre responde 200 para evitar reenvios em loop, mesmo em casos de referência desconhecida ou credenciais não configuradas. Ao confirmar ou cancelar o pagamento, notifica as partes envolvidas via WhatsApp.',
   })
   @ApiBody({
     description: 'Formato padrão de notificação do Mercado Pago.',

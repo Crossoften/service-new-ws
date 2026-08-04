@@ -85,6 +85,8 @@ export class CommercialTransactionsController {
   @Patch(':id/respond')
   @ApiOperation({
     summary: 'Rota para o vendedor aceitar ou rejeitar uma negociação.',
+    description:
+      'Ao ser processada, notifica o comprador via WhatsApp sobre a decisão do vendedor.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseCommercialTransactionDto })

@@ -57,7 +57,10 @@ export class FoodOrdersController {
 
   @Patch(':id/respond')
   @ProfileTypes(UserProfileType.Supplier)
-  @ApiOperation({ summary: 'Restaurante aceita ou recusa um pedido recebido.' })
+  @ApiOperation({
+    summary: 'Restaurante aceita ou recusa um pedido recebido.',
+    description: 'Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.',
+  })
   @ApiOkResponse({ type: ResponseFoodOrderDto })
   @ApiForbiddenResponse({ description: 'Apenas o restaurante do pedido pode respondê-lo.' })
   respond(
@@ -78,7 +81,10 @@ export class FoodOrdersController {
   }
 
   @Patch(':id/cancel')
-  @ApiOperation({ summary: 'Cancela um pedido de delivery.' })
+  @ApiOperation({
+    summary: 'Cancela um pedido de delivery.',
+    description: 'Ao ser processada, notifica a contraparte via WhatsApp sobre o cancelamento.',
+  })
   @ApiOkResponse({ type: ResponseFoodOrderDto })
   @ApiForbiddenResponse({ description: 'Usuário não pode cancelar este pedido.' })
   cancel(

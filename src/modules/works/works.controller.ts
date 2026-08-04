@@ -131,6 +131,7 @@ export class WorksController {
   @Patch(':id/start')
   @ApiOperation({
     summary: 'Rota para iniciar um trabalho.',
+    description: 'Ao ser processada, notifica o cliente via WhatsApp que o atendimento começou.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseWorkDto })
@@ -163,6 +164,7 @@ export class WorksController {
   @Patch(':id/finish')
   @ApiOperation({
     summary: 'Rota para finalizar um trabalho.',
+    description: 'Ao ser processada, notifica o cliente via WhatsApp que o trabalho foi concluído.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseWorkDto })
@@ -275,6 +277,8 @@ export class WorksController {
   @Patch(':id/cancel')
   @ApiOperation({
     summary: 'Rota para cancelar um trabalho.',
+    description:
+      'Ao ser processada, notifica via WhatsApp a contraparte que não iniciou o cancelamento.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseWorkDto })
