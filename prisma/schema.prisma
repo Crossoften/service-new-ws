@@ -587,17 +587,20 @@ model CommercialTransaction {
 model Payment {
   id Int @id @default(autoincrement())
 
-  method        PaymentMethodEnum
-  status        PaymentStatusEnum        @default(Paid)
-  referenceType PaymentReferenceTypeEnum
-  referenceId   Int
-  holderName    String?                  @db.VarChar(160)
-  cardBrand     String?                  @db.VarChar(60)
-  cardLast4     String?                  @db.VarChar(4)
-  amount        Decimal                  @db.Decimal(10, 2)
-  paidAt        DateTime?
-  payerId       Int
-  receiverId    Int
+  method            PaymentMethodEnum?
+  status            PaymentStatusEnum        @default(Pending)
+  referenceType     PaymentReferenceTypeEnum
+  referenceId       Int
+  holderName        String?                  @db.VarChar(160)
+  cardBrand         String?                  @db.VarChar(60)
+  cardLast4         String?                  @db.VarChar(4)
+  amount            Decimal                  @db.Decimal(10, 2)
+  paidAt            DateTime?
+  payerId           Int
+  receiverId        Int
+  externalReference String?                  @unique @db.VarChar(64)
+  mpPreferenceId    String?                  @db.VarChar(120)
+  mpPaymentId       String?                  @unique @db.VarChar(120)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -640,7 +643,7 @@ model Plan {
 
 model Subscription {
   id                 Int                      @id @default(autoincrement())
-  status             SubscriptionStatusEnum   @default(Active)
+  status             SubscriptionStatusEnum   @default(Pending)
   amount             Decimal                  @db.Decimal(10, 2)
   planName           String                   @db.VarChar(120)
   planInterval       SubscriptionIntervalEnum
@@ -896,6 +899,7 @@ enum SubscriptionIntervalEnum {
 }
 
 enum SubscriptionStatusEnum {
+  Pending
   Active
   Cancelled
   Expired
