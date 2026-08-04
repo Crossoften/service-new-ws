@@ -31,8 +31,8 @@ export class AuthService {
     };
   }
 
-  async validateUser(email: string, password: string): Promise<User> {
-    const user = await this.loginService.findByEmail(email);
+  async validateUser(identifier: string, password: string): Promise<User> {
+    const user = await this.loginService.findByEmailOrPhone(identifier);
 
     if (user && user.status === Status.Active) {
       const isPasswordValid: boolean = compareSync(password, user.password);
