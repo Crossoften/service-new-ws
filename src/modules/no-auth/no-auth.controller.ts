@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
 
 import {
   ApiBadRequestResponse,
@@ -85,15 +85,36 @@ export class NoAuthController {
 
   @IsPublic()
   @Post('no-auth/forgot')
+  @HttpCode(200)
+  @ApiTags('Sem autenticação')
+  @ApiOperation({ summary: 'Rota para envio de código de recuperação de senha por email ou sms.' })
+  @ApiOkResponse({ type: ImessageEntity })
+  @ApiBadRequestResponse({ description: 'Requisição inválida' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async forgotNoAuth(@Body() body: ForgotDto): Promise<ImessageEntity> {
+    await this.handleForgot(body);
+    return this.getForgotSuccessMessage(body.channel);
+  }
+
+  @IsPublic()
+  @Post('forgot')
+  @HttpCode(200)
   @ApiTags('Sem autenticação')
   @ApiOperation({ summary: 'Rota para envio de código de recuperação de senha por email ou sms.' })
   @ApiOkResponse({ type: ImessageEntity })
   @ApiBadRequestResponse({ description: 'Requisição inválida' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async forgot(@Body() body: ForgotDto): Promise<ImessageEntity> {
+    await this.handleForgot(body);
+    return this.getForgotSuccessMessage(body.channel);
+  }
+
+  private async handleForgot(body: ForgotDto): Promise<void> {
     const { channel, identifier } = body;
     await this.noAuthService.forgot(channel, identifier);
+  }
 
+  private getForgotSuccessMessage(channel: ForgotChannelEnum): ImessageEntity {
     return {
       message:
         channel === ForgotChannelEnum.Email

@@ -155,6 +155,22 @@ export class NoAuthService {
   async forgot(channel: ForgotChannelEnum, identifier: string): Promise<void> {
     const trimmedIdentifier = identifier.trim();
 
+    if (channel === ForgotChannelEnum.Email && !this.isEmail(trimmedIdentifier)) {
+      throw new BadRequestException('O identificador deve ser um email válido.');
+    }
+
+    if (channel === ForgotChannelEnum.Sms && !this.isPhone(trimmedIdentifier)) {
+      throw new BadRequestException('O identificador deve ser um telefone válido.');
+    }
+
+    if (channel === ForgotChannelEnum.Email && !this.mailService.hasCredentials()) {
+      throw new BadRequestException('Credenciais de e-mail não configuradas.');
+    }
+
+    if (channel === ForgotChannelEnum.Sms && !this.smsService.hasCredentials()) {
+      throw new BadRequestException('Credenciais do Twilio não configuradas.');
+    }
+
     const user: User | null = await this.prisma.user.findFirst({
       where:
         channel === ForgotChannelEnum.Email
@@ -162,7 +178,7 @@ export class NoAuthService {
           : { phone: trimmedIdentifier },
     });
 
-    if (!user) throw new NotFoundException();
+    if (!user) return;
 
     const code: string = generateCode();
     const date: Date = new Date();
@@ -272,5 +288,13 @@ export class NoAuthService {
         updatedAt: true,
       },
     });
+  }
+
+  private isEmail(value: string): boolean {
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+  }
+
+  private isPhone(value: string): boolean {
+    return /^[+\d][\d\s().-]{7,}$/.test(value);
   }
 }

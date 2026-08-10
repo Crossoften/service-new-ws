@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, InternalServerErrorException } from '@nestjs/common';
 
 import { ConfigService } from '@nestjs/config';
 
@@ -13,7 +13,7 @@ export class MailService {
     this.transporter = nodemailer.createTransport({
       host: this.configService.get<string>('MAIL_HOST'),
       port: this.configService.get<number>('MAIL_PORT'),
-      secure: this.configService.get<string>('MAIL_SECURE').includes('true'),
+      secure: this.configService.get<string>('MAIL_SECURE')?.includes('true') ?? false,
       auth: {
         user: this.configService.get<string>('MAIL_USER'),
         pass: this.configService.get<string>('MAIL_PASSWORD'),
@@ -79,6 +79,10 @@ export class MailService {
   }
 
   async forgotPassword(email: string, code: string): Promise<void> {
+    if (!this.hasCredentials()) {
+      throw new InternalServerErrorException('Credenciais de e-mail não configuradas.');
+    }
+
     const HTML = `
 <!DOCTYPE html>
 <html>
@@ -103,5 +107,14 @@ export class MailService {
       subject: 'Recuperação de senha, Projeto X.',
       html: HTML,
     });
+  }
+
+  hasCredentials(): boolean {
+    return Boolean(
+      this.configService.get<string>('MAIL_HOST') &&
+        this.configService.get<number>('MAIL_PORT') &&
+        this.configService.get<string>('MAIL_USER') &&
+        this.configService.get<string>('MAIL_PASSWORD'),
+    );
   }
 }

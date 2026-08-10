@@ -11,12 +11,11 @@ export class SmsService {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
     this.fromNumber = this.configService.get<string>('TWILIO_PHONE_NUMBER');
-
     this.client = accountSid && authToken ? Twilio(accountSid, authToken) : null;
   }
 
   async sendPasswordResetCode(phone: string, code: string): Promise<void> {
-    if (!this.client) {
+    if (!this.hasCredentials()) {
       throw new InternalServerErrorException('Credenciais do Twilio não configuradas.');
     }
 
@@ -27,5 +26,9 @@ export class SmsService {
       from: this.fromNumber,
       to: phone,
     });
+  }
+
+  hasCredentials(): boolean {
+    return Boolean(this.client && this.fromNumber);
   }
 }
