@@ -552,6 +552,13 @@ export class CommercialTransactionsService {
         status: true,
         requestedAmount: true,
         agreedAmount: true,
+        seller: {
+          select: {
+            id: true,
+            mpUserId: true,
+            mpAccessToken: true,
+          },
+        },
       },
     });
 
@@ -562,6 +569,8 @@ export class CommercialTransactionsService {
     if (transaction.buyerId !== user.id) {
       throw new CommercialTransactionBuyerPaymentNotAllowedException();
     }
+
+    this.mercadoPagoService.verifySellerLinked(transaction.seller);
 
     if (transaction.status !== CommercialTransactionStatusEnum.Accepted) {
       throw new CommercialTransactionPaymentBeforeAcceptanceException();
@@ -587,6 +596,9 @@ export class CommercialTransactionsService {
       unitPrice: Number(amount),
       externalReference,
       payerEmail: payload.payerEmail,
+      sellerMpUserId: transaction.seller.mpUserId || undefined,
+      sellerAccessToken: transaction.seller.mpAccessToken || undefined,
+      applyMarketplaceSplit: true,
     });
 
     await this.prisma.payment.create({

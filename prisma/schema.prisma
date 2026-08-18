@@ -28,6 +28,11 @@ model User {
   commissionRate Decimal?         @db.Decimal(5, 2)
   billingType    BillingTypeEnum?
 
+  mpUserId       String?          @db.VarChar(120)
+  mpAccessToken  String?          @db.VarChar(500)
+  mpRefreshToken String?          @db.VarChar(500)
+  mpPublicKey    String?          @db.VarChar(255)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
