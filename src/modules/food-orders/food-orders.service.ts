@@ -18,6 +18,7 @@ import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-re
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 
 const DEFAULT_DELIVERY_FEE = 8;
 const DEFAULT_COMMISSION_RATE = 20;
@@ -27,6 +28,7 @@ export class FoodOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
+    private readonly mercadoPagoService: MercadoPagoService,
   ) {}
 
   private readonly foodOrderSelect = Prisma.validator<Prisma.FoodOrderSelect>()({
@@ -77,10 +79,19 @@ export class FoodOrdersService {
 
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: payload.restaurantId },
-      select: { id: true, isActive: true, isOpen: true, userId: true, name: true },
+      select: {
+        id: true,
+        isActive: true,
+        isOpen: true,
+        userId: true,
+        name: true,
+        user: { select: { mpUserId: true, mpAccessToken: true } },
+      },
     });
     if (!restaurant || !restaurant.isActive) throw new FoodOrderRestaurantNotFoundException();
     if (!restaurant.isOpen) throw new RestaurantClosedException();
+
+    this.mercadoPagoService.verifySellerLinked(restaurant.user);
 
     const menuItemIds = payload.items.map((item) => item.menuItemId);
     const menuItems = await this.prisma.menuItem.findMany({

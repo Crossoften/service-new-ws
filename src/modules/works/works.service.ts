@@ -866,6 +866,13 @@ export class WorksService {
         providerId: true,
         totalValue: true,
         serviceValue: true,
+        provider: {
+          select: {
+            id: true,
+            mpUserId: true,
+            mpAccessToken: true,
+          },
+        },
       },
     });
 
@@ -876,6 +883,8 @@ export class WorksService {
     if (work.requesterId !== user.id) {
       throw new WorkPaymentNotAllowedException();
     }
+
+    this.mercadoPagoService.verifySellerLinked(work.provider);
 
     if (work.status !== WorkStatusEnum.Finished) {
       throw new WorkPaymentOnlyAfterFinishException();
@@ -906,6 +915,9 @@ export class WorksService {
       unitPrice: Number(amount),
       externalReference,
       payerEmail: payload.payerEmail,
+      sellerMpUserId: work.provider.mpUserId || undefined,
+      sellerAccessToken: work.provider.mpAccessToken || undefined,
+      applyMarketplaceSplit: true,
     });
 
     await this.prisma.payment.create({
