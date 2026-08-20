@@ -1,6 +1,8 @@
 import { Body, Controller, Headers, HttpCode, Post, Query } from '@nestjs/common';
 import { ApiBody, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { MercadoPagoWebhookDto } from './dto/mercado-pago-webhook.dto';
+import { WebhookReceivedResponseDto } from './dto/webhook-received-response.dto';
 import { WebhooksService } from './webhooks.service';
 
 @ApiTags('Webhooks')
@@ -19,17 +21,18 @@ export class WebhooksController {
   })
   @ApiBody({
     description: 'Formato padrão de notificação do Mercado Pago.',
-    schema: {
-      example: { type: 'payment', data: { id: '123456789' } },
-    },
+    type: MercadoPagoWebhookDto,
   })
-  @ApiOkResponse({ description: 'Notificação recebida e processada (ou ignorada) com sucesso.' })
+  @ApiOkResponse({
+    description: 'Notificação recebida e processada (ou ignorada) com sucesso.',
+    type: WebhookReceivedResponseDto,
+  })
   async mercadoPago(
-    @Body() body: Record<string, any>,
+    @Body() body: MercadoPagoWebhookDto,
     @Query() query: Record<string, any>,
     @Headers('x-signature') xSignature?: string,
     @Headers('x-request-id') xRequestId?: string,
-  ): Promise<{ received: boolean }> {
+  ): Promise<WebhookReceivedResponseDto> {
     await this.webhooksService.handleMercadoPagoNotification(body, query, xSignature, xRequestId);
     return { received: true };
   }
