@@ -71,7 +71,8 @@ export class DeliveriesController {
   @ProfileTypes(UserProfileType.Delivery)
   @ApiOperation({
     summary: 'Entregador confirma a coleta do pedido no restaurante.',
-    description: 'Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.',
+    description:
+      'Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.',
   })
   @ApiOkResponse({ type: ResponseDeliveryDto })
   @ApiForbiddenResponse({ description: 'Apenas o entregador responsável pode coletar o pedido.' })

@@ -1185,10 +1185,7 @@ export class WorksService {
           ? [work.requesterId]
           : [work.requesterId, work.providerId];
     for (const notifyId of notifyIds) {
-      void this.whatsappService.notifyUser(
-        notifyId,
-        `Olá! O trabalho #${work.id} foi cancelado.`,
-      );
+      void this.whatsappService.notifyUser(notifyId, `Olá! O trabalho #${work.id} foi cancelado.`);
     }
 
     return this.findById(user, id);

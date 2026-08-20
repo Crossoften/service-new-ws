@@ -59,7 +59,8 @@ export class FoodOrdersController {
   @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Restaurante aceita ou recusa um pedido recebido.',
-    description: 'Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.',
+    description:
+      'Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.',
   })
   @ApiOkResponse({ type: ResponseFoodOrderDto })
   @ApiForbiddenResponse({ description: 'Apenas o restaurante do pedido pode respondê-lo.' })

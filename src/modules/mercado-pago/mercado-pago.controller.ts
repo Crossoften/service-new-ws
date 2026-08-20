@@ -38,7 +38,8 @@ export class MercadoPagoController {
   @Post('oauth/callback')
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Processa o código de autorização OAuth e vincula a conta do Mercado Pago ao usuário logado.',
+    summary:
+      'Processa o código de autorização OAuth e vincula a conta do Mercado Pago ao usuário logado.',
   })
   @ApiOkResponse({ type: OAuthCallbackResponseDto })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })

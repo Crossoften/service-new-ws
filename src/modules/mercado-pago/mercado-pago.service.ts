@@ -89,7 +89,10 @@ export class MercadoPagoService {
     return `https://auth.mercadopago.com.br/authorization?client_id=${appId}&response_type=code&platform_id=mp&redirect_uri=${encodedRedirect}`;
   }
 
-  async exchangeCodeForToken(code: string, customRedirectUri?: string): Promise<OAuthTokenResponse> {
+  async exchangeCodeForToken(
+    code: string,
+    customRedirectUri?: string,
+  ): Promise<OAuthTokenResponse> {
     if (!this.clientId || !this.clientSecret) {
       throw new ServiceUnavailableException(
         'Credenciais OAuth do Mercado Pago (CLIENT_ID / CLIENT_SECRET) não configuradas.',
@@ -147,8 +150,9 @@ export class MercadoPagoService {
 
     // Hardcoded 10% marketplace fee for automatic split
     const isSplit =
-      params.applyMarketplaceSplit !== false && (!!params.sellerMpUserId || !!params.sellerAccessToken);
-    const marketplaceFee = isSplit ? Number((params.unitPrice * 0.10).toFixed(2)) : undefined;
+      params.applyMarketplaceSplit !== false &&
+      (!!params.sellerMpUserId || !!params.sellerAccessToken);
+    const marketplaceFee = isSplit ? Number((params.unitPrice * 0.1).toFixed(2)) : undefined;
 
     const body: Record<string, any> = {
       items: [

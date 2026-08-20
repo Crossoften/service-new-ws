@@ -51,10 +51,8 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     UploadModule,
     MailModule,
 
-    //
     AdminModule,
 
-    //
     AccommodationsModule,
     BalancesModule,
     BankAccountsModule,
@@ -78,7 +76,6 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     DeliveriesModule,
     WebhooksModule,
 
-    //
     WebModule,
   ],
   providers: [
