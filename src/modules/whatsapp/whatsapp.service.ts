@@ -2,31 +2,32 @@ import { PrismaService } from '@database/PrismaService';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Status } from '@prisma/client';
+import Twilio = require('twilio');
 
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
 
-  private readonly accessToken: string | undefined;
-  private readonly phoneNumberId: string | undefined;
-  private readonly apiVersion: string;
-  private readonly templateName: string;
-  private readonly templateLanguageCode: string;
+  private readonly client: Twilio.Twilio | null;
+  private readonly fromNumber: string | undefined;
+  private readonly contentSid: string | undefined;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    this.accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-    this.phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-    this.apiVersion = this.configService.get<string>('WHATSAPP_API_VERSION') || 'v20.0';
-    this.templateName =
-      this.configService.get<string>('WHATSAPP_TEMPLATE_NAME') || 'notificacao_service_app';
-    this.templateLanguageCode =
-      this.configService.get<string>('WHATSAPP_TEMPLATE_LANGUAGE_CODE') || 'pt_BR';
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    this.fromNumber = this.configService.get<string>('TWILIO_WHATSAPP_FROM');
+    this.contentSid = this.configService.get<string>('TWILIO_WHATSAPP_CONTENT_SID');
+    this.client = accountSid && authToken ? Twilio(accountSid, authToken) : null;
   }
 
   private normalizePhoneNumber(phone: string): string | null {
+    if (typeof phone !== 'string') {
+      return null;
+    }
+
     const digits = phone.replace(/\D/g, '');
 
     if (!digits) {
@@ -35,16 +36,16 @@ export class WhatsappService {
 
     const withCountryCode = digits.length <= 11 ? `55${digits}` : digits;
 
-    if (withCountryCode.length < 10 || withCountryCode.length > 13) {
+    if (withCountryCode.length < 12 || withCountryCode.length > 13) {
       return null;
     }
 
-    return withCountryCode;
+    return `whatsapp:+${withCountryCode}`;
   }
 
   async sendMessage(phone: string, message: string): Promise<void> {
-    if (!this.accessToken || !this.phoneNumberId) {
-      this.logger.warn('WhatsApp não configurado; notificação não enviada.');
+    if (!this.client || !this.fromNumber || !this.contentSid) {
+      this.logger.warn('WhatsApp via Twilio não configurado; notificação não enviada.');
       return;
     }
 
@@ -55,36 +56,23 @@ export class WhatsappService {
       return;
     }
 
-    try {
-      const response = await fetch(
-        `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            to,
-            type: 'template',
-            template: {
-              name: this.templateName,
-              language: { code: this.templateLanguageCode },
-              components: [{ type: 'body', parameters: [{ type: 'text', text: message }] }],
-            },
-          }),
-        },
-      );
+    const content = typeof message === 'string' ? message.replace(/\r?\n/g, ' ').trim() : '';
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        this.logger.error(
-          `Falha ao enviar notificação via WhatsApp (status ${response.status}): ${errorBody}`,
-        );
-      }
+    if (!content) {
+      this.logger.warn('Mensagem vazia para notificação via WhatsApp; envio ignorado.');
+      return;
+    }
+
+    try {
+      await this.client.messages.create({
+        from: this.fromNumber,
+        to,
+        contentSid: this.contentSid,
+        contentVariables: JSON.stringify({ 1: content }),
+      });
     } catch (error) {
-      this.logger.error(`Erro inesperado ao enviar notificação via WhatsApp: ${error.message}`);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Falha ao enviar notificação via WhatsApp pelo Twilio: ${errorMessage}`);
     }
   }
 
