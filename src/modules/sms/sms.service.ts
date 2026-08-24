@@ -11,7 +11,13 @@ export class SmsService {
     const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
     const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
     this.fromNumber = this.configService.get<string>('TWILIO_PHONE_NUMBER');
-    this.client = accountSid && authToken ? Twilio(accountSid, authToken) : null;
+
+    // O SDK do Twilio valida o formato do SID no construtor e lança erro se ele
+    // não começar com "AC". Checar apenas se a variável tem valor deixa passar o
+    // placeholder do .env.example e derruba o bootstrap da aplicação inteira.
+    // Validando o formato, o serviço apenas fica desabilitado (client = null) e
+    // quem chamar recebe o erro tratado por hasCredentials().
+    this.client = accountSid?.startsWith('AC') && authToken ? Twilio(accountSid, authToken) : null;
   }
 
   async sendPasswordResetCode(phone: string, code: string): Promise<void> {

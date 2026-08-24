@@ -134,8 +134,7 @@ export class NoAuthController {
   @ApiBadRequestResponse({ description: 'Requisição inválida' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
   async verifyCode(@Body() body: VerifyCodeDto): Promise<ImessageEntity> {
-    const { code } = body;
-    await this.noAuthService.verifyCode(code);
+    await this.noAuthService.verifyCode(body);
     return { message: 'Código verificado com sucesso!' };
   }
 
@@ -179,8 +178,10 @@ export class NoAuthController {
   @ApiTags('Sem autenticação')
   @ApiOperation({ summary: 'Rota para verificar status do servidor.' })
   @ApiOkResponse({ description: 'Servidor UP' })
-  healthCheck() {
-    return { message: 'Servidor UP' };
+  async healthCheck() {
+    // Antes respondia "UP" mesmo com o banco fora do ar — um health-check que
+    // não verifica dependência não serve para orquestrador nem para alerta.
+    return this.noAuthService.healthCheck();
   }
 
   @Get('my-self')

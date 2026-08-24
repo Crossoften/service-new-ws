@@ -27,9 +27,10 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { User } from '@prisma/client';
 import { Response } from 'express';
 import { Readable } from 'stream';
-import { IsPublic } from '../auth/decorators/is-public.decorator';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { DeleteOneFileDto } from './dto/delete-one-file.dto';
 import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
@@ -44,7 +45,6 @@ export class UploadController {
     private readonly _configService: ConfigService,
   ) {}
 
-  @IsPublic()
   @Post('upload/one-file')
   @UseInterceptors(FileInterceptor('file'))
   @ApiConsumes('multipart/form-data')
@@ -66,12 +66,12 @@ export class UploadController {
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     file: Express.Multer.File,
+    @CurrentUser() user: User,
   ) {
-    const response = await this._uploadService.uploadOneFile(file);
+    const response = await this._uploadService.uploadOneFile(file, user);
     return { ...response };
   }
 
-  @IsPublic()
   @Post('upload/many-files')
   @UseInterceptors(FilesInterceptor('files', 5))
   @ApiConsumes('multipart/form-data')
@@ -96,12 +96,12 @@ export class UploadController {
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     files: Express.Multer.File[],
+    @CurrentUser() user: User,
   ) {
-    const response = await this._uploadService.uploadManyFiles(files);
+    const response = await this._uploadService.uploadManyFiles(files, user);
     return response;
   }
 
-  @IsPublic()
   @Get('one-file/:id')
   @ApiOperation({ summary: 'Rota para recuperar informações de um arquivo pelo id.' })
   @ApiResponse({ status: 200, type: IfileEntity })
@@ -109,7 +109,6 @@ export class UploadController {
     return this._uploadService.getFileById(id);
   }
 
-  @IsPublic()
   @Get('one-file/download/:id')
   @ApiOperation({ summary: 'Rota para download de arquivos.' })
   @ApiProduces('application/octet-stream')
@@ -145,7 +144,6 @@ export class UploadController {
     return stream.pipe(res);
   }
 
-  @IsPublic()
   @Delete('profile-photo')
   @ApiOperation({ summary: 'Rota para deletar foto de perfil dos usuários.' })
   @ApiResponse({ status: 200, type: ResponseDeleteOneFileDto })
@@ -154,16 +152,15 @@ export class UploadController {
     required: true,
     description: 'A chave do arquivo no S3 a ser excluído',
   })
-  async deleteProfilePhoto(@Query() query: DeleteOneFileDto) {
+  async deleteProfilePhoto(@CurrentUser() user: User, @Query() query: DeleteOneFileDto) {
     const { fileKey } = query;
-    return this._uploadService.deleteProfilePhoto(fileKey);
+    return this._uploadService.deleteProfilePhoto(fileKey, user);
   }
 
-  @IsPublic()
   @Delete('one-file/:id')
   @ApiOperation({ summary: 'Rota para deletar um arquivo pelo seu id.' })
   @ApiResponse({ status: 200, type: ImessageEntity })
-  async deleteFileById(@Param('id', ParseIntPipe) id: number) {
-    return this._uploadService.deleteFileById(id);
+  async deleteFileById(@CurrentUser() user: User, @Param('id', ParseIntPipe) id: number) {
+    return this._uploadService.deleteFileById(id, user);
   }
 }

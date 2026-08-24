@@ -4,18 +4,20 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { Role, Status, User, UserProfileType } from '@prisma/client';
 import generateCode from '@utils/generateCode';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
-import { hashSync } from 'bcrypt';
+import { compareSync, hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
 import { SmsService } from '../sms/sms.service';
 import { ForgotChannelEnum } from './enums/forgot-channel.enum';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyCodeDto } from './dto/verify-code.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 import { randomBytes } from 'crypto';
@@ -183,9 +185,14 @@ export class NoAuthService {
     const code: string = generateCode();
     const date: Date = new Date();
 
+    // O banco guarda apenas o hash: vazamento da tabela nao entrega os codigos
+    // de recuperacao em transito.
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { code, codeExpiresIn: new Date(date.setHours(date.getHours() + 4)) },
+      data: {
+        code: hashSync(code, 10),
+        codeExpiresIn: new Date(date.setHours(date.getHours() + 4)),
+      },
     });
 
     if (channel === ForgotChannelEnum.Email) {
@@ -195,28 +202,50 @@ export class NoAuthService {
     }
   }
 
-  async verifyCode(code: string): Promise<void> {
-    const user: User | null = await this.prisma.user.findFirst({ where: { code } });
+  /**
+   * Localiza o usuário pelo identificador (e-mail ou telefone) e valida o código
+   * de recuperação contra o hash armazenado.
+   *
+   * A busca precisa partir do identificador, e não do código: procurar apenas
+   * pelo código permitia adivinhá-lo por força bruta contra a base inteira e,
+   * em caso de colisão, redefinir a senha da conta errada.
+   */
+  private async findUserByResetCode(identifier: string, code: string): Promise<User> {
+    const trimmedIdentifier = identifier.trim();
 
-    if (!user) throw new NotFoundException('Usuário ou código inválido.');
+    const user: User | null = await this.prisma.user.findFirst({
+      where: { OR: [{ email: trimmedIdentifier }, { phone: trimmedIdentifier }] },
+    });
 
-    const date: Date = new Date();
+    // Mensagem única para usuário inexistente e código incorreto: distinguir os
+    // dois casos revelaria quais identificadores existem na base.
+    const invalid = new NotFoundException('Usuário ou código inválido.');
 
-    if (date >= user.codeExpiresIn) {
+    if (!user || !user.code || !user.codeExpiresIn) throw invalid;
+
+    if (!compareSync(code, user.code)) throw invalid;
+
+    if (new Date() >= user.codeExpiresIn) {
       throw new UnprocessableEntityException('Código expirou!');
     }
+
+    return user;
+  }
+
+  async verifyCode(payload: VerifyCodeDto): Promise<void> {
+    const { identifier, code } = payload;
+
+    await this.findUserByResetCode(identifier, code);
   }
 
   async reset(payload: ResetPasswordDto): Promise<void> {
-    const { code, password, confirmPassword } = payload;
-
-    const user: User | null = await this.prisma.user.findFirst({ where: { code } });
-
-    if (!user) throw new NotFoundException('Usuário ou código inválido.');
+    const { identifier, code, password, confirmPassword } = payload;
 
     if (password !== confirmPassword) {
       throw new BadRequestException('Senhas devem ser iguais.');
     }
+
+    const user: User = await this.findUserByResetCode(identifier, code);
 
     await this.prisma.user.update({
       where: { id: user.id },
@@ -249,6 +278,26 @@ export class NoAuthService {
 
     const randomHash = randomBytes(8).toString('hex');
     return `${firstName}-${randomHash}`;
+  }
+
+  /**
+   * Verifica o servidor E a conexão com o banco.
+   *
+   * Mantém `{ message: 'Servidor UP' }` no caminho feliz para não quebrar quem
+   * já consome a rota; quando o banco não responde, devolve 503 — que é o que
+   * um orquestrador precisa ver para tirar a instância do balanceador.
+   */
+  async healthCheck(): Promise<{ message: string; database: string }> {
+    try {
+      await this.prisma.$queryRaw`SELECT 1`;
+    } catch {
+      throw new ServiceUnavailableException({
+        message: 'Servidor indisponível',
+        database: 'down',
+      });
+    }
+
+    return { message: 'Servidor UP', database: 'up' };
   }
 
   users() {

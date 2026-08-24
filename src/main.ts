@@ -6,23 +6,46 @@ import { readFileSync } from 'fs';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 
+/**
+ * Origens autorizadas a consumir a API.
+ *
+ * Aceita uma lista separada por vírgula em CORS_ORIGINS; na ausência dela, usa
+ * FRONTEND_URL. Sem nenhuma das duas configuradas, libera qualquer origem — o
+ * comportamento antigo, mantido apenas para não quebrar ambiente local.
+ */
+function resolveCorsOrigin(): string[] | boolean {
+  const configured = process.env.CORS_ORIGINS || process.env.FRONTEND_URL || '';
+
+  const origins = configured
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+  return origins.length > 0 ? origins : true;
+}
+
 async function bootstrap() {
   let app: INestApplication;
 
+  const cors = { origin: resolveCorsOrigin(), credentials: true };
+
   if (process.env.ACTIVATE_SSL_CERTIFICATE === 'YES') {
     app = await NestFactory.create(AppModule, {
-      cors: { origin: '*' },
+      cors,
       httpsOptions: {
         key: readFileSync(process.env.SSL_KEY, 'utf8'),
         cert: readFileSync(process.env.SSL_CERT, 'utf8'),
         ca: readFileSync(process.env.SSL_CA, 'utf8'),
       },
     });
-    app.use(helmet());
-    app.use(compression());
   } else {
-    app = await NestFactory.create(AppModule, { cors: { origin: '*' } });
+    app = await NestFactory.create(AppModule, { cors });
   }
+
+  // Fora do if: com TLS terminado no proxy (o arranjo do deploy atual), estes
+  // dois ficavam de fora e a API respondia sem headers de segurança.
+  app.use(helmet());
+  app.use(compression());
 
   app.setGlobalPrefix('/v1');
 
@@ -46,7 +69,11 @@ async function bootstrap() {
     SwaggerModule.setup('docs', app, document);
   }
 
-  app.useGlobalPipes(new ValidationPipe({ transform: true }));
+  // whitelist remove propriedades não declaradas nos DTOs, fechando a porta de
+  // mass assignment nas 63 rotas PATCH. forbidNonWhitelisted fica DESLIGADO de
+  // propósito: ele rejeitaria a requisição inteira com 400, quebrando clientes
+  // que hoje mandam campos a mais. Remover em silêncio já elimina o risco.
+  app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 
   await app.listen(process.env.PORT, () => console.log(`Server UP on PORT ${process.env.PORT}`));
 }

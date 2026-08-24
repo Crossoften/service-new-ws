@@ -1,19 +1,23 @@
-function getRandom(min = 0, max = 9): number {
-  min = Math.ceil(min);
-  max = Math.floor(max);
+import { randomInt } from 'crypto';
 
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+const CODE_LENGTH = 6;
 
+/**
+ * Gera o código numérico de verificação enviado ao usuário por e-mail ou SMS.
+ *
+ * Usa `crypto.randomInt` (CSPRNG) em vez de `Math.random`, e permite dígitos
+ * repetidos: a versão anterior gerava 4 dígitos distintos entre si, o que
+ * reduzia o espaço de busca a 5.040 combinações — exaurível por força bruta.
+ * Com 6 dígitos e repetição permitida são 1.000.000 de combinações.
+ */
 export default function generateCode(): string {
-  const list: number[] = [];
+  let code = '';
 
-  while (list.length < 4) {
-    const n: number = getRandom();
-    if (!list.includes(n)) list.push(n);
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    code += randomInt(0, 10).toString();
   }
 
-  const generatedCode: string = `${list[0]}${list[1]}${list[2]}${list[3]}`;
-
-  return generatedCode;
+  return code;
 }
+
+export { CODE_LENGTH };

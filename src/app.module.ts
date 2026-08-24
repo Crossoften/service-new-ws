@@ -1,8 +1,8 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { AuthModule } from './modules/auth/auth.module';
 import { LoginModule } from './modules/login/login.module';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { ProfileTypesGuard } from './modules/auth/guards/profile-types.guard';
 import { UploadModule } from './modules/upload/upload.module';
@@ -33,6 +33,8 @@ import { RestaurantsModule } from './modules/restaurants/restaurants.module';
 import { FoodOrdersModule } from './modules/food-orders/food-orders.module';
 import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
+import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
+import { RequestContextMiddleware } from './middlewares/request-context.middleware';
 
 @Module({
   imports: [
@@ -82,9 +84,14 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
     WebModule,
   ],
   providers: [
+    { provide: APP_FILTER, useClass: PrismaExceptionFilter },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: ProfileTypesGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestContextMiddleware).forRoutes('*');
+  }
+}

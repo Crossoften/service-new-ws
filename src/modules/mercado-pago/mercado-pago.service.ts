@@ -1,6 +1,6 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { createHmac } from 'crypto';
+import { createHmac, timingSafeEqual } from 'crypto';
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 
@@ -94,8 +94,15 @@ export class MercadoPagoService {
     xRequestId: string | undefined,
     dataId: string,
   ): boolean {
-    if (!this.webhookSecret || !xSignature) {
+    // Sem segredo configurado (ambiente local), a verificação fica desligada.
+    if (!this.webhookSecret) {
       return true;
+    }
+
+    // Com segredo configurado, falhamos FECHADO: antes, omitir o header
+    // x-signature contornava a verificação por completo.
+    if (!xSignature) {
+      return false;
     }
 
     const parts = xSignature.split(',').reduce<Record<string, string>>((acc, part) => {
@@ -114,7 +121,16 @@ export class MercadoPagoService {
     const manifest = `id:${dataId};request-id:${xRequestId ?? ''};ts:${ts};`;
     const expectedHash = createHmac('sha256', this.webhookSecret).update(manifest).digest('hex');
 
-    return expectedHash === receivedHash;
+    const expected = Buffer.from(expectedHash, 'utf8');
+    const received = Buffer.from(receivedHash, 'utf8');
+
+    // Comparação em tempo constante: `===` vaza, pelo tempo de resposta, quantos
+    // caracteres do hash foram acertados.
+    if (expected.length !== received.length) {
+      return false;
+    }
+
+    return timingSafeEqual(expected, received);
   }
 
   mapPaymentMethod(paymentTypeId?: string, paymentMethodId?: string): PaymentMethodEnum | null {

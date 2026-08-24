@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { UserPayload } from '../models/UserPayload';
 import { PrismaService } from '@database/PrismaService';
+import { Status } from '@prisma/client';
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private prisma: PrismaService) {
@@ -14,19 +15,20 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: UserPayload): Promise<any> {
-    if (payload.role === 'Admin' || payload.role === 'Master') {
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.id },
-        include: { adminPermissions: true },
-      });
+    const isAdmin = payload.role === 'Admin' || payload.role === 'Master';
 
-      return user;
-    } else {
-      const user = await this.prisma.user.findUnique({
-        where: { id: payload.id },
-      });
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.id },
+      include: isAdmin ? { adminPermissions: true } : undefined,
+    });
 
-      return user;
+    // O token vale 360 dias. Sem revalidar o status a cada requisição, uma conta
+    // bloqueada ou inativada continuaria operando com o token já emitido até ele
+    // expirar — retornar null faz o Passport responder 401.
+    if (!user || user.status !== Status.Active) {
+      return null;
     }
+
+    return user;
   }
 }

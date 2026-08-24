@@ -16,7 +16,7 @@ model User {
   biography      String?          @db.LongText()
   phone          String?          @unique
   password       String
-  code           String?          @db.VarChar(4)
+  code           String?          @db.VarChar(72)
   codeExpiresIn  DateTime?
   role           Role             @default(User)
   profileType    UserProfileType  @default(Client)
