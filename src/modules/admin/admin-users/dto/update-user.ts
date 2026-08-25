@@ -49,7 +49,7 @@ export class UpdateUserDto {
   })
   @IsOptional()
   @IsDateString()
-  birthDate?: string | Date;
+  birthDate?: string;
 
   @ApiPropertyOptional({
     description: 'URL da imagem de perfil',

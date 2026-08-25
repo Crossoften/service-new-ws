@@ -8,10 +8,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { UserProfileType } from '@prisma/client';
+import { User, UserProfileType } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { DeliveriesService } from './deliveries.service';
+import { ResponseDeliveryEarningsDto } from './dto/response-delivery-earnings.dto';
 import { QueryDeliveryDto } from './dto/query-delivery.dto';
 import { UpdateDeliveryLocationDto } from './dto/update-delivery-location.dto';
 import { ResponseDeliveryDto, ResponseFindAllDeliveryDto } from './dto/response-delivery.dto';
@@ -38,6 +39,23 @@ export class DeliveriesController {
   @ApiOkResponse({ type: ResponseFindAllDeliveryDto })
   findMine(@CurrentUser() user, @Query() query: QueryDeliveryDto) {
     return this.deliveriesService.findMine(user, query);
+  }
+
+  @Get('me/earnings')
+  @ProfileTypes(UserProfileType.Delivery)
+  @ApiOperation({
+    summary: 'Ganhos do entregador autenticado, por período.',
+    description:
+      'Soma os repasses já creditados (categoria DeliveryPayout) em hoje, semana ' +
+      'corrente, mês corrente e acumulado, com a contagem de entregas de cada faixa. ' +
+      'Alimenta o faturamento exibido na Home do entregador.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseDeliveryEarningsDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Apenas entregadores acessam esta rota.' })
+  async findMyEarnings(@CurrentUser() user: User): Promise<ResponseDeliveryEarningsDto> {
+    return this.deliveriesService.findMyEarnings(user);
   }
 
   @Get(':id')
@@ -71,7 +89,8 @@ export class DeliveriesController {
   @ProfileTypes(UserProfileType.Delivery)
   @ApiOperation({
     summary: 'Entregador confirma a coleta do pedido no restaurante.',
-    description: 'Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.',
+    description:
+      'Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.',
   })
   @ApiOkResponse({ type: ResponseDeliveryDto })
   @ApiForbiddenResponse({ description: 'Apenas o entregador responsável pode coletar o pedido.' })

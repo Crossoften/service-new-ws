@@ -10,6 +10,8 @@ import {
   User,
 } from '@prisma/client';
 import { DeliveriesGateway } from './deliveries.gateway';
+import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
+import { ResponseDeliveryEarningsDto } from './dto/response-delivery-earnings.dto';
 import { QueryDeliveryDto } from './dto/query-delivery.dto';
 import { UpdateDeliveryLocationDto } from './dto/update-delivery-location.dto';
 import { ResponseDeliveryDto, ResponseFindAllDeliveryDto } from './dto/response-delivery.dto';
@@ -266,6 +268,59 @@ export class DeliveriesService {
     );
 
     return this.findById(user, id);
+  }
+
+  /**
+   * Ganhos do entregador, por período.
+   *
+   * A regra de repasse já existia: `deliver()` credita 100% do `deliveryFee` como
+   * `FinancialTransaction` na categoria `DeliveryPayout`. Faltava só quem lesse —
+   * a Home do entregador exibia faturamento sem endpoint que o fornecesse.
+   *
+   * Lê da tabela de lançamentos, e não das entregas, para que o valor exibido seja
+   * exatamente o que foi creditado: se a regra de repasse mudar amanhã, o histórico
+   * já pago continua correto.
+   */
+  async findMyEarnings(user: User): Promise<ResponseDeliveryEarningsDto> {
+    const now = new Date();
+
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [day, week, month, total] = await Promise.all([
+      this.aggregatePayouts(user.id, startOfDay),
+      this.aggregatePayouts(user.id, startOfWeek),
+      this.aggregatePayouts(user.id, startOfMonth),
+      this.aggregatePayouts(user.id),
+    ]);
+
+    return { day, week, month, total };
+  }
+
+  private async aggregatePayouts(
+    userId: number,
+    since?: Date,
+  ): Promise<{ amount: string; deliveries: number }> {
+    const result = await this.prisma.financialTransaction.aggregate({
+      where: {
+        userId,
+        type: FinancialTransactionTypeEnum.Credit,
+        category: FinancialTransactionCategoryEnum.DeliveryPayout,
+        status: PaymentStatusEnum.Paid,
+        ...(since ? { createdAt: { gte: since } } : {}),
+      },
+      _sum: { amount: true },
+      _count: { _all: true },
+    });
+
+    return {
+      amount: (result._sum.amount ? Number(result._sum.amount) : 0).toFixed(2),
+      deliveries: result._count._all,
+    };
   }
 
   private async findRawById(id: number) {

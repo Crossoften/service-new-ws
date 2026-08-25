@@ -266,15 +266,21 @@ export class AdminUsersService {
       where: { id, role: Role.User },
     });
 
-    if (data.birthDate) {
-      data.birthDate = new Date(data.birthDate);
-    }
-
     if (!user) throw new AdminUserNotFoundException();
+
+    // O DTO recebe birthDate como string ISO (é o que trafega no JSON) e o
+    // Prisma espera Date. Antes o service reatribuía o campo no próprio DTO,
+    // o que obrigava a tipá-lo como `string | Date` — e era isso que fazia o
+    // Swagger publicar `type: object`. Converter ao montar o payload mantém o
+    // DTO com um tipo só e não muta a entrada.
+    const { birthDate, ...rest } = data;
 
     await this._prisma.user.update({
       where: { id },
-      data: data,
+      data: {
+        ...rest,
+        ...(birthDate ? { birthDate: new Date(birthDate) } : {}),
+      },
     });
 
     return this.findById(id);

@@ -10,6 +10,7 @@ import {
 import { Role, Status, User, UserProfileType } from '@prisma/client';
 import generateCode from '@utils/generateCode';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
+import { normalizePhoneBR, phoneLookupVariants } from '@utils/normalizePhone';
 import { compareSync, hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
@@ -45,9 +46,23 @@ export class NoAuthService {
       throw new BadRequestException('Senhas devem ser iguais.');
     }
 
+    // O telefone é gravado em E.164. Sem normalizar, `11955554444` e
+    // `+5511955554444` são o mesmo número para o usuário e dois registros
+    // distintos para o banco — a checagem de duplicidade abaixo não pegaria o
+    // segundo cadastro, e o envio de SMS falharia no formato nacional.
+    const normalizedPhone = phone ? normalizePhoneBR(phone) : null;
+
+    if (phone && !normalizedPhone) {
+      throw new BadRequestException('Informe um telefone válido.');
+    }
+
     const existingUser = await this.prisma.user.findFirst({
       where: {
-        OR: [{ email: email.trim() }, ...(phone ? [{ phone: phone.trim() }] : [])],
+        OR: [
+          { email: email.trim() },
+          // Variantes cobrem quem já se cadastrou antes da normalização.
+          ...(normalizedPhone ? [{ phone: { in: phoneLookupVariants(normalizedPhone) } }] : []),
+        ],
       },
       select: { id: true },
     });
@@ -60,7 +75,7 @@ export class NoAuthService {
       data: {
         name: capitalizeFirstLetter(name.trim()),
         email: email.trim(),
-        phone: phone ? phone.trim() : null,
+        phone: normalizedPhone,
         birthDate: payload.birthDate ? new Date(payload.birthDate) : undefined,
         password: hashSync(password, 10),
         role: Role.User,
@@ -161,7 +176,13 @@ export class NoAuthService {
       throw new BadRequestException('O identificador deve ser um email válido.');
     }
 
-    if (channel === ForgotChannelEnum.Sms && !this.isPhone(trimmedIdentifier)) {
+    // Normalizar aqui resolve as duas pontas do canal SMS: a busca deixa de
+    // depender da escrita exata que veio do front (máscara, DDI, ou nenhum dos
+    // dois) e o Twilio recebe o E.164 que a API dele exige.
+    const normalizedPhone =
+      channel === ForgotChannelEnum.Sms ? normalizePhoneBR(trimmedIdentifier) : null;
+
+    if (channel === ForgotChannelEnum.Sms && !normalizedPhone) {
       throw new BadRequestException('O identificador deve ser um telefone válido.');
     }
 
@@ -177,13 +198,25 @@ export class NoAuthService {
       where:
         channel === ForgotChannelEnum.Email
           ? { email: trimmedIdentifier }
-          : { phone: trimmedIdentifier },
+          : // `in` com as variantes alcança também os telefones gravados antes
+            // da normalização, sem exigir migração dos registros existentes.
+            { phone: { in: phoneLookupVariants(normalizedPhone) } },
     });
 
     if (!user) return;
 
     const code: string = generateCode();
     const date: Date = new Date();
+
+    // Enviar antes de gravar. Na ordem inversa, um envio que falhasse já teria
+    // sobrescrito `code` e `codeExpiresIn` — o código anterior, ainda válido,
+    // morria e nenhum novo chegava ao usuário. Gravar depois deixa a conta
+    // intacta quando o provedor está fora.
+    if (channel === ForgotChannelEnum.Email) {
+      await this.mailService.forgotPassword(trimmedIdentifier, code);
+    } else {
+      await this.smsService.sendPasswordResetCode(normalizedPhone, code);
+    }
 
     // O banco guarda apenas o hash: vazamento da tabela nao entrega os codigos
     // de recuperacao em transito.
@@ -194,12 +227,6 @@ export class NoAuthService {
         codeExpiresIn: new Date(date.setHours(date.getHours() + 4)),
       },
     });
-
-    if (channel === ForgotChannelEnum.Email) {
-      await this.mailService.forgotPassword(trimmedIdentifier, code);
-    } else {
-      await this.smsService.sendPasswordResetCode(trimmedIdentifier, code);
-    }
   }
 
   /**
@@ -213,8 +240,15 @@ export class NoAuthService {
   private async findUserByResetCode(identifier: string, code: string): Promise<User> {
     const trimmedIdentifier = identifier.trim();
 
+    // O identificador chega aqui como o usuário digitou. Se ele pediu o código
+    // por SMS em um formato e confirma em outro, a conta precisa ser a mesma.
     const user: User | null = await this.prisma.user.findFirst({
-      where: { OR: [{ email: trimmedIdentifier }, { phone: trimmedIdentifier }] },
+      where: {
+        OR: [
+          { email: trimmedIdentifier },
+          { phone: { in: phoneLookupVariants(trimmedIdentifier) } },
+        ],
+      },
     });
 
     // Mensagem única para usuário inexistente e código incorreto: distinguir os
@@ -341,9 +375,5 @@ export class NoAuthService {
 
   private isEmail(value: string): boolean {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-  }
-
-  private isPhone(value: string): boolean {
-    return /^[+\d][\d\s().-]{7,}$/.test(value);
   }
 }

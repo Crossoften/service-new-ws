@@ -98,7 +98,7 @@ export class RegisterUserDto {
   })
   @IsOptional()
   @IsDateString()
-  birthDate?: string | Date;
+  birthDate?: Date;
 
   @ApiPropertyOptional({
     description: 'Taxa de comissão do usuário em percentual, quando aplicável (perfil Influencer).',

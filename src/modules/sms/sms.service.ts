@@ -1,9 +1,15 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Twilio = require('twilio');
 
 @Injectable()
 export class SmsService {
+  private readonly logger = new Logger(SmsService.name);
   private readonly client: Twilio.Twilio | null;
   private readonly fromNumber: string;
 
@@ -27,11 +33,31 @@ export class SmsService {
 
     const body = `Você solicitou recuperação de senha. Seu código é: ${code}. Válido por 4 horas.`;
 
-    await this.client.messages.create({
-      body,
-      from: this.fromNumber,
-      to: phone,
-    });
+    try {
+      await this.client.messages.create({
+        body,
+        from: this.fromNumber,
+        to: phone,
+      });
+    } catch (error) {
+      // Falha do Twilio é indisponibilidade de um serviço externo, não erro
+      // interno: subia como 500 genérico, sem o código do erro em lugar nenhum.
+      // O `code` numérico é o que identifica a causa no painel do Twilio
+      // (21211 destino inválido, 21606 remetente não habilitado, 21612 rota
+      // indisponível para o destino, 20003 credenciais recusadas).
+      const twilioCode = (error as { code?: number })?.code;
+      const twilioStatus = (error as { status?: number })?.status;
+
+      this.logger.error(
+        `Falha ao enviar SMS via Twilio. code=${twilioCode ?? 'n/d'} status=${twilioStatus ?? 'n/d'}: ${
+          (error as Error)?.message ?? error
+        }`,
+      );
+
+      throw new ServiceUnavailableException(
+        'Não foi possível enviar o SMS no momento. Tente novamente ou use o e-mail.',
+      );
+    }
   }
 
   hasCredentials(): boolean {

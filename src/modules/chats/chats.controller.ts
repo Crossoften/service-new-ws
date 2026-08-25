@@ -21,6 +21,8 @@ import { ChatContextType, User } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { CreateChatMessageDto } from './dto/create-chat-message.dto';
 import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
+import { QueryChatsDto } from './dto/query-chats.dto';
+import { ResponseFindChatsDto } from './dto/response-find-chats.dto';
 import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
 import { ResponseChatDto } from './dto/response-chat.dto';
 import { ChatsGateway } from './chats.gateway';
@@ -33,6 +35,24 @@ export class ChatsController {
     private readonly chatsService: ChatsService,
     private readonly chatsGateway: ChatsGateway,
   ) {}
+
+  @Get()
+  @ApiOperation({
+    summary: 'Lista as conversas do usuário autenticado (inbox).',
+    description:
+      'Ordenadas pela última mensagem. Traz a contraparte, um trecho da última ' +
+      'mensagem e a contagem de não lidas — o suficiente para a tela de Conversas ' +
+      'sem abrir cada sala.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseFindChatsDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  async findMyChats(
+    @CurrentUser() user: User,
+    @Query() query: QueryChatsDto,
+  ): Promise<ResponseFindChatsDto> {
+    return this.chatsService.findMyChats(user, query);
+  }
 
   @Get('context/:contextType/:referenceId')
   @ApiOperation({

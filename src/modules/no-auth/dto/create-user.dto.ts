@@ -33,12 +33,14 @@ export class CreateUserDto {
   @IsEmail({}, { message: 'Informe um email válido.' })
   email: string;
 
-  @ApiPropertyOptional({
-    description: 'Telefone do usuário.',
+  @ApiProperty({
+    description:
+      'Telefone do usuário. Obrigatório: sustenta a recuperação de senha por SMS. ' +
+      'Já era exigido pela validação — o contrato é que declarava como opcional.',
     example: '+55 34 99999-0000',
   })
   @IsPhoneNumber('BR', { message: 'Informe um telefone válido no formato brasileiro.' })
-  phone?: string;
+  phone: string;
 
   @ApiProperty({
     description: 'Perfil selecionado no cadastro.',
@@ -84,10 +86,12 @@ export class CreateUserDto {
   socialMedias?: CreateUserSocialMediaDto[];
 
   @ApiPropertyOptional({
-    description: 'Data de nascimento do usuário no formato ISO',
+    description: 'Data de nascimento do usuário no formato ISO (YYYY-MM-DD).',
+    type: String,
+    format: 'date',
     example: '1990-01-01',
   })
   @IsOptional()
   @IsDateString()
-  birthDate?: string | Date;
+  birthDate?: string;
 }
