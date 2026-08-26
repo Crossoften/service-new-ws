@@ -8,7 +8,7 @@
 > | **Branch de trabalho** | `ajustes-gerais` |
 > | **Base** | `b2ae83e` (`luan/develop` @ 14/08/2026) |
 > | **Última atualização** | 2026-08-24 — fim da Fase B parcial |
-> | **Fases concluídas** | A (segurança herdada), D (robustez), B parcial, S (SMS) |
+> | **Fases concluídas** | A, D, B, S, E e C — todas as fases planejadas |
 > | **Próxima fase** | Restante de B e Fase C — bloqueadas em decisões |
 
 ---
@@ -126,9 +126,9 @@ banco no ar e **`503` com o banco derrubado** (antes respondia `200 "Servidor UP
 
 ---
 
-### Fase B — Desbloqueio do front · 🟡 parcial
+### Fase B — Desbloqueio do front · ✅ entregue
 
-Quatro patches. O item restante depende da decisão 1.
+Sete patches. Fase concluída.
 
 | Patch | O quê | Demanda |
 |---|---|---|
@@ -136,6 +136,9 @@ Quatro patches. O item restante depende da decisão 1.
 | `B2` | `GET /v1/chats` — inbox paginada com contraparte, último trecho e não lidas | BE-Q5 |
 | `B3` | `phone` declarado obrigatório no contrato, alinhando ao que a validação já exigia | BE-Q2 · decisão 2 |
 | `B4` | `GET /v1/deliveries/me/earnings` — ganhos do entregador por período | BE-17 · decisão 7 |
+| `B5` | E-mail opcional: schema, migration e cadastro | decisão 1 · 3 |
+| `B6` | Verificação de conta por SMS: cadastro nasce `Pending`, rotas de verificar e reenviar | decisão 1 |
+| `B7` | Login por telefone: normalização na busca e fim da dependência do e-mail | decisão 1 |
 
 **Sobre o `B1`.** A união de tipos não era descuido: `admin-users.service.ts`
 reatribuía `data.birthDate = new Date(data.birthDate)` **mutando o DTO recebido**,
@@ -183,6 +186,86 @@ Validado contra dados semeados para o entregador `id 4` — dia `R$ 20,50` / 2,
 semana `R$ 35,50` / 3, mês `R$ 57,50` / 4, total `R$ 156,50` / 5. Um lançamento
 de `ReferralCommission` de `R$ 500` presente na mesma conta ficou corretamente
 **fora** do resultado. Cliente na rota do entregador, `403`; sem token, `401`.
+
+**Sobre o `B7`.** Login por telefone já existia pela metade: `validateUser` chama
+`findByEmailOrPhone`, que decide pelo `@`, e `phone` já é `@unique` no schema.
+Faltavam duas coisas.
+
+A primeira é o mesmo defeito que o `S1` corrigiu no `forgot`: a busca comparava
+telefone por igualdade exata, então quem se cadastrasse com `(34) 99870-1109` —
+gravado como `+5534998701109` — não conseguia entrar digitando o que digitou no
+cadastro. E o erro sairia como `401` genérico, indistinguível de senha errada.
+
+A segunda quebra com e-mail opcional:
+
+```ts
+// auth.service.ts, dentro de login()
+const user = await this.loginService.findByEmail(userArg.email);
+```
+
+Uma segunda consulta, por `findUnique` no e-mail, só para montar a resposta. Com
+`email: null` o Prisma recusa — o usuário passaria pela autenticação e estouraria
+depois. Trocado por `findById`, que sempre funciona. O `findByEmail` ficou sem
+uso e foi removido.
+
+**Validação:** cinco formatos do mesmo número (`e-mail`, `+5534998701109`,
+`34998701109`, `(34) 99870-1109`, `+55 34 99870-1109`) chegam ao mesmo usuário.
+Senha errada e telefone inexistente seguem em `401`. Registro legado gravado em
+formato nacional é encontrado por E.164. Login de admin ainda devolve as 5
+permissões — o `findById` mantém o `include`. Token emitido pelo login por
+telefone funciona em rota autenticada.
+
+**Sobre o `B5`.** `email` passa a `String?` no schema e `NULL` no banco. O índice
+único fica: no MySQL ele admite vários `NULL`, então a unicidade só vale para
+quem informa e-mail — testado com dois cadastros sem e-mail convivendo.
+
+Dois cuidados no código. O `OR` da checagem de duplicidade passou a montar a
+condição de e-mail só quando ela existe: uma entrada vazia ali não seria neutra,
+buscaria por e-mail vazio. E a gravação passou a usar `trimmedEmail`, que é
+`null` quando o campo não vem, em vez de `email.trim()`, que estouraria.
+
+Cheguei a suspeitar que o `checkExistingUser` tivesse um problema parecido —
+ele monta `OR: [{id}, {document}, {email}, {phone}]` com valores possivelmente
+`undefined`, e uma condição vazia num `OR` poderia casar com tudo. **Sondei
+contra o banco: o Prisma remove as condições `undefined`, e o resultado é `null`,
+não a base inteira.** O helper está correto; não precisou de mudança.
+
+**Sobre o `B6`.** O cadastro nasce `Status.Pending` e grava
+`verificationCode` (hash) e `verificationExpiresIn` (4h). O bloqueio veio de
+graça: o `A4` já recusa token de conta que não esteja `Active`.
+
+**O SMS sai antes de criar a conta.** Na ordem inversa, uma falha do provedor
+deixaria uma conta órfã, impossível de verificar e ocupando o telefone — a
+segunda tentativa de cadastro bateria em `409`. Falhando antes, nada é gravado.
+Testado: com o Twilio inalcançável, cadastro devolve `503` e o telefone segue
+livre.
+
+Rotas novas, ambas com mensagem genérica por decisão de segurança:
+
+| Rota | Falha responde |
+|---|---|
+| `POST /no-auth/verify-account` | `404 "Usuário ou código inválido."` para conta inexistente, código errado, expirado, já usado ou conta já verificada |
+| `POST /no-auth/resend-verification` | `200` mesmo sem enviar nada — conta inexistente ou já verificada |
+
+A mensagem do `503` do SMS deixou de sugerir "use o e-mail": o mesmo envio
+agora atende recuperação de senha e verificação, e no cadastro a sugestão não
+faz sentido — ainda mais com e-mail opcional.
+
+**Validação executada** (210 rotas), com o envio de SMS interceptado localmente
+para capturar o código em claro:
+
+| Caso | Resultado |
+|---|---|
+| Cadastro sem e-mail | `201` · `status: Pending` · `email: null` |
+| Login antes de verificar | `401` |
+| Código errado / telefone inexistente | mesma mensagem, `404` |
+| Verificação com máscara diferente da do cadastro | `200` |
+| Login depois de verificar | `200` com token |
+| Reusar o código já usado | `404` · colunas zeradas no banco |
+| Reenvio invalida o código anterior | código antigo `404`, novo `200` |
+| Reenvio para conta ativa / telefone inexistente | `200`, **zero SMS gerado** |
+| Cadastro com Twilio fora | `503` · nenhuma conta criada |
+| Contas antigas (admins inclusive) | continuam entrando por e-mail |
 
 ---
 
@@ -290,6 +373,208 @@ execução, autenticava normalmente.
 
 ---
 
+### Fase E — Débito técnico · ✅ entregue
+
+| Patch | O quê |
+|---|---|
+| `E1` | Nome do pacote, descrição e versão do NestJS no Swagger |
+| `E2` | `/my-self` deixa de devolver o hash do código de recuperação · remoção de método morto |
+| `E3` | Dois erros de lint pré-existentes e `forceConsistentCasingInFileNames` |
+
+**O `E2` virou mais do que limpeza.** A tarefa era remover o `users()` morto em
+`no-auth.service`. Ao abrir o arquivo, o método vizinho — `mySelf`, esse **em
+uso**, servindo `GET /v1/my-self` — tinha o mesmo `select`, e ambos incluíam
+`code`.
+
+Confirmado contra a API rodando: a rota devolvia, para o próprio usuário
+autenticado, o **hash bcrypt do código de recuperação de senha**.
+
+```jsonc
+{ "id": 3, "name": "client one",
+  "code": "$2b$10$yTvb1g0rFw.mGRHJQBNeQ.kIa8ickl…" }
+```
+
+O risco é contido — é o hash do próprio usuário, e quem tem o token já tem a
+conta. O que incomoda é que o hash sai do servidor: ele passa a existir em log
+de proxy, ferramenta de suporte, relatório de erro. E de posse dele o ataque
+vira offline, longe do throttler, contra **1.000.000** de combinações de 6
+dígitos dentro de uma janela de 4 horas.
+
+Nada no produto consumia o campo. Saiu do `select` e do `ResponseAllUserDto`,
+que também o prometia no Swagger.
+
+**O que a lista dizia e não batia mais:**
+
+- Eram **2** erros de lint pendentes, não 3 — o de `deliveries` já tinha sido
+  corrigido de passagem no `B4`
+- `forceConsistentCasingInFileNames: true` custou **zero** erro. Ligado
+
+**O que ficou de fora, de propósito:**
+
+- **`strictNullChecks`.** Medi: **146 erros** de tipo. Não é item de faxina, é
+  fatia própria — e a mais barata seria por módulo, começando pelos que já têm
+  teste. Não fiz
+- **Renomear `dockerfile` para `Dockerfile`.** O `docker-compose.yml` referencia
+  com maiúscula e o build quebra em filesystem sensível a caixa (Linux, CI).
+  **Não vai como patch**: no macOS, que é *insensível* a caixa, um patch que
+  apaga `dockerfile` e cria `Dockerfile` corrompe o arquivo. É comando, não
+  diff — está na seção 5.4
+
+---
+
+### Fase C — Delivery e cobrança · ✅ entregue
+
+Decisões 3 a 6 tomadas em 26/08. Seis patches.
+
+| Patch | O quê | Decisão |
+|---|---|---|
+| `C1` | `DebitCard` e `Cash` no enum de meios de pagamento | 3 |
+| `C2` | Situação de pagamento no pedido e confirmação de recebimento em dinheiro | 3 |
+| `C3` | Frete calculado no servidor por faixa de distância, configurável no admin | 4 |
+| `C4` | Avaliação de restaurante com nota de 1 a 5 e trava de uma por cliente | 5 |
+| `C5` | Exclusão de item de cardápio | BE-F1 |
+| `C6` | Contratos do Swagger: respostas tipadas, autenticação e enums nomeados | — |
+
+**Sobre o `C1`.** O enum tinha três valores e `mapPaymentMethod()` dobrava
+`debit_card` em `CreditCard` — uma linha deliberada, não um acidente. Débito e
+dinheiro passam a existir. A migration é aditiva; nenhuma linha muda de valor.
+
+> **Conciliação histórica.** Os pedidos gravados antes desta migration que
+> foram pagos no débito continuam como `CreditCard`, e o banco não permite
+> distingui-los. A origem está no Mercado Pago, via `mpPaymentId` na tabela
+> `payments`, se for preciso reclassificar.
+
+**Sobre o `C2`, e o que ele revelou.** Ao implementar a confirmação, descobri
+que **pedidos de comida nunca criaram linha em `payments`**. O pedido guardava o
+meio escolhido e nada registrava se o dinheiro entrou — para nenhum meio, não só
+dinheiro. Não havia onde marcar o recebimento.
+
+Daí as colunas novas em `FoodOrder`: `paymentStatus`, `paidAt` e
+`paidConfirmedById`. A rota `PATCH /food-orders/:id/confirm-payment` aceita
+apenas `Cash`; os demais meios respondem `400`, porque marcar cartão à mão
+abriria caminho para dar como pago o que não foi. Confirma quem entrega — o
+entregador designado ou, sem entrega atribuída, o dono do restaurante. O cliente
+não confirma o próprio pagamento. Idempotente, para o duplo toque no botão não
+virar erro na tela.
+
+A migration dá como pagos os pedidos já entregues: foram concluídos sob a regra
+antiga, em que a entrega encerrava o assunto, e deixá-los pendentes criaria uma
+fila de cobrança falsa no primeiro relatório.
+
+**Sobre o `C3`.** O cliente enviava `deliveryFee` e recebia de volta, no
+repasse, exatamente esse número — quem pagava a conta definia quanto o
+entregador ganhava. O campo saiu do contrato. A taxa agora é medida no servidor:
+distância entre os endereços, faixa correspondente em `DeliveryFeeRule`, valor
+fixo em reais ou percentual sobre o valor dos itens.
+
+Distância por Haversine, em linha reta. O trajeto real é maior — algo entre 20%
+e 40% em malha urbana — mas para escolher faixa isso basta, e evita depender de
+um serviço de rotas que cobra por chamada e entra no caminho crítico de criar
+pedido. Se um dia incomodar, o ponto de troca é o `src/utils/haversine.ts`
+sozinho.
+
+`Address` ganhou `latitude` e `longitude`, com a precisão que
+`DeliveryAssignment` já usava. **Quem preenche é o front**, ao geocodificar o
+endereço escolhido. Sem coordenada em qualquer das pontas, o cálculo cai na
+faixa que começa em zero — degradar assim é melhor que recusar o pedido, porque
+o cliente não tem como resolver a ausência de um dado que nem sabe que existe.
+
+A migration semeia uma faixa única de R$ 8,00 para qualquer distância,
+reproduzindo o comportamento anterior. **Substitua pelas faixas reais**; sem
+isso o frete continua fixo.
+
+**Sobre o `C4`.** Não era só expor um campo: `Review` não tinha **nenhuma** nota,
+e avaliação de restaurante era a única dos cinco tipos sem `@@unique` — o mesmo
+cliente podia avaliar infinitas vezes. Também não existia rota de avaliação de
+restaurante.
+
+`rating` é nulável no modelo de propósito: as avaliações de serviço, produto,
+hospedagem e transporte nunca tiveram nota e seguem válidas. Só a rota de
+restaurante exige. A média é agregada na consulta, em lote para a página
+inteira, em vez de guardada em coluna — média materializada desatualiza sem
+avisar quando uma avaliação é corrigida.
+
+`type` continua obrigatório no modelo, herdado das avaliações de polegar. É
+derivado da nota: 4 e 5 viram `Positive`, o resto `Negative`. Regra minha, não
+sua — se o corte for outro, é uma linha.
+
+**Sobre o `C5`.** O comportamento depende do histórico, e o motivo é concreto:
+`FoodOrderItem` guarda o preço praticado mas **não o nome** do item. Apagar um
+item já pedido deixaria pedidos entregues sem descrição do que foi vendido, além
+de esbarrar na chave estrangeira. Então: nunca pedido, apaga; já pedido,
+desativa. A resposta traz `deleted` dizendo qual dos dois aconteceu, para a tela
+não prometer o que não fez.
+
+**Sobre o `C6`, e o que a auditoria do contrato encontrou.** O Swagger é gerado
+dos decorators, então os patches anteriores já o tinham mudado. O que faltava
+era conferir o que ele publica de fato — decorator esquecido não aparece em
+build nenhum. Três problemas:
+
+**1. Vinte e duas rotas protegidas apareciam como abertas.** O guard é global e
+só o `@IsPublic()` escapa, mas a documentação dependia de cada rota declarar
+`security` à mão no `@ApiOperation`. As que esqueciam ficavam sem declaração
+alguma — e sem exigência global, um gerador de cliente lê isso como "não
+precisa de token".
+
+Estavam nessa situação **`food-orders` e `deliveries` inteiros**, além das
+rotas de upload que o `A3` justamente fechou.
+
+A correção inverte o padrão: `addSecurityRequirements('bearerAuth')` na raiz, e
+o `@IsPublic()` passou a carimbar `x-public`, removido do documento depois de
+zerar o `security` daquela operação. Agora a documentação segue o código sem
+ninguém precisar lembrar — rota nova nasce protegida na documentação, como já
+nascia no código.
+
+**2. Catorze rotas sem contrato de resposta**, documentadas com texto em vez de
+tipo. O front não gera cliente a partir delas. Doze foram tipadas — os quatro
+endpoints de cardápio (os DTOs já existiam, faltava exportá-los), os quatro
+rankings do admin, `health-check`, `admin-users`, o `DELETE` de faixa de frete
+que eu mesmo deixei sem tipo, e o download de arquivo, que ganhou declaração
+binária para o cliente usar blob em vez de tentar interpretar JSON.
+
+Sobra o webhook do Mercado Pago, e de propósito: quem o chama é o Mercado Pago,
+não o front.
+
+**3. `PATCH /admin-influencers/:id/commission` declarava `204 No Content`** e
+respondia `200` com corpo. Contrato mentindo.
+
+Também nomeei os enums do delivery — `FoodOrderStatusEnum`,
+`DeliveryAssignmentStatusEnum` e `DeliveryFeeTypeEnum` saíam inline, o que gera
+tipo anônimo no cliente. Os outros 45 enums inline do projeto ficaram como
+estão: seria varredura ampla sem pedido.
+
+**A configuração do Swagger saiu do `main.ts`** para `src/swagger.ts`, porque
+agora dois pontos a consomem — o boot e o `npm run swagger:export`, que grava
+`docs/openapi.json`. Duplicar a configuração faria o arquivo exportado divergir
+da documentação publicada sem ninguém perceber.
+
+> **O `docs/openapi.json` envelhece.** Rode `npm run swagger:export` depois de
+> qualquer mudança em rota ou DTO. Contrato exportado desatualizado é pior que
+> nenhum, porque parece confiável.
+
+**Validação executada**, 217 rotas, contra banco real:
+
+| Caso | Resultado |
+|---|---|
+| Pedido em `Cash` e em `DebitCard` | `201`, valores novos aceitos |
+| Cliente confirma o próprio pagamento | `403` |
+| Restaurante confirma pedido em dinheiro | `200`, `Paid`, com autor registrado |
+| Confirmar de novo | `200`, idempotente |
+| Confirmar pedido no débito | `400` |
+| Frete a ~1,5 km / ~6 km / ~30 km | R$ 6,00 · R$ 12,00 · R$ 10,00 (20% de R$ 50) |
+| Cliente envia `deliveryFee: 0` | Ignorado; cobrada a faixa correta |
+| Endereço sem coordenadas | Cai na faixa inicial, pedido não é recusado |
+| Faixa com máximo menor que o mínimo | `400` |
+| Cliente na rota de admin | `403` |
+| Avaliar sem pedido entregue | `403` |
+| Avaliar duas vezes | `409` |
+| Nota fora de 1 a 5 | `400` |
+| Média na listagem | `ratingAverage: 5`, `ratingCount: 1` |
+| Excluir item nunca pedido | Apagado, `deleted: true` |
+| Excluir item já pedido | Desativado, `deleted: false`, histórico intacto |
+
+---
+
 ## 4. Correções ao entendimento anterior
 
 Registro do que se mostrou errado, para ninguém refazer a investigação.
@@ -312,33 +597,41 @@ Registro do que se mostrou errado, para ninguém refazer a investigação.
 
 | # | Pergunta | Trava |
 |---|---|---|
-| 1 | Conta verificada é obrigatória? Se sim, para todos os perfis? | Fase B |
+| 1 | ~~Conta verificada é obrigatória?~~ **Decidido em 25/08:** sim, **só por SMS**. Telefone obrigatório, e-mail **permanentemente opcional**. Contas atuais preservadas. Campo de login continua `email`, aceitando os dois. Entregue no `B5`, `B6` e `B7` | ✅ |
 | 2 | ~~Telefone é obrigatório?~~ **Decidido em 25/08: sim.** Entregue no `B3` | ✅ |
-| 3 | Débito e Dinheiro são meios de pagamento válidos? | Fase C |
-| 4 | Quem calcula o frete? Hoje o cliente envia `deliveryFee` e nada valida | Fase C |
-| 5 | Avaliação, tempo de entrega e logo entram no modelo de restaurante? | Fase C |
-| 6 | Assinatura bloqueia o quê exatamente — publicar, receber demanda, navegar? | Fase C |
+| 3 | ~~Débito e Dinheiro são válidos?~~ **Decidido em 26/08: sim**, com confirmação manual do recebimento em dinheiro. Entregue no `C1` e `C2` | ✅ |
+| 4 | ~~Quem calcula o frete?~~ **Decidido em 26/08:** o servidor, por faixa de distância parametrizada no admin. Entregue no `C3` | ✅ |
+| 5 | ~~Avaliação, tempo e logo?~~ **Decidido em 26/08:** estrelas com comentário e trava de uma por cliente. Entregue no `C4`. **Tempo de entrega ficou de fora** — não foi pedido | 🟡 |
+| 6 | ~~Assinatura bloqueia o quê?~~ **Decidido em 26/08:** nada muda por enquanto, para não atrapalhar os testes. Virou débito técnico — ver 5.4 | ⏸ |
 | 7 | ~~Quanto o entregador ganha por entrega?~~ **Decidido em 25/08:** manter a regra que já existe — 100% do `deliveryFee`. Exposto no `B4` | ✅ |
 
-> **A decisão 3 tem urgência própria.** Hoje o front mapeia Débito→`CreditCard` e
-> Dinheiro→`BankSlip`. Cada pedido em homolog grava um meio de pagamento errado,
-> e isso **não se corrige depois sem auditoria manual** dos registros.
+> **Todas as quatro foram decididas em 26/08.** A urgência da 3 se resolveu: o
+> enum agora nomeia débito e dinheiro, e o mapeamento do Mercado Pago parou de
+> dobrar débito em crédito. Os pedidos anteriores continuam classificados
+> errado — ver a nota de conciliação na Fase C.
 
 ### 5.2 Fase B — desbloqueio do front (parcialmente entregue)
 
 Entregue: `birthDate` (BE-13), inbox de chats (BE-Q5), `phone` obrigatório
 (BE-Q2) e ganhos do entregador (BE-17).
 
-Falta, bloqueado na **decisão 1**:
+Entregue também: e-mail opcional (`B5`), verificação por SMS (`B6`) e login por
+telefone (`B7`). **A fase está fechada.**
 
-- Fluxo de verificação de conta: implementar ou remover a etapa (BE-Q1)
-- Rota de reenvio de código (BE-Q1)
+Fica de fora, por não ter sido pedido: migrar as contas antigas sem telefone.
+Elas continuam entrando por e-mail, mas não têm recuperação por SMS. Se o
+cliente quiser trazer essa base para o novo modelo, é fluxo novo — tela de
+"cadastre seu telefone" e rota para isso.
 
-> **Recomendação para a decisão 1:** verificação bloqueante (opção A), mas
-> **só depois que o SMTP funcionar em homolog** — senão nenhuma conta nova
-> consegue entrar. E com colunas próprias (`verificationCode` /
-> `verificationExpiresIn`): reaproveitar o campo `code`, que hoje é da
-> recuperação de senha, faz um fluxo invalidar o outro.
+> **A decisão 1 foi tomada em 25/08.** Verificação bloqueante, por SMS, com
+> colunas próprias (`verificationCode` / `verificationExpiresIn`) — reaproveitar
+> o campo `code`, que é da recuperação de senha, faria um fluxo invalidar o
+> outro. A dependência de SMTP que eu havia levantado deixou de existir: o
+> canal é SMS, e ele está validado.
+>
+> **As 6 contas sem telefone da base local (os dois admins entre elas) ficam
+> como estão.** Exigir verificação delas trancaria admin para fora sem caminho
+> de volta.
 
 ### 5.2.1 Fase S — SMS (validado; resta o homolog e a rotação do token)
 
@@ -352,19 +645,57 @@ Falta, bloqueado na **decisão 1**:
 - **Rotacionar o `TWILIO_AUTH_TOKEN`.** Ele trafegou por uma conversa de chat;
   trate o valor atual como exposto
 
-### 5.3 Fase C — delivery e cobrança (não iniciada)
+### 5.3 Fase C — delivery e cobrança (entregue, com resíduos)
 
-Campos de restaurante (BE-D1) · endereço no pedido (BE-D2) · meios de pagamento
-(BE-D3/Q6) · frete calculado no servidor (BE-D4) · `DELETE` de cardápio ou
-soft-delete (BE-F1) · payout por período (BE-F2).
+Entregue nos patches `C1` a `C5`. Ficou de fora, por não ter sido pedido:
 
-### 5.4 Fase E — débito técnico (não iniciada)
+- **Tempo de entrega no restaurante** (parte da decisão 5). `acceptedAt` e
+  `deliveredAt` já são gravados em cada pedido, então o histórico está se
+  acumulando — dá para começar com estimativa cadastrada e migrar para média
+  real depois, sem perder nada
+- **Faixas de frete reais.** A migration do `C3` semeia uma faixa única de
+  R$ 8,00 para qualquer distância, que só reproduz o comportamento antigo
+- **Coordenadas nos endereços já cadastrados.** Nenhum tem; todos caem na faixa
+  inicial até o front passar a geocodificar
 
-Renomear o pacote (`boilerplate_nest_prisma`) · corrigir "NestJS 10.0" na
-descrição do Swagger · remover `users()` morto em `no-auth.service` · renomear
-`dockerfile` para `Dockerfile` (o `docker-compose` referencia com maiúscula e o
-build falha em filesystem sensível a caixa) · 3 erros de lint pré-existentes em
-`deliveries`, `food-orders` e `works` · ligar `strictNullChecks` por módulo.
+### 5.4 Fase E — débito técnico (entregue, com dois resíduos)
+
+Entregue no `E1`, `E2` e `E3`. Sobraram duas coisas:
+
+**1. Renomear `dockerfile` para `Dockerfile`** — precisa ser feito à mão, porque
+o macOS não distingue caixa e um patch corromperia o arquivo. Dois passos, para
+o Git registrar a mudança:
+
+```bash
+git mv dockerfile dockerfile.tmp
+git mv dockerfile.tmp Dockerfile
+```
+
+Sem isso, `docker compose build` falha em qualquer máquina Linux — inclusive CI
+e servidor — porque o `docker-compose.yml` procura por `Dockerfile`.
+
+**2. `strictNullChecks`** — 146 erros de tipo hoje. Merece fatia própria, de
+preferência módulo a módulo, começando pelos que já têm teste.
+
+**3. Assinatura vencida não tira nada do ar** — decisão 6, adiada de propósito
+em 26/08 para não atrapalhar os testes. **Precisa ser resolvido antes de
+produção.** Hoje o `SubscriptionGuardService` só age na criação: quem assinou um
+mês, publicou e parou de pagar mantém os anúncios no ar, editáveis e recebendo
+demanda, indefinidamente. O caminho recomendado é sumir da listagem pública
+quando vence (reversível, o anúncio volta com o pagamento) somado ao bloqueio de
+edição.
+
+**4. Pedidos não-dinheiro nunca são marcados como pagos** — descoberto ao
+implementar o `C2`. Pedidos de comida não criam linha em `payments`, e o
+`paymentStatus` novo só é movido pela confirmação manual, que vale só para
+`Cash`. Cartão, Pix e boleto ficam `Pending` para sempre. Fechar isso exige
+ligar o Mercado Pago ao fluxo de delivery, o que é fatia própria.
+
+Observações do Dockerfile que **não** mexi, por serem escolha de quem cuida do
+ambiente: o `EXPOSE 3000` não bate com a `PORT=8000` em uso (é documental, o
+`compose` publica `${PORT}:${PORT}`, então não quebra nada), e o `apt-get
+install nano` engorda a imagem — mas o serviço sobe com `tail -f /dev/null`, o
+que sugere um contêiner de desenvolvimento onde editar dentro é intencional.
 
 ### 5.5 Adiados com justificativa
 
@@ -432,6 +763,10 @@ documentada a `CORS_ORIGINS` e removidas `ENABLE_NGROK`, `NGROK_*` e
 
 ## 8. Adaptação necessária no front-end
 
+> O detalhamento completo, com travas de UI e contratos, está em
+> **`docs/ORIENTACOES-FRONT.md`**. O resumo abaixo fica para consulta rápida.
+
+
 O `A1` muda o contrato de dois endpoints. São duas alterações pontuais:
 
 ```diff
@@ -473,15 +808,16 @@ npm install && npx prisma generate
 cp .env.example .env          # ajustar JWT_SECRET, DATABASE_URL, FRONTEND_URL
 npx prisma migrate deploy
 npm run seed
-npm run start:dev             # 208 rotas · Swagger em http://localhost:8000/docs
+npm run start:dev             # 217 rotas · Swagger em http://localhost:8000/docs
+npm run swagger:export        # regrava docs/openapi.json para o front
 ```
 
 Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 `admin.one@`, `client.one@`, `supplier.one@`, `delivery.one@`,
 `influencer.one@` — todos `@email.com`.
 
-**Números de referência da branch:** 208 rotas (206 + inbox + ganhos) · 46 modelos ·
-32 módulos · 14 migrations · 48 tabelas · 26 testes.
+**Números de referência da branch:** 217 rotas · 47 modelos ·
+33 módulos · 19 migrations · 49 tabelas · 33 testes.
 
 ---
 
@@ -491,7 +827,10 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 |---|---|---|---|---|
 | **A** | Segurança herdada | ✅ Entregue | 6 | — |
 | **D** | Robustez | ✅ Entregue | 6 | 13 |
-| **B** | Desbloqueio do front | 🟡 Parcial (BE-13, BE-Q5, BE-Q2, BE-17) | 4 | — |
+| **B** | Desbloqueio do front | ✅ Entregue | 7 | 2 |
 | **S** | Integração de SMS | ✅ Entregue e validada de ponta a ponta | 2 | 13 |
-| **C** | Delivery e cobrança | ⏸ Bloqueada nas decisões 3 a 6 | — | — |
-| **E** | Débito técnico | ⏸ Não iniciada | — | — |
+| **E** | Débito técnico | ✅ Entregue · resíduos na 5.4 | 3 | — |
+| **C** | Delivery e cobrança | ✅ Entregue · resíduos na 5.3 e 5.4 | 6 | 5 |
+
+**Total: 30 patches**, todos verificados aplicando em sequência sobre `b2ae83e`
+em worktree limpa, com build, `jest` e `eslint` no fim da cadeia.

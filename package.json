@@ -1,7 +1,7 @@
 {
-  "name": "boilerplate_nest_prisma",
+  "name": "service-new-ws",
   "version": "0.0.1",
-  "description": "",
+  "description": "API do Projeto Service — NestJS, Prisma e MySQL.",
   "author": "Guilherme Artigas",
   "private": true,
   "license": "UNLICENSED",

@@ -1,0 +1,26 @@
+{
+  "input": "./openapi.json",
+  "output": "./src/app/api",
+
+  "services": true,
+  "functions": true,
+
+  "ignoreUnusedModels": false,
+
+  "//": [
+    "Coloque este arquivo na raiz do projeto do front, junto com o openapi.json",
+    "copiado do back-end (docs/openapi.json).",
+    "",
+    "Rode:  npx ng-openapi-gen",
+    "",
+    "services: true  -> gera serviços @Injectable por tag, com os métodos",
+    "                   documentados em JSDoc a partir do Swagger.",
+    "functions: true -> gera também funções soltas em fn/, que retornam",
+    "                   Observable. Os métodos dos serviços retornam Promise;",
+    "                   se você prefere Observable em toda parte, use as fn/.",
+    "",
+    "ignoreUnusedModels: false mantém todos os 319 modelos, inclusive os que",
+    "nenhuma rota referencia diretamente. Deixe assim enquanto o front ainda",
+    "não consome tudo, senão tipos somem entre uma geração e outra."
+  ]
+}

@@ -25,6 +25,8 @@ import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { ResponseTextDto } from './dto/response-text.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { VerifyAccountDto } from './dto/verify-account.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { NoAuthService } from './no-auth.service';
 
 @Controller()
@@ -121,6 +123,43 @@ export class NoAuthController {
           ? 'Email enviado com sucesso!'
           : 'SMS enviado com sucesso!',
     };
+  }
+
+  @IsPublic()
+  @Post('no-auth/verify-account')
+  @HttpCode(200)
+  @ApiTags('Sem autenticação')
+  @ApiOperation({
+    summary: 'Confirma o cadastro com o código recebido por SMS e libera o acesso.',
+    description:
+      'A conta nasce com status Pending e não consegue autenticar até ser verificada. ' +
+      'Em caso de falha a mensagem é sempre a mesma, para não revelar quais telefones ' +
+      'estão cadastrados.',
+  })
+  @ApiOkResponse({ type: ImessageEntity })
+  @ApiBadRequestResponse({ description: 'Requisição inválida' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async verifyAccount(@Body() body: VerifyAccountDto): Promise<ImessageEntity> {
+    await this.noAuthService.verifyAccount(body);
+    return { message: 'Conta verificada com sucesso!' };
+  }
+
+  @IsPublic()
+  @Post('no-auth/resend-verification')
+  @HttpCode(200)
+  @ApiTags('Sem autenticação')
+  @ApiOperation({
+    summary: 'Reenvia por SMS o código de verificação do cadastro.',
+    description:
+      'Responde sucesso mesmo quando a conta não existe ou já está verificada — ' +
+      'distinguir os casos revelaria quais telefones estão na base.',
+  })
+  @ApiOkResponse({ type: ImessageEntity })
+  @ApiBadRequestResponse({ description: 'Requisição inválida' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async resendVerification(@Body() body: ResendVerificationDto): Promise<ImessageEntity> {
+    await this.noAuthService.resendVerification(body);
+    return { message: 'SMS enviado com sucesso!' };
   }
 
   @IsPublic()

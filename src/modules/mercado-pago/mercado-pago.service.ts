@@ -136,9 +136,11 @@ export class MercadoPagoService {
   mapPaymentMethod(paymentTypeId?: string, paymentMethodId?: string): PaymentMethodEnum | null {
     if (paymentMethodId === 'pix') return PaymentMethodEnum.Pix;
     if (paymentTypeId === 'ticket') return PaymentMethodEnum.BankSlip;
-    if (paymentTypeId === 'credit_card' || paymentTypeId === 'debit_card') {
-      return PaymentMethodEnum.CreditCard;
-    }
+    // Débito e crédito são meios distintos e o Mercado Pago já os separa.
+    // Dobrar os dois em CreditCard, como era feito aqui, impedia conciliar o
+    // extrato e respondia errado a "quanto entrou no débito".
+    if (paymentTypeId === 'debit_card') return PaymentMethodEnum.DebitCard;
+    if (paymentTypeId === 'credit_card') return PaymentMethodEnum.CreditCard;
 
     return null;
   }

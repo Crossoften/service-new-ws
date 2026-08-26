@@ -51,7 +51,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Documentação da API Projeto Service.')
-    .setDescription('Essa API foi construída usando NestJS na versão 10.0')
+    .setDescription('API do Projeto Service. Construída com NestJS 11, Prisma e MySQL.')
     .setVersion('1.0')
     .addTag('Autenticação')
     .addTag('Configurações - Portal Gerencial')

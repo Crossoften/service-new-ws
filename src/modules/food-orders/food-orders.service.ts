@@ -1,6 +1,14 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { ChatContextType, FoodOrderStatusEnum, Prisma, User } from '@prisma/client';
+import {
+  ChatContextType,
+  DeliveryFeeTypeEnum,
+  FoodOrderStatusEnum,
+  PaymentMethodEnum,
+  PaymentStatusEnum,
+  Prisma,
+  User,
+} from '@prisma/client';
 import { CreateFoodOrderDto } from './dto/create-food-order.dto';
 import { RespondFoodOrderDto } from './dto/respond-food-order.dto';
 import { CancelFoodOrderDto } from './dto/cancel-food-order.dto';
@@ -10,6 +18,7 @@ import {
   ResponseFindAllFoodOrderDto,
   ResponseFoodOrderDto,
 } from './dto/response-food-order.dto';
+import { FoodOrderPaymentNotConfirmableException } from './exceptions/food-order-payment-not-confirmable.exception';
 import { FoodOrderNotFoundException } from './exceptions/food-order-not-found.exception';
 import { FoodOrderAccessDeniedException } from './exceptions/food-order-access-denied.exception';
 import { FoodOrderInvalidStatusException } from './exceptions/food-order-invalid-status.exception';
@@ -18,6 +27,7 @@ import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-re
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { distanceInKm } from '@utils/haversine';
 
 const DEFAULT_DELIVERY_FEE = 8;
 const DEFAULT_COMMISSION_RATE = 20;
@@ -38,6 +48,8 @@ export class FoodOrdersService {
     platformFeeRate: true,
     commissionAmount: true,
     paymentMethod: true,
+    paymentStatus: true,
+    paidAt: true,
     notes: true,
     cancelReason: true,
     acceptedAt: true,
@@ -77,7 +89,14 @@ export class FoodOrdersService {
 
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: payload.restaurantId },
-      select: { id: true, isActive: true, isOpen: true, userId: true, name: true },
+      select: {
+        id: true,
+        isActive: true,
+        isOpen: true,
+        userId: true,
+        name: true,
+        address: { select: { latitude: true, longitude: true } },
+      },
     });
     if (!restaurant || !restaurant.isActive) throw new FoodOrderRestaurantNotFoundException();
     if (!restaurant.isOpen) throw new RestaurantClosedException();
@@ -127,7 +146,13 @@ export class FoodOrdersService {
       });
     }
 
-    const deliveryFee = new Prisma.Decimal(payload.deliveryFee ?? DEFAULT_DELIVERY_FEE);
+    // A taxa é calculada aqui, não recebida. O valor que o cliente enviasse
+    // viraria, integralmente, o repasse do entregador.
+    const deliveryFee = await this.calculateDeliveryFee(
+      user.addressId,
+      restaurant.address,
+      itemsValue,
+    );
     const totalValue = itemsValue.plus(deliveryFee);
 
     const owner = await this.prisma.user.findUnique({
@@ -333,6 +358,143 @@ export class FoodOrdersService {
     return this.findById(user, id);
   }
 
+  /**
+   * Confirma que o dinheiro do pedido foi recebido em mãos.
+   *
+   * Só vale para `Cash`. Cartão, Pix e boleto são quitados pelo provedor de
+   * pagamento — permitir a marcação manual neles abriria caminho para dar um
+   * pedido como pago sem que o valor tivesse entrado.
+   *
+   * Quem confirma é quem entrega: o entregador designado ou, quando não há
+   * entrega atribuída (retirada no balcão), o dono do restaurante. O cliente
+   * não confirma o próprio pagamento, pelo motivo óbvio.
+   */
+  async confirmCashPayment(user: User, id: number): Promise<ResponseFoodOrderDto> {
+    const foodOrder = await this.prisma.foodOrder.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        paymentMethod: true,
+        paymentStatus: true,
+        customerId: true,
+        restaurant: { select: { userId: true } },
+        deliveryAssignment: { select: { courierId: true } },
+      },
+    });
+
+    if (!foodOrder) throw new FoodOrderNotFoundException();
+
+    const isCourier =
+      !!foodOrder.deliveryAssignment?.courierId &&
+      foodOrder.deliveryAssignment.courierId === user.id;
+    const isRestaurantOwner = foodOrder.restaurant.userId === user.id;
+
+    if (!isCourier && !isRestaurantOwner) throw new FoodOrderAccessDeniedException();
+
+    if (foodOrder.paymentMethod !== PaymentMethodEnum.Cash) {
+      throw new FoodOrderPaymentNotConfirmableException(
+        'Só pedidos pagos em dinheiro precisam de confirmação manual. ' +
+          'Os demais meios são quitados pelo provedor de pagamento.',
+      );
+    }
+
+    if (foodOrder.status === FoodOrderStatusEnum.Cancelled) {
+      throw new FoodOrderInvalidStatusException(
+        'Este pedido foi cancelado e não pode ser marcado como pago.',
+      );
+    }
+
+    // Idempotente: um duplo toque no botão do app não deve virar erro na tela.
+    if (foodOrder.paymentStatus === PaymentStatusEnum.Paid) {
+      return this.findById(user, id);
+    }
+
+    await this.prisma.foodOrder.update({
+      where: { id },
+      data: {
+        paymentStatus: PaymentStatusEnum.Paid,
+        paidAt: new Date(),
+        // Fica registrado quem confirmou: em dinheiro, é a única trilha de
+        // auditoria que existe se o valor não bater no acerto.
+        paidConfirmedById: user.id,
+      },
+    });
+
+    void this.whatsappService.notifyUser(
+      foodOrder.customerId,
+      `Olá! O pagamento do pedido #${foodOrder.id} foi confirmado.`,
+    );
+
+    return this.findById(user, id);
+  }
+
+  /**
+   * Calcula a taxa de entrega a partir da distância entre restaurante e cliente.
+   *
+   * A faixa aplicável vem de `DeliveryFeeRule`, mantida pelo admin: a primeira
+   * cujo intervalo contém a distância medida. `Fixed` cobra o valor em reais;
+   * `Percent` cobra o percentual sobre o valor dos itens — nunca sobre o total,
+   * o que seria a taxa incidindo sobre ela mesma.
+   *
+   * Quando falta coordenada em qualquer uma das pontas — endereço cadastrado
+   * antes desta mudança, ou front que ainda não geocodifica — cai na faixa que
+   * começa em zero, e na falta dela no padrão do código. Degradar assim é
+   * melhor que recusar o pedido: o cliente não tem como resolver a ausência de
+   * uma coordenada que nem sabe que existe.
+   */
+  private async calculateDeliveryFee(
+    customerAddressId: number,
+    restaurantAddress: { latitude: Prisma.Decimal | null; longitude: Prisma.Decimal | null } | null,
+    itemsValue: Prisma.Decimal,
+  ): Promise<Prisma.Decimal> {
+    const customerAddress = await this.prisma.address.findUnique({
+      where: { id: customerAddressId },
+      select: { latitude: true, longitude: true },
+    });
+
+    const hasCoordinates =
+      restaurantAddress?.latitude != null &&
+      restaurantAddress?.longitude != null &&
+      customerAddress?.latitude != null &&
+      customerAddress?.longitude != null;
+
+    const distance = hasCoordinates
+      ? distanceInKm(
+          {
+            latitude: restaurantAddress.latitude.toNumber(),
+            longitude: restaurantAddress.longitude.toNumber(),
+          },
+          {
+            latitude: customerAddress.latitude.toNumber(),
+            longitude: customerAddress.longitude.toNumber(),
+          },
+        )
+      : 0;
+
+    const rule = await this.prisma.deliveryFeeRule.findFirst({
+      where: {
+        isActive: true,
+        minKm: { lte: distance },
+        OR: [{ maxKm: null }, { maxKm: { gt: distance } }],
+      },
+      // Maior `minKm` primeiro: com faixas 0-3 e 3-10, uma entrega de 5 km
+      // casa nas duas condições e a correta é a mais específica.
+      orderBy: { minKm: 'desc' },
+      select: { type: true, value: true },
+    });
+
+    if (!rule) return new Prisma.Decimal(DEFAULT_DELIVERY_FEE);
+
+    if (rule.type === DeliveryFeeTypeEnum.Percent) {
+      return new Prisma.Decimal(
+        itemsValue.times(rule.value).dividedBy(100).toFixed(2, Prisma.Decimal.ROUND_HALF_UP),
+      );
+    }
+
+    return rule.value;
+  }
+
   private async findRawById(id: number) {
     const foodOrder = await this.prisma.foodOrder.findUnique({
       where: { id },
@@ -357,6 +519,8 @@ export class FoodOrdersService {
       platformFeeRate: foodOrder.platformFeeRate?.toFixed(2) ?? undefined,
       commissionAmount: foodOrder.commissionAmount?.toFixed(2) ?? undefined,
       paymentMethod: foodOrder.paymentMethod,
+      paymentStatus: foodOrder.paymentStatus,
+      paidAt: foodOrder.paidAt ?? undefined,
       notes: foodOrder.notes ?? undefined,
       cancelReason: foodOrder.cancelReason ?? undefined,
       chatRoomId,

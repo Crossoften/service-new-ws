@@ -59,7 +59,8 @@ export class FoodOrdersController {
   @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Restaurante aceita ou recusa um pedido recebido.',
-    description: 'Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.',
+    description:
+      'Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.',
   })
   @ApiOkResponse({ type: ResponseFoodOrderDto })
   @ApiForbiddenResponse({ description: 'Apenas o restaurante do pedido pode respondê-lo.' })
@@ -78,6 +79,23 @@ export class FoodOrdersController {
   @ApiForbiddenResponse({ description: 'Apenas o restaurante do pedido pode alterá-lo.' })
   markPreparing(@CurrentUser() user, @Param('id', ParseIntPipe) id: number) {
     return this.foodOrdersService.markPreparing(user, id);
+  }
+
+  @Patch(':id/confirm-payment')
+  @ProfileTypes(UserProfileType.Delivery, UserProfileType.Supplier)
+  @ApiOperation({
+    summary: 'Confirma o recebimento de um pedido pago em dinheiro.',
+    description:
+      'Só vale para pedidos com paymentMethod Cash — os demais meios são quitados pelo ' +
+      'provedor de pagamento e respondem 400. Pode ser chamada pelo entregador designado ' +
+      'ou, quando não há entrega atribuída, pelo dono do restaurante. Chamar de novo em um ' +
+      'pedido já confirmado não é erro: a rota é idempotente.',
+  })
+  @ApiOkResponse({ type: ResponseFoodOrderDto })
+  @ApiBadRequestResponse({ description: 'O pedido não é em dinheiro, ou está cancelado.' })
+  @ApiForbiddenResponse({ description: 'Apenas quem entrega o pedido pode confirmar.' })
+  confirmCashPayment(@CurrentUser() user, @Param('id', ParseIntPipe) id: number) {
+    return this.foodOrdersService.confirmCashPayment(user, id);
   }
 
   @Patch(':id/cancel')

@@ -15,6 +15,8 @@ import { AdminUsersController } from './admin-users/admin-users.controller';
 import { AdminUsersService } from './admin-users/admin-users.service';
 import { AdminCategoriesController } from './admin-categories/admin-categories.controller';
 import { AdminCategoriesService } from './admin-categories/admin-categories.service';
+import { AdminDeliveryFeesController } from './admin-delivery-fees/admin-delivery-fees.controller';
+import { AdminDeliveryFeesService } from './admin-delivery-fees/admin-delivery-fees.service';
 
 @Module({
   controllers: [
@@ -25,6 +27,7 @@ import { AdminCategoriesService } from './admin-categories/admin-categories.serv
     AdminProvidersController,
     AdminInfluencersController,
     AdminCategoriesController,
+    AdminDeliveryFeesController,
   ],
   providers: [
     PrismaService,
@@ -35,6 +38,7 @@ import { AdminCategoriesService } from './admin-categories/admin-categories.serv
     AdminProvidersService,
     AdminInfluencersService,
     AdminCategoriesService,
+    AdminDeliveryFeesService,
   ],
 })
 export class AdminModule {}

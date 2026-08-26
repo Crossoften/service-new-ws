@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { FoodOrderStatusEnum, Prisma, User } from '@prisma/client';
+import { FoodOrderStatusEnum, Prisma, ReviewTypeEnum, User } from '@prisma/client';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
@@ -26,6 +26,16 @@ import { RestaurantCategoryNotFoundException } from './exceptions/restaurant-cat
 import { MenuCategoryNotFoundException } from './exceptions/menu-category-not-found.exception';
 import { MenuItemNotFoundException } from './exceptions/menu-item-not-found.exception';
 import { MenuItemAdditionNotFoundException } from './exceptions/menu-item-addition-not-found.exception';
+import { RestaurantReviewNotAllowedException } from './exceptions/restaurant-review-not-allowed.exception';
+import { RestaurantAlreadyReviewedException } from './exceptions/restaurant-already-reviewed.exception';
+import { CreateRestaurantReviewDto } from './dto/create-restaurant-review.dto';
+import { CreateRestaurantReviewResponseDto } from './dto/response-restaurant-review.dto';
+import { MenuItemDeletionResultDto } from './dto/response-menu-item-deletion.dto';
+
+interface RestaurantRating {
+  average?: number;
+  count: number;
+}
 
 @Injectable()
 export class RestaurantsService {
@@ -149,8 +159,12 @@ export class RestaurantsService {
       this.prisma.restaurant.count({ where }),
     ]);
 
+    const ratings = await this.ratingsFor(restaurants.map((restaurant) => restaurant.id));
+
     return {
-      restaurants: restaurants.map((restaurant) => this.toResponseDto(restaurant)),
+      restaurants: restaurants.map((restaurant) =>
+        this.toResponseDto(restaurant, ratings.get(restaurant.id)),
+      ),
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
       totalRecords,
@@ -163,7 +177,9 @@ export class RestaurantsService {
       select: this.restaurantWithMenuSelect,
     });
     if (!restaurant) throw new RestaurantNotFoundException();
-    return this.toResponseDto(restaurant);
+
+    const ratings = await this.ratingsFor([restaurant.id]);
+    return this.toResponseDto(restaurant, ratings.get(restaurant.id));
   }
 
   async findMyPayouts(user: User): Promise<ResponseRestaurantPayoutDto> {
@@ -198,7 +214,9 @@ export class RestaurantsService {
       select: this.restaurantWithMenuSelect,
     });
     if (!restaurant) throw new RestaurantNotFoundException();
-    return this.toResponseDto(restaurant);
+
+    const ratings = await this.ratingsFor([restaurant.id]);
+    return this.toResponseDto(restaurant, ratings.get(restaurant.id));
   }
 
   async update(
@@ -351,6 +369,151 @@ export class RestaurantsService {
     return { ...addition, price: addition.price.toFixed(2) };
   }
 
+  /**
+   * Avaliação do restaurante: nota de 1 a 5 e comentário.
+   *
+   * Duas travas, ambas espelhando o que serviços, produtos, hospedagens e
+   * transportes já faziam: só avalia quem tem pedido entregue, e só uma vez.
+   * A unicidade também existe no banco (`@@unique`), então uma corrida entre
+   * duas requisições simultâneas falha ali em vez de gerar duplicata.
+   */
+  async review(
+    user: User,
+    id: number,
+    payload: CreateRestaurantReviewDto,
+  ): Promise<CreateRestaurantReviewResponseDto> {
+    const restaurant = await this.prisma.restaurant.findFirst({
+      where: { id, isActive: true },
+      select: { id: true, userId: true },
+    });
+
+    if (!restaurant) throw new RestaurantNotFoundException();
+    if (restaurant.userId === user.id) throw new RestaurantReviewNotAllowedException();
+
+    const deliveredOrder = await this.prisma.foodOrder.findFirst({
+      where: {
+        restaurantId: id,
+        customerId: user.id,
+        status: FoodOrderStatusEnum.Delivered,
+      },
+      select: { id: true },
+    });
+
+    if (!deliveredOrder) throw new RestaurantReviewNotAllowedException();
+
+    const existing = await this.prisma.review.findFirst({
+      where: { restaurantId: id, requesterId: user.id },
+      select: { id: true },
+    });
+
+    if (existing) throw new RestaurantAlreadyReviewedException();
+
+    const review = await this.prisma.review.create({
+      data: {
+        // `type` continua obrigatório no modelo, herdado das avaliações que só
+        // tinham polegar para cima ou para baixo. Derivado da nota para manter
+        // o campo coerente: 4 e 5 são Positive, o resto Negative.
+        type: payload.rating >= 4 ? ReviewTypeEnum.Positive : ReviewTypeEnum.Negative,
+        rating: payload.rating,
+        comment: payload.comment?.trim() || null,
+        restaurantId: id,
+        requesterId: user.id,
+      },
+      select: { id: true, rating: true, comment: true, requesterId: true, createdAt: true },
+    });
+
+    return {
+      message: 'Avaliação registrada com sucesso.',
+      review: {
+        id: review.id,
+        rating: review.rating,
+        comment: review.comment ?? undefined,
+        requesterId: review.requesterId,
+        createdAt: review.createdAt,
+      },
+    };
+  }
+
+  /**
+   * Média e contagem de avaliações, para vários restaurantes de uma vez.
+   *
+   * Agregado na consulta em vez de guardado em coluna: média materializada
+   * desatualiza sem avisar quando uma avaliação é apagada ou corrigida.
+   *
+   * Em lote, e não um `aggregate` por restaurante: a listagem devolve dez por
+   * página, e a versão ingênua faria onze consultas onde uma basta.
+   */
+  private async ratingsFor(restaurantIds: number[]): Promise<Map<number, RestaurantRating>> {
+    const ratings = new Map<number, RestaurantRating>();
+
+    if (restaurantIds.length === 0) return ratings;
+
+    const grouped = await this.prisma.review.groupBy({
+      by: ['restaurantId'],
+      where: { restaurantId: { in: restaurantIds }, rating: { not: null } },
+      _avg: { rating: true },
+      _count: { rating: true },
+    });
+
+    for (const row of grouped) {
+      if (row.restaurantId === null) continue;
+
+      ratings.set(row.restaurantId, {
+        average: row._avg.rating !== null ? Number(row._avg.rating.toFixed(2)) : undefined,
+        count: row._count.rating,
+      });
+    }
+
+    return ratings;
+  }
+
+  /**
+   * Exclui um item de cardápio.
+   *
+   * O comportamento depende de o item já ter sido pedido alguma vez:
+   *
+   * - **Nunca pedido** — apagado de verdade. É o caso do cadastro errado, e
+   *   nada no histórico aponta para ele.
+   * - **Já pedido** — desativado (`isActive: false`), não apagado. Pedidos
+   *   antigos referenciam o item pela relação, e `FoodOrderItem` guarda apenas
+   *   o preço praticado, **não o nome**. Apagar o item deixaria pedidos
+   *   entregues sem descrição do que foi vendido, além de esbarrar na chave
+   *   estrangeira.
+   *
+   * A resposta diz qual dos dois aconteceu, para a tela não prometer o que não
+   * fez.
+   */
+  async deleteMenuItem(user: User, id: number): Promise<MenuItemDeletionResultDto> {
+    const item = await this.findRawMenuItemById(id);
+    const restaurant = await this.findRawByUserId(user.id);
+    if (item.restaurantId !== restaurant.id) throw new RestaurantAccessDeniedException();
+
+    const orderedOnce = await this.prisma.foodOrderItem.findFirst({
+      where: { menuItemId: id },
+      select: { id: true },
+    });
+
+    if (orderedOnce) {
+      await this.prisma.menuItem.update({ where: { id }, data: { isActive: false } });
+
+      return {
+        message:
+          'Item desativado. Ele já faz parte de pedidos e por isso não pode ser apagado — ' +
+          'deixaria o histórico sem a descrição do que foi vendido.',
+        deleted: false,
+      };
+    }
+
+    // Adicionais só existem presos ao item; sem eles a exclusão trava na
+    // chave estrangeira.
+    await this.prisma.$transaction([
+      this.prisma.menuItemAddition.deleteMany({ where: { menuItemId: id } }),
+      this.prisma.menuItem.delete({ where: { id } }),
+    ]);
+
+    return { message: 'Item excluído com sucesso.', deleted: true };
+  }
+
   async updateMenuItemAddition(user: User, id: number, payload: UpdateMenuItemAdditionDto) {
     const addition = await this.findRawMenuItemAdditionById(id);
     const item = await this.findRawMenuItemById(addition.menuItemId);
@@ -427,9 +590,13 @@ export class RestaurantsService {
     };
   }
 
-  private toResponseDto(restaurant: any): ResponseRestaurantDto {
+  private toResponseDto(restaurant: any, rating?: RestaurantRating): ResponseRestaurantDto {
     return {
       id: restaurant.id,
+      // Sem avaliação nenhuma, `ratingAverage` fica ausente e `ratingCount` é 0.
+      // O front distingue "ainda não avaliado" de "avaliado com nota baixa".
+      ratingAverage: rating?.average,
+      ratingCount: rating?.count ?? 0,
       name: restaurant.name,
       description: restaurant.description ?? undefined,
       imageUrl: restaurant.imageUrl ?? undefined,

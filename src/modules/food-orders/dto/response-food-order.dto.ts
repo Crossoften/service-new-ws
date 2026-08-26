@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { FoodOrderStatusEnum, PaymentMethodEnum } from '@prisma/client';
+import { FoodOrderStatusEnum, PaymentMethodEnum, PaymentStatusEnum } from '@prisma/client';
 
 class ResponseFoodOrderUserDto {
   @ApiProperty()
@@ -93,6 +93,17 @@ export class ResponseFoodOrderDto {
 
   @ApiProperty({ enum: PaymentMethodEnum })
   paymentMethod: PaymentMethodEnum;
+
+  @ApiProperty({
+    enum: PaymentStatusEnum,
+    description:
+      'Situação do pagamento. Pedidos em dinheiro nascem Pending e só passam a Paid ' +
+      'quando quem entrega confirma o recebimento.',
+  })
+  paymentStatus: PaymentStatusEnum;
+
+  @ApiPropertyOptional({ description: 'Momento em que o pagamento foi confirmado.' })
+  paidAt?: Date;
 
   @ApiPropertyOptional()
   notes?: string;

@@ -11,13 +11,21 @@ model User {
   id Int @id @default(autoincrement())
 
   name           String
-  email          String           @unique
+  // Opcional por decisão de produto (25/08/2026): a identidade principal do
+  // usuário passou a ser o telefone, verificado por SMS. MySQL aceita vários
+  // NULL num índice único, então a unicidade continua valendo para quem informa.
+  email          String?          @unique
   document       String?          @unique @db.VarChar(18)
   biography      String?          @db.LongText()
   phone          String?          @unique
   password       String
   code           String?          @db.VarChar(72)
   codeExpiresIn  DateTime?
+  // Verificação de conta. Colunas próprias de propósito: `code` acima pertence
+  // à recuperação de senha, e compartilhar o campo faria um fluxo invalidar o
+  // outro — quem pedisse "esqueci a senha" perderia o código de verificação.
+  verificationCode      String?   @db.VarChar(72)
+  verificationExpiresIn DateTime?
   role           Role             @default(User)
   profileType    UserProfileType  @default(Client)
   status         Status           @default(Pending)
@@ -57,6 +65,7 @@ model User {
   socialMedias               UserSocialMedia[]
   restaurant                 Restaurant?
   foodOrders                 FoodOrder[]             @relation("FoodOrderCustomer")
+  confirmedFoodOrderPayments FoodOrder[]             @relation("FoodOrderPaymentConfirmer")
   courierAssignments         DeliveryAssignment[]    @relation("DeliveryAssignmentCourier")
   rentalsRequested           Rental[]                @relation("RentalRequester")
   rentalsProvided            Rental[]                @relation("RentalProvider")
@@ -282,6 +291,13 @@ model Address {
   zipCode      String? @db.VarChar(20)
   number       String? @db.VarChar(20)
 
+  // Coordenadas para o cálculo do frete por distância. Mesma precisão já usada
+  // em DeliveryAssignment. Opcionais: os endereços cadastrados antes disto não
+  // têm, e quem preenche é o front, ao geocodificar o endereço escolhido.
+  // Sem elas o pedido cai na taxa padrão (ver DeliveryFeeRule).
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -344,6 +360,10 @@ model Review {
   id Int @id @default(autoincrement())
 
   type             ReviewTypeEnum
+  // Nota de 1 a 5. Opcional no modelo porque as avaliações de serviço, produto,
+  // hospedagem e transporte nunca tiveram nota — só `type` e comentário. A rota
+  // de restaurante exige; as demais seguem como estavam.
+  rating           Int?           @db.SmallInt
   comment          String?        @db.LongText()
   serviceId        Int?
   productId        Int?
@@ -366,11 +386,16 @@ model Review {
   @@unique([productId, requesterId])
   @@unique([accommodationId, requesterId])
   @@unique([transportationId, requesterId])
+  // Faltava: os outros quatro tipos já tinham a trava, restaurante ficou de
+  // fora. Sem ela, o mesmo cliente avalia o mesmo restaurante quantas vezes
+  // quiser e a média vira função de insistência.
+  @@unique([restaurantId, requesterId])
   @@index([serviceId])
   @@index([productId])
   @@index([accommodationId])
   @@index([transportationId])
   @@index([requesterId])
+  @@index([restaurantId])
   @@index([type])
   @@map("reviews")
 }
@@ -843,10 +868,48 @@ enum ChatContextType {
   Job
 }
 
+/// Como o valor da faixa é interpretado.
+enum DeliveryFeeTypeEnum {
+  /// Valor em reais, cobrado integralmente.
+  Fixed
+  /// Percentual sobre o valor dos itens do pedido, sem contar a própria taxa.
+  Percent
+}
+
+/// Faixa de distância que determina a taxa de entrega.
+///
+/// Configurada pelo admin. O servidor mede a distância entre o endereço do
+/// restaurante e o do cliente e escolhe a faixa correspondente — o cliente não
+/// tem voz nisso. Antes, `deliveryFee` vinha no corpo do pedido, e como o
+/// entregador recebe 100% dessa taxa, quem pagava definia quanto o entregador
+/// ganhava.
+model DeliveryFeeRule {
+  id Int @id @default(autoincrement())
+
+  /// Início da faixa, em quilômetros, inclusivo.
+  minKm    Decimal             @db.Decimal(6, 2)
+  /// Fim da faixa, exclusivo. Nulo significa "daqui em diante".
+  maxKm    Decimal?            @db.Decimal(6, 2)
+  type     DeliveryFeeTypeEnum @default(Fixed)
+  /// Reais quando Fixed, percentual quando Percent.
+  value    Decimal             @db.Decimal(10, 2)
+  isActive Boolean             @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, minKm])
+  @@map("delivery_fee_rules")
+}
+
 enum PaymentMethodEnum {
   CreditCard
+  DebitCard
   Pix
   BankSlip
+  // Dinheiro não passa por gateway: o Payment nasce Pending e só é quitado
+  // quando quem entrega confirma o recebimento.
+  Cash
 }
 
 enum PaymentStatusEnum {
@@ -1073,6 +1136,12 @@ model FoodOrder {
   platformFeeRate  Decimal?            @db.Decimal(5, 2)
   commissionAmount Decimal?            @db.Decimal(10, 2)
   paymentMethod    PaymentMethodEnum
+  // Situação do pagamento do pedido. Até aqui não existia: o pedido guardava
+  // o meio escolhido e nada dizia se o dinheiro entrou. Com `Cash` no enum,
+  // alguém precisa confirmar o recebimento — não há gateway para fazer isso.
+  paymentStatus    PaymentStatusEnum   @default(Pending)
+  paidAt           DateTime?
+  paidConfirmedById Int?
   notes            String?             @db.LongText()
   cancelReason     String?             @db.LongText()
   restaurantId     Int
@@ -1087,6 +1156,7 @@ model FoodOrder {
 
   restaurant         Restaurant          @relation(fields: [restaurantId], references: [id])
   customer           User                @relation("FoodOrderCustomer", fields: [customerId], references: [id])
+  paidConfirmedBy    User?               @relation("FoodOrderPaymentConfirmer", fields: [paidConfirmedById], references: [id])
   address            Address?            @relation(fields: [addressId], references: [id])
   items              FoodOrderItem[]
   deliveryAssignment DeliveryAssignment?
@@ -1094,6 +1164,7 @@ model FoodOrder {
   @@index([restaurantId])
   @@index([customerId])
   @@index([status])
+  @@index([paymentStatus])
   @@map("food_orders")
 }
 

@@ -26,12 +26,15 @@ export class CreateUserDto {
   @MaxLength(120, { message: 'O nome deve ter no máximo 120 caracteres.' })
   name: string;
 
-  @ApiProperty({
-    description: 'Email do usuário.',
+  @ApiPropertyOptional({
+    description:
+      'Email do usuário. Opcional: a identidade principal da conta é o telefone, ' +
+      'verificado por SMS. Quando informado, continua tendo que ser único.',
     example: 'joao@email.com',
   })
+  @IsOptional()
   @IsEmail({}, { message: 'Informe um email válido.' })
-  email: string;
+  email?: string;
 
   @ApiProperty({
     description:

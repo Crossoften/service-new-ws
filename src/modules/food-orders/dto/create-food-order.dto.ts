@@ -1,15 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import {
-  IsArray,
-  IsEnum,
-  IsInt,
-  IsNumber,
-  IsOptional,
-  IsString,
-  Min,
-  ValidateNested,
-} from 'class-validator';
+import { IsArray, IsEnum, IsInt, IsOptional, IsString, Min, ValidateNested } from 'class-validator';
 import { PaymentMethodEnum } from '@prisma/client';
 import { CreateFoodOrderItemDto } from './create-food-order-item.dto';
 
@@ -23,13 +14,6 @@ export class CreateFoodOrderDto {
   @ApiProperty({ description: 'Método de pagamento.', enum: PaymentMethodEnum })
   @IsEnum(PaymentMethodEnum, { message: 'O método de pagamento é inválido.' })
   paymentMethod: PaymentMethodEnum;
-
-  @ApiPropertyOptional({ description: 'Taxa de entrega.', example: 8.0 })
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'A taxa de entrega deve ser um número válido.' })
-  @Min(0)
-  deliveryFee?: number;
 
   @ApiPropertyOptional({ description: 'Observações do pedido.' })
   @IsOptional()

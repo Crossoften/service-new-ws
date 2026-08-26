@@ -19,6 +19,8 @@ import { ForgotChannelEnum } from './enums/forgot-channel.enum';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyCodeDto } from './dto/verify-code.dto';
+import { VerifyAccountDto } from './dto/verify-account.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
 import { randomBytes } from 'crypto';
@@ -56,10 +58,14 @@ export class NoAuthService {
       throw new BadRequestException('Informe um telefone válido.');
     }
 
+    // O e-mail é opcional: a condição só entra no OR quando existe. Uma entrada
+    // vazia aqui não seria neutra — buscaria por e-mail vazio e casaria errado.
+    const trimmedEmail = email?.trim() || null;
+
     const existingUser = await this.prisma.user.findFirst({
       where: {
         OR: [
-          { email: email.trim() },
+          ...(trimmedEmail ? [{ email: trimmedEmail }] : []),
           // Variantes cobrem quem já se cadastrou antes da normalização.
           ...(normalizedPhone ? [{ phone: { in: phoneLookupVariants(normalizedPhone) } }] : []),
         ],
@@ -71,16 +77,29 @@ export class NoAuthService {
       throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
     }
 
+    // O SMS sai ANTES de criar a conta, de propósito. Criar primeiro e enviar
+    // depois deixaria, quando o provedor falhasse, uma conta órfã que nunca
+    // poderia ser verificada e ainda ocuparia o telefone — a segunda tentativa
+    // de cadastro bateria em 409. Falhando aqui, nada foi gravado e o usuário
+    // simplesmente tenta de novo.
+    const verificationCode: string = generateCode();
+
+    await this.smsService.sendAccountVerificationCode(normalizedPhone, verificationCode);
+
     const user = await this.prisma.user.create({
       data: {
         name: capitalizeFirstLetter(name.trim()),
-        email: email.trim(),
+        email: trimmedEmail,
         phone: normalizedPhone,
         birthDate: payload.birthDate ? new Date(payload.birthDate) : undefined,
         password: hashSync(password, 10),
         role: Role.User,
         profileType,
-        status: Status.Active,
+        // Nasce pendente: o JwtStrategy recusa token de conta que não esteja
+        // Active, então a verificação bloqueia o acesso sem código novo nenhum.
+        status: Status.Pending,
+        verificationCode: hashSync(verificationCode, 10),
+        verificationExpiresIn: this.expiresInFourHours(),
         referralCode: referralCode ? referralCode.trim() : await this.generateReferralCode(name),
         socialMedias: payload.socialMedias
           ? {
@@ -334,14 +353,18 @@ export class NoAuthService {
     return { message: 'Servidor UP', database: 'up' };
   }
 
-  users() {
-    return this.prisma.user.findMany({
+  mySelf(id: number) {
+    return this.prisma.user.findFirst({
+      where: { id },
       select: {
         id: true,
         name: true,
         email: true,
         phone: true,
-        code: true,
+        // `code` fora daqui: é o hash bcrypt do código de recuperação de senha.
+        // Devolver na resposta permitia atacá-lo offline, sem o throttler — são
+        // só 1.000.000 de combinações de 6 dígitos, e o código vale 4 horas.
+        // Nada no produto consome esse campo.
         role: true,
         profileType: true,
         status: true,
@@ -353,22 +376,78 @@ export class NoAuthService {
     });
   }
 
-  mySelf(id: number) {
+  /**
+   * Prazo dos códigos enviados por SMS. Quatro horas, igual ao da recuperação
+   * de senha — não há motivo para o usuário decorar dois prazos diferentes.
+   */
+  private expiresInFourHours(): Date {
+    const date = new Date();
+    date.setHours(date.getHours() + 4);
+    return date;
+  }
+
+  /**
+   * Localiza a conta pelo identificador digitado, que pode ser telefone (com ou
+   * sem máscara) ou e-mail.
+   */
+  private findByIdentifier(identifier: string): Promise<User | null> {
+    const trimmed = identifier.trim();
+
     return this.prisma.user.findFirst({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        code: true,
-        role: true,
-        profileType: true,
-        status: true,
-        fileUrl: true,
-        fileKey: true,
-        createdAt: true,
-        updatedAt: true,
+      where: { OR: [{ email: trimmed }, { phone: { in: phoneLookupVariants(trimmed) } }] },
+    });
+  }
+
+  /**
+   * Confirma o cadastro com o código enviado por SMS e libera o acesso.
+   *
+   * Mensagem única para todos os casos de falha — conta inexistente, código
+   * errado, código expirado, conta já verificada. Distinguir revelaria quais
+   * telefones estão cadastrados e quais já concluíram o cadastro.
+   */
+  async verifyAccount(payload: VerifyAccountDto): Promise<void> {
+    const { identifier, code } = payload;
+
+    const user = await this.findByIdentifier(identifier);
+    const invalid = new NotFoundException('Usuário ou código inválido.');
+
+    if (!user || !user.verificationCode || !user.verificationExpiresIn) throw invalid;
+    if (user.verificationExpiresIn < new Date()) throw invalid;
+    if (!compareSync(code, user.verificationCode)) throw invalid;
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        status: Status.Active,
+        // Zerado junto: código usado não pode servir de novo.
+        verificationCode: null,
+        verificationExpiresIn: null,
+      },
+    });
+  }
+
+  /**
+   * Reenvia o código de verificação.
+   *
+   * Retorna sem erro quando a conta não existe ou já está verificada, pelo mesmo
+   * motivo do `forgot`: responder "não encontrado" entregaria quais telefones
+   * estão na base. O envio vem antes da gravação para que uma falha do provedor
+   * não invalide o código anterior, que ainda pode estar com o usuário.
+   */
+  async resendVerification(payload: ResendVerificationDto): Promise<void> {
+    const user = await this.findByIdentifier(payload.identifier);
+
+    if (!user || user.status !== Status.Pending || !user.phone) return;
+
+    const code: string = generateCode();
+
+    await this.smsService.sendAccountVerificationCode(user.phone, code);
+
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        verificationCode: hashSync(code, 10),
+        verificationExpiresIn: this.expiresInFourHours(),
       },
     });
   }

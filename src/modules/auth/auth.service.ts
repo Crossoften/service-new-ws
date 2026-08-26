@@ -20,7 +20,7 @@ export class AuthService {
     };
 
     const token: string = this.jwtService.sign(payload);
-    const user = await this.loginService.findByEmail(userArg.email);
+    const user = await this.loginService.findById(userArg.id);
 
     return {
       token,

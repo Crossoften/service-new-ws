@@ -1,4 +1,14 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import {
   ApiBadRequestResponse,
   ApiCreatedResponse,
@@ -12,6 +22,9 @@ import {
 import { User, UserProfileType } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
+import { CreateRestaurantReviewDto } from './dto/create-restaurant-review.dto';
+import { CreateRestaurantReviewResponseDto } from './dto/response-restaurant-review.dto';
+import { MenuItemDeletionResultDto } from './dto/response-menu-item-deletion.dto';
 import { RestaurantsService } from './restaurants.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
@@ -171,6 +184,46 @@ export class RestaurantsController {
     @Body() payload: UpdateMenuItemDto,
   ) {
     return this.restaurantsService.updateMenuItem(user, id, payload);
+  }
+
+  @Delete('menu-items/:id')
+  @ProfileTypes(UserProfileType.Supplier)
+  @ApiOperation({
+    summary: 'Rota para o fornecedor excluir um item de cardápio.',
+    description:
+      'Item que nunca foi pedido é apagado. Item que já consta em algum pedido é apenas ' +
+      'desativado, porque os pedidos antigos dependem dele para descrever o que foi vendido. ' +
+      'O campo `deleted` na resposta diz qual dos dois aconteceu.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: MenuItemDeletionResultDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async deleteMenuItem(@CurrentUser() user: User, @Param('id', ParseIntPipe) id: number) {
+    return this.restaurantsService.deleteMenuItem(user, id);
+  }
+
+  @Post(':id/reviews')
+  @ProfileTypes(UserProfileType.Client)
+  @ApiOperation({
+    summary: 'Avalia um restaurante com nota de 1 a 5 e comentário.',
+    description:
+      'Só quem tem pedido entregue no restaurante pode avaliar, e apenas uma vez. ' +
+      'A segunda tentativa responde 409.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: CreateRestaurantReviewResponseDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'É necessário ter um pedido entregue neste restaurante.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async review(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: CreateRestaurantReviewDto,
+  ) {
+    return this.restaurantsService.review(user, id, payload);
   }
 
   @Post('menu-items/:id/additions')

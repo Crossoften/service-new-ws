@@ -81,6 +81,16 @@ export class ResponseRestaurantDto {
   @ApiPropertyOptional()
   imageUrl?: string;
 
+  @ApiPropertyOptional({
+    description:
+      'Média das notas recebidas, de 1 a 5. Ausente quando o restaurante ainda não foi avaliado.',
+    example: 4.5,
+  })
+  ratingAverage?: number;
+
+  @ApiProperty({ description: 'Quantidade de avaliações com nota.', example: 12 })
+  ratingCount: number;
+
   @ApiProperty()
   isActive: boolean;
 

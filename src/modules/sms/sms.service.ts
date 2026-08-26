@@ -27,11 +27,23 @@ export class SmsService {
   }
 
   async sendPasswordResetCode(phone: string, code: string): Promise<void> {
+    return this.send(
+      phone,
+      `Você solicitou recuperação de senha. Seu código é: ${code}. Válido por 4 horas.`,
+    );
+  }
+
+  async sendAccountVerificationCode(phone: string, code: string): Promise<void> {
+    return this.send(
+      phone,
+      `Bem-vindo! Use o código ${code} para confirmar seu cadastro. Válido por 4 horas.`,
+    );
+  }
+
+  private async send(phone: string, body: string): Promise<void> {
     if (!this.hasCredentials()) {
       throw new InternalServerErrorException('Credenciais do Twilio não configuradas.');
     }
-
-    const body = `Você solicitou recuperação de senha. Seu código é: ${code}. Válido por 4 horas.`;
 
     try {
       await this.client.messages.create({
@@ -54,8 +66,11 @@ export class SmsService {
         }`,
       );
 
+      // Mensagem neutra: o mesmo envio atende recuperação de senha e verificação
+      // de cadastro, e sugerir "use o e-mail" não faz sentido no segundo caso —
+      // ainda mais agora que o e-mail é opcional.
       throw new ServiceUnavailableException(
-        'Não foi possível enviar o SMS no momento. Tente novamente ou use o e-mail.',
+        'Não foi possível enviar o SMS no momento. Tente novamente em instantes.',
       );
     }
   }
