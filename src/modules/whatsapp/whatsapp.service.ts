@@ -2,89 +2,82 @@ import { PrismaService } from '@database/PrismaService';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Status } from '@prisma/client';
+import { normalizePhoneBR } from '@utils/normalizePhone';
+import Twilio = require('twilio');
 
 @Injectable()
 export class WhatsappService {
   private readonly logger = new Logger(WhatsappService.name);
-
-  private readonly accessToken: string | undefined;
-  private readonly phoneNumberId: string | undefined;
-  private readonly apiVersion: string;
-  private readonly templateName: string;
-  private readonly templateLanguageCode: string;
+  private readonly client: Twilio.Twilio | null;
+  private readonly fromNumber: string | undefined;
+  private readonly contentSid: string | undefined;
 
   constructor(
     private readonly configService: ConfigService,
     private readonly prisma: PrismaService,
   ) {
-    this.accessToken = this.configService.get<string>('WHATSAPP_ACCESS_TOKEN');
-    this.phoneNumberId = this.configService.get<string>('WHATSAPP_PHONE_NUMBER_ID');
-    this.apiVersion = this.configService.get<string>('WHATSAPP_API_VERSION') || 'v20.0';
-    this.templateName =
-      this.configService.get<string>('WHATSAPP_TEMPLATE_NAME') || 'notificacao_service_app';
-    this.templateLanguageCode =
-      this.configService.get<string>('WHATSAPP_TEMPLATE_LANGUAGE_CODE') || 'pt_BR';
+    const accountSid = this.configService.get<string>('TWILIO_ACCOUNT_SID');
+    const authToken = this.configService.get<string>('TWILIO_AUTH_TOKEN');
+    this.fromNumber = this.configService.get<string>('TWILIO_WHATSAPP_FROM');
+    this.contentSid = this.configService.get<string>('TWILIO_WHATSAPP_CONTENT_SID');
+
+    // Mesma guarda do SmsService: o SDK do Twilio valida o formato do SID no
+    // construtor e lança se ele não começar com "AC". Checar apenas se a
+    // variável tem valor deixa passar o placeholder do .env.example e derruba o
+    // bootstrap da aplicação inteira. Validando o formato, o serviço apenas
+    // fica desabilitado (client = null) e o envio é ignorado com log.
+    this.client = accountSid?.startsWith('AC') && authToken ? Twilio(accountSid, authToken) : null;
   }
 
-  private normalizePhoneNumber(phone: string): string | null {
-    const digits = phone.replace(/\D/g, '');
+  private toWhatsappAddress(phone: string): string | null {
+    const e164 = normalizePhoneBR(phone);
 
-    if (!digits) {
-      return null;
-    }
+    return e164 ? `whatsapp:${e164}` : null;
+  }
 
-    const withCountryCode = digits.length <= 11 ? `55${digits}` : digits;
-
-    if (withCountryCode.length < 10 || withCountryCode.length > 13) {
-      return null;
-    }
-
-    return withCountryCode;
+  hasCredentials(): boolean {
+    return Boolean(this.client && this.fromNumber && this.contentSid);
   }
 
   async sendMessage(phone: string, message: string): Promise<void> {
-    if (!this.accessToken || !this.phoneNumberId) {
-      this.logger.warn('WhatsApp não configurado; notificação não enviada.');
+    if (!this.hasCredentials()) {
+      this.logger.warn('WhatsApp via Twilio não configurado; notificação não enviada.');
       return;
     }
 
-    const to = this.normalizePhoneNumber(phone);
+    const to = this.toWhatsappAddress(phone);
 
     if (!to) {
       this.logger.warn(`Número de telefone inválido para notificação via WhatsApp: ${phone}.`);
       return;
     }
 
-    try {
-      const response = await fetch(
-        `https://graph.facebook.com/${this.apiVersion}/${this.phoneNumberId}/messages`,
-        {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            messaging_product: 'whatsapp',
-            to,
-            type: 'template',
-            template: {
-              name: this.templateName,
-              language: { code: this.templateLanguageCode },
-              components: [{ type: 'body', parameters: [{ type: 'text', text: message }] }],
-            },
-          }),
-        },
-      );
+    // As Content Templates do Twilio recebem as variáveis como texto simples.
+    // Quebras de linha invalidam a substituição, então normalizamos para espaço.
+    const conteudo = message.replace(/\r?\n/g, ' ').trim();
 
-      if (!response.ok) {
-        const errorBody = await response.text();
-        this.logger.error(
-          `Falha ao enviar notificação via WhatsApp (status ${response.status}): ${errorBody}`,
-        );
-      }
+    if (!conteudo) {
+      this.logger.warn('Mensagem vazia para notificação via WhatsApp; envio ignorado.');
+      return;
+    }
+
+    try {
+      await this.client.messages.create({
+        from: this.fromNumber,
+        to,
+        contentSid: this.contentSid,
+        contentVariables: JSON.stringify({ 1: conteudo }),
+      });
     } catch (error) {
-      this.logger.error(`Erro inesperado ao enviar notificação via WhatsApp: ${error.message}`);
+      // Notificação é acessório: falhar aqui não pode derrubar a operação de
+      // negócio que a disparou (pedido criado, entrega aceita, etc.).
+      const twilioCode = (error as { code?: number })?.code;
+
+      this.logger.error(
+        `Falha ao enviar notificação via WhatsApp pelo Twilio. code=${twilioCode ?? 'n/d'}: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
     }
   }
 

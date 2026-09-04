@@ -496,6 +496,105 @@ Faixas se sobrepondo não é erro: vence a de maior `minKm`, a mais específica.
 
 ---
 
+## 8.2 Liberação de contas — como testar sem pagamento real ✅
+
+Até aqui, tudo que um fornecedor faz no sistema passa por uma trava: **só opera
+quem tem assinatura ativa**. Isso é correto em produção e é exatamente o que
+impede testar hoje, porque a conta do Mercado Pago do cliente ainda não chegou —
+sem ela não existe cobrança real, e sem cobrança real não existe assinatura.
+
+A saída não foi afrouxar a regra. A trava continua igual: quem não tem
+assinatura ativa continua recebendo `403`. O que existe agora é uma forma de a
+**plataforma conceder** a assinatura, sem passar pelo gateway.
+
+### Concessão administrativa de assinatura
+
+```
+POST /v1/admin-providers/:id/subscriptions/grant
+```
+
+Só administrador. Cria (ou estende) uma assinatura ativa para o fornecedor, com
+a origem registrada — a assinatura concedida fica marcada como tal e sabe-se
+**quem concedeu**. Não é um "modo de teste" escondido no código: é um ato
+administrativo auditável, que continua existindo depois que o pagamento real
+entrar no ar.
+
+Para o front isso significa uma coisa só: **a tela de admin ganha um botão de
+liberar fornecedor**. Do lado do fornecedor, nada muda — ele simplesmente deixa
+de tomar `403` e passa a ver as telas que já existem.
+
+> **O front nunca decide liberação.** Não existe flag de bypass no cliente, nem
+> query param, nem header. Se a tela precisa saber se o fornecedor pode operar,
+> ela lê o estado da assinatura pelas rotas que já existem — nunca infere.
+
+### Ambiente de teste pronto
+
+```
+npm run seed:test
+```
+
+Roda no back e deixa o banco com um cenário completo e navegável: um cliente, um
+fornecedor, um restaurante e um entregador, todos `Active`, todos com telefone
+válido, senha `12345678`. O fornecedor e o restaurante já nascem com assinatura
+concedida; o restaurante já vem com cardápio; os endereços já vêm com
+coordenadas a ~1,5 km de distância, o que faz as faixas de frete (seção 8.1)
+realmente variarem em vez de cair sempre na mesma.
+
+É idempotente — pode rodar quantas vezes quiser — e se recusa a rodar com
+`NODE_ENV=production`.
+
+> Peça as credenciais dessas contas ao back antes de começar os testes de tela.
+> Elas não estão neste documento de propósito.
+
+### Pedido em dinheiro não exige Mercado Pago
+
+Enquanto a conta do gateway não chega, existe um caminho que fecha o ciclo
+inteiro sem tocar em pagamento online: **pedido em dinheiro**. Um pedido com
+`paymentMethod: "Cash"` não verifica vínculo com o Mercado Pago e segue direto
+para o fluxo de entrega e confirmação (seção 8.1).
+
+Pedido com qualquer outro meio, sim: se o dono do restaurante ainda não vinculou
+a conta do Mercado Pago, a criação responde `403`. A tela precisa tratar esse
+caso — não é erro de validação do formulário, é estado do fornecedor. O texto
+certo é do tipo *"este restaurante ainda não aceita pagamento online"*, com o
+meio em dinheiro como saída.
+
+> **Consequência prática:** enquanto as credenciais não chegarem, teste o
+> delivery ponta a ponta em dinheiro. É o único caminho que hoje chega até o
+> fim; pedidos não-dinheiro ficam parados aguardando o gateway.
+
+### Vínculo do fornecedor com o Mercado Pago
+
+O fornecedor conecta a própria conta do Mercado Pago por OAuth — a plataforma
+não guarda cartão nem recebe pelo fornecedor, ela intermedia e retém a comissão.
+São três passos, e o front participa de dois:
+
+1. **Pedir a URL de conexão** — o back devolve a URL do Mercado Pago; o front
+   redireciona o fornecedor para lá
+2. **Retorno do Mercado Pago** — o Mercado Pago devolve o usuário com um `code`
+   na query; o front repassa esse `code` ao back, que troca pelo vínculo
+3. **Estado do vínculo** — o front lê se o fornecedor está ou não vinculado,
+   para decidir entre mostrar o botão "conectar" ou o selo "conectado"
+
+> **Confirme os caminhos exatos dessas três rotas no `docs/swagger.json`
+> regenerado antes de codar.** Elas entraram junto com os patches de Mercado
+> Pago e ainda não estão na branch remota — o Swagger publicado está atrás do
+> que já existe no back local.
+
+### Notificações por WhatsApp — sem impacto no front
+
+As notificações assíncronas passaram da Cloud API da Meta para o **Twilio**, a
+mesma conta que já envia o SMS de verificação. É uma troca de provedor no back:
+nenhuma rota mudou, nenhum contrato mudou, o front não faz nada.
+
+O que muda é operacional — o ambiente passa a precisar de `TWILIO_WHATSAPP_FROM`
+e `TWILIO_WHATSAPP_CONTENT_SID`. Sem elas, a notificação é apenas registrada em
+log e ignorada; **nenhuma operação de negócio falha por causa disso**, por
+desenho. Se em homologação o WhatsApp não chegar, é configuração de ambiente, não
+bug de tela.
+
+---
+
 ## 9. O que não muda
 
 - A base `/v1` e as rotas existentes
@@ -517,6 +616,11 @@ Faixas se sobrepondo não é erro: vence a de maior `minKm`, a mais específica.
 
 6. **Meios de pagamento e frete** (seção 8.1) ✅
 7. **Confirmação em dinheiro, avaliação e exclusão de item** (seção 8.1) ✅
+8. **Botão de liberar fornecedor no admin** (seção 8.2) ✅ — é o que destrava
+   testar qualquer tela de fornecedor hoje, então vale subir antes do resto do
+   delivery
+9. **Vínculo com o Mercado Pago e tratamento do `403`** (seção 8.2) — pode
+   esperar as credenciais do cliente; até lá, teste em dinheiro
 
 **Tudo já está no ar.** Não há mais nada esperando entrega do back-end.
 

@@ -2693,6 +2693,71 @@
         ]
       }
     },
+    "/v1/admin-providers/{id}/subscriptions/grant": {
+      "post": {
+        "description": "Cria uma assinatura já ativa, válida pelo número de meses informado. Serve para cortesia comercial e para ambientes de teste, onde não há como obter assinatura ativa — ela nasce Pending e só é ativada pelo webhook de pagamento. A concessão registra quem a fez e o motivo, e não gera lançamento financeiro. Fornecedor que já tenha assinatura ativa responde 409: para estender a validade, use a rota de bônus.",
+        "operationId": "AdminProvidersController_grantSubscription",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GrantSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseGrantedSubscriptionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Fornecedor ou plano não encontrado."
+          },
+          "409": {
+            "description": "O fornecedor já possui assinatura ativa."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Concede assinatura ativa a um fornecedor, sem cobrança.",
+        "tags": [
+          "Fornecedores - Portal Gerencial"
+        ]
+      }
+    },
     "/v1/admin-providers/{id}/subscriptions/{subscriptionId}/bonus": {
       "patch": {
         "operationId": "AdminProvidersController_addSubscriptionBonus",
@@ -14334,6 +14399,78 @@
           "currentPage",
           "totalPages",
           "totalRecords"
+        ]
+      },
+      "GrantSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "planId": {
+            "type": "number",
+            "description": "Plano concedido. Define nome, intervalo e periodicidade da assinatura.",
+            "example": 1
+          },
+          "months": {
+            "type": "number",
+            "description": "Duração da concessão, em meses, contada a partir de agora.",
+            "example": 12,
+            "minimum": 1,
+            "maximum": 120
+          },
+          "reason": {
+            "type": "string",
+            "description": "Motivo da concessão, para auditoria. Ex.: \"cortesia parceiro X\", \"ambiente de homologação\", \"compensação por indisponibilidade\".",
+            "example": "Conta de testes de homologação."
+          }
+        },
+        "required": [
+          "planId",
+          "months"
+        ]
+      },
+      "ResponseGrantedSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "number"
+          },
+          "providerId": {
+            "type": "number",
+            "description": "Fornecedor que recebeu a concessão."
+          },
+          "planName": {
+            "type": "string",
+            "example": "Plano Mensal"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "Pending",
+              "Active",
+              "Cancelled",
+              "Expired"
+            ],
+            "example": "Active"
+          },
+          "currentPeriodEnd": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Até quando a assinatura concedida vale."
+          },
+          "grantedById": {
+            "type": "number",
+            "description": "Administrador que concedeu."
+          },
+          "grantReason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "providerId",
+          "planName",
+          "status",
+          "currentPeriodEnd",
+          "grantedById"
         ]
       },
       "AddSubscriptionBonusDto": {

@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, ReviewTypeEnum, UserProfileType } from '@prisma/client';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, ReviewTypeEnum, SubscriptionStatusEnum, UserProfileType } from '@prisma/client';
 import { AddSubscriptionBonusDto } from './dto/add-subscription-bonus.dto';
 import { QueryAdminProviderHistoryDto } from './dto/query-admin-provider-history.dto';
 import { QueryAdminProviderDto } from './dto/query-admin-provider.dto';
@@ -8,6 +8,8 @@ import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-h
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
 import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
+import { GrantSubscriptionDto } from './dto/grant-subscription.dto';
+import { ResponseGrantedSubscriptionDto } from './dto/response-granted-subscription.dto';
 
 @Injectable()
 export class AdminProvidersService {
@@ -185,6 +187,99 @@ export class AdminProvidersService {
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
       totalRecords,
+    };
+  }
+
+  /**
+   * Concede assinatura ativa a um fornecedor, sem pagamento.
+   *
+   * Existe porque não havia caminho para isso: a assinatura nasce `Pending` e
+   * só é ativada pelo webhook do provedor de pagamento. Sem esta rota, nenhum
+   * ambiente de teste consegue um fornecedor operante, e nenhuma cortesia
+   * comercial pode ser dada sem mexer no banco à mão.
+   *
+   * A concessão fica marcada com quem a fez e por quê. Sem isso ela seria
+   * indistinguível de uma assinatura paga, e a diferença importa: uma entrou
+   * dinheiro, a outra não.
+   *
+   * `amount` vai zerado porque nada foi cobrado. Nenhum lançamento financeiro é
+   * criado — o razão continua refletindo só o que de fato entrou.
+   */
+  async grantSubscription(
+    adminId: number,
+    providerId: number,
+    payload: GrantSubscriptionDto,
+  ): Promise<ResponseGrantedSubscriptionDto> {
+    const provider = await this._prisma.user.findUnique({
+      where: { id: providerId },
+      select: { id: true },
+    });
+
+    if (!provider) throw new NotFoundException('Fornecedor não encontrado.');
+
+    const plan = await this._prisma.plan.findUnique({
+      where: { id: payload.planId },
+      select: { id: true, name: true, interval: true, intervalCount: true },
+    });
+
+    if (!plan) throw new NotFoundException('Plano não encontrado.');
+
+    // Uma assinatura ativa por vez. Conceder por cima criaria duas válidas ao
+    // mesmo tempo, e o guard passaria a depender de qual o banco devolvesse
+    // primeiro. Para esticar uma concessão existente há a rota de bônus.
+    const active = await this._prisma.subscription.findFirst({
+      where: {
+        userId: providerId,
+        status: SubscriptionStatusEnum.Active,
+        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gte: new Date() } }],
+      },
+      select: { id: true },
+    });
+
+    if (active) {
+      throw new ConflictException(
+        `Este fornecedor já possui a assinatura #${active.id} ativa. ` +
+          'Para estender a validade, use a rota de bônus.',
+      );
+    }
+
+    const now = new Date();
+    const endsAt = new Date(now);
+    endsAt.setMonth(endsAt.getMonth() + payload.months);
+
+    const subscription = await this._prisma.subscription.create({
+      data: {
+        userId: providerId,
+        planId: plan.id,
+        status: SubscriptionStatusEnum.Active,
+        amount: 0,
+        planName: plan.name,
+        planInterval: plan.interval,
+        intervalCount: plan.intervalCount,
+        startedAt: now,
+        currentPeriodStart: now,
+        currentPeriodEnd: endsAt,
+        grantedById: adminId,
+        grantReason: payload.reason?.trim() || null,
+      },
+      select: {
+        id: true,
+        planName: true,
+        status: true,
+        currentPeriodEnd: true,
+        grantedById: true,
+        grantReason: true,
+      },
+    });
+
+    return {
+      subscriptionId: subscription.id,
+      providerId,
+      planName: subscription.planName,
+      status: subscription.status,
+      currentPeriodEnd: subscription.currentPeriodEnd,
+      grantedById: subscription.grantedById,
+      grantReason: subscription.grantReason ?? undefined,
     };
   }
 

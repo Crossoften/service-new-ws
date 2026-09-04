@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Param, ParseIntPipe, Patch, Query } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
+  ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
   ApiNotFoundResponse,
@@ -20,6 +22,8 @@ import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-h
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
 import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
+import { GrantSubscriptionDto } from './dto/grant-subscription.dto';
+import { ResponseGrantedSubscriptionDto } from './dto/response-granted-subscription.dto';
 
 @ApiTags('Fornecedores - Portal Gerencial')
 @Controller('admin-providers')
@@ -81,6 +85,35 @@ export class AdminProvidersController {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminProvidersService.findHistory(id, query);
+  }
+
+  @Post(':id/subscriptions/grant')
+  @ApiOperation({
+    summary: 'Concede assinatura ativa a um fornecedor, sem cobrança.',
+    description:
+      'Cria uma assinatura já ativa, válida pelo número de meses informado. Serve para ' +
+      'cortesia comercial e para ambientes de teste, onde não há como obter assinatura ' +
+      'ativa — ela nasce Pending e só é ativada pelo webhook de pagamento. ' +
+      'A concessão registra quem a fez e o motivo, e não gera lançamento financeiro. ' +
+      'Fornecedor que já tenha assinatura ativa responde 409: para estender a validade, ' +
+      'use a rota de bônus.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiCreatedResponse({ type: ResponseGrantedSubscriptionDto })
+  @ApiBadRequestResponse({ description: 'Requisição inválida.' })
+  @ApiConflictResponse({ description: 'O fornecedor já possui assinatura ativa.' })
+  @ApiNotFoundResponse({ description: 'Fornecedor ou plano não encontrado.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async grantSubscription(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: GrantSubscriptionDto,
+  ): Promise<ResponseGrantedSubscriptionDto> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminProvidersService.grantSubscription(user.id, id, body);
   }
 
   @Patch(':id/subscriptions/:subscriptionId/bonus')

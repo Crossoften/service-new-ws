@@ -7,6 +7,8 @@ import { ProductNotFoundException } from '../products/exceptions/product-not-fou
 import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
+import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
+import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
@@ -42,6 +44,8 @@ export class CommercialTransactionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
+    private readonly marketplaceFee: MarketplaceFeeService,
     private readonly whatsappService: WhatsappService,
   ) {}
 
@@ -552,12 +556,16 @@ export class CommercialTransactionsService {
         status: true,
         requestedAmount: true,
         agreedAmount: true,
+        seller: { select: { id: true, mpUserId: true, mpAccessToken: true } },
       },
     });
 
     if (!transaction) {
       throw new CommercialTransactionNotFoundException();
     }
+
+    // O valor vai direto para a conta do vendedor, então ela precisa existir.
+    this.mercadoPagoService.verifySellerLinked(transaction.seller);
 
     if (transaction.buyerId !== user.id) {
       throw new CommercialTransactionBuyerPaymentNotAllowedException();
@@ -582,11 +590,17 @@ export class CommercialTransactionsService {
     const amount = transaction.agreedAmount || transaction.requestedAmount;
     const externalReference = randomUUID();
 
+    const sellerAccessToken = await this.mercadoPagoAccounts.accessTokenFor(transaction.sellerId);
+    // Negociação de produto não passa por categoria de serviço: taxa global.
+    const marketplaceFeeRate = await this.marketplaceFee.globalRate();
+
     const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
       title: `Negociação #${transaction.id}`,
       unitPrice: Number(amount),
       externalReference,
       payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeRate,
     });
 
     await this.prisma.payment.create({

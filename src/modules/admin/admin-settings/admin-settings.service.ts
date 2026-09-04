@@ -167,6 +167,7 @@ export class AdminSettingsService {
 
     return {
       influencerCommissionRate: Number(settings.influencerCommissionRate),
+      marketplaceFeeRate: Number(settings.marketplaceFeeRate),
       updatedAt: settings.updatedAt,
     };
   }
@@ -179,17 +180,23 @@ export class AdminSettingsService {
       create: {
         id: 1,
         influencerCommissionRate: payload.influencerCommissionRate ?? 10,
+        ...(payload.marketplaceFeeRate !== undefined
+          ? { marketplaceFeeRate: payload.marketplaceFeeRate }
+          : {}),
       },
       update: {
         influencerCommissionRate:
           payload.influencerCommissionRate !== undefined
             ? payload.influencerCommissionRate
             : undefined,
+        marketplaceFeeRate:
+          payload.marketplaceFeeRate !== undefined ? payload.marketplaceFeeRate : undefined,
       },
     });
 
     return {
       influencerCommissionRate: Number(settings.influencerCommissionRate),
+      marketplaceFeeRate: Number(settings.marketplaceFeeRate),
       updatedAt: settings.updatedAt,
     };
   }

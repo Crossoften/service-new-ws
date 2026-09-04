@@ -36,6 +36,18 @@ model User {
   commissionRate Decimal?         @db.Decimal(5, 2)
   billingType    BillingTypeEnum?
 
+  // Vínculo da conta do vendedor no Mercado Pago, para o split automático.
+  // `mpUserId` e `mpPublicKey` são identificadores públicos e ficam em claro.
+  // Os dois tokens são CIFRADOS antes de gravar (ver src/utils/secretBox.ts):
+  // eles autorizam movimentar dinheiro em nome do vendedor, então um vazamento
+  // de banco em texto puro daria acesso às contas dos prestadores.
+  // O texto cifrado é maior que o original, daí o VarChar(500).
+  mpUserId       String?          @db.VarChar(120)
+  mpAccessToken  String?          @db.VarChar(500)
+  mpRefreshToken String?          @db.VarChar(500)
+  mpPublicKey    String?          @db.VarChar(255)
+  mpLinkedAt     DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -57,6 +69,7 @@ model User {
   purchases                  CommercialTransaction[] @relation("CommercialTransactionBuyer")
   sales                      CommercialTransaction[] @relation("CommercialTransactionSeller")
   subscriptions              Subscription[]
+  grantedSubscriptions       Subscription[]          @relation("SubscriptionGrantedBy")
   chatParticipants           ChatParticipant[]
   chatMessages               ChatMessage[]           @relation("ChatMessageSender")
   createdChatRooms           ChatRoom[]              @relation("ChatRoomCreator")
@@ -101,6 +114,10 @@ model UserSocialMedia {
 model PlatformSettings {
   id                       Int     @id @default(1)
   influencerCommissionRate Decimal @default(0) @db.Decimal(5, 2)
+  // Percentual retido pela plataforma no split do Mercado Pago. Global, usado
+  // quando a categoria do serviço não define taxa própria. Configurável em vez
+  // de fixo no código: a taxa é decisão comercial e muda sem deploy.
+  marketplaceFeeRate       Decimal @default(10) @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt
 
@@ -682,18 +699,27 @@ model Subscription {
   planId             Int
   addressId          Int?
 
+  // Concessão administrativa: assinatura criada por um admin, sem pagamento.
+  // Existe para cortesia, acordo comercial e ambiente de teste. Nulo nas
+  // assinaturas normais — é o que permite separar as duas coisas em qualquer
+  // consulta futura, em vez de precisar deduzir pelo `amount` zerado.
+  grantedById        Int?
+  grantReason        String?                  @db.VarChar(255)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id])
-  plan    Plan     @relation(fields: [planId], references: [id])
-  address Address? @relation(fields: [addressId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+  plan      Plan     @relation(fields: [planId], references: [id])
+  address   Address? @relation(fields: [addressId], references: [id])
+  grantedBy User?    @relation("SubscriptionGrantedBy", fields: [grantedById], references: [id])
 
   @@index([userId])
   @@index([planId])
   @@index([addressId])
   @@index([status])
   @@index([currentPeriodEnd])
+  @@index([grantedById])
   @@map("subscriptions")
 }
 

@@ -27,6 +27,7 @@ import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-re
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { distanceInKm } from '@utils/haversine';
 
 const DEFAULT_DELIVERY_FEE = 8;
@@ -37,6 +38,7 @@ export class FoodOrdersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsappService: WhatsappService,
+    private readonly mercadoPagoService: MercadoPagoService,
   ) {}
 
   private readonly foodOrderSelect = Prisma.validator<Prisma.FoodOrderSelect>()({
@@ -96,10 +98,18 @@ export class FoodOrdersService {
         userId: true,
         name: true,
         address: { select: { latitude: true, longitude: true } },
+        user: { select: { mpUserId: true, mpAccessToken: true } },
       },
     });
     if (!restaurant || !restaurant.isActive) throw new FoodOrderRestaurantNotFoundException();
     if (!restaurant.isOpen) throw new RestaurantClosedException();
+
+    // A exigência de conta vinculada vale só para o que passa pelo gateway.
+    // Pedido em dinheiro é liquidado na entrega, em mãos — bloqueá-lo por falta
+    // de vínculo derrubaria venda que nunca dependeu do Mercado Pago.
+    if (payload.paymentMethod !== PaymentMethodEnum.Cash) {
+      this.mercadoPagoService.verifySellerLinked(restaurant.user);
+    }
 
     const menuItemIds = payload.items.map((item) => item.menuItemId);
     const menuItems = await this.prisma.menuItem.findMany({
@@ -265,6 +275,29 @@ export class FoodOrdersService {
       throw new FoodOrderAccessDeniedException();
     }
 
+    return this.buildResponse(id);
+  }
+
+  /**
+   * Monta a resposta do pedido, sem checar acesso.
+   *
+   * Existe porque quem já validou o acesso por outro critério não pode ser
+   * obrigado a passar pelo critério do `findById`. Foi o caso da confirmação de
+   * pagamento em dinheiro: o entregador tem direito de confirmar, mas não
+   * consta como cliente nem como dono do restaurante — a gravação funcionava e
+   * a montagem da resposta estourava `403` logo depois, fazendo o app mostrar
+   * erro numa operação que tinha dado certo.
+   *
+   * Privado de propósito: quem chama é responsável por ter autorizado antes.
+   */
+  private async buildResponse(id: number): Promise<ResponseFoodOrderDto> {
+    const foodOrder = await this.prisma.foodOrder.findUnique({
+      where: { id },
+      select: this.foodOrderSelect,
+    });
+
+    if (!foodOrder) throw new FoodOrderNotFoundException();
+
     const room = await this.prisma.chatRoom.findUnique({
       where: {
         contextType_referenceId: { contextType: ChatContextType.FoodOrder, referenceId: id },
@@ -407,7 +440,7 @@ export class FoodOrdersService {
 
     // Idempotente: um duplo toque no botão do app não deve virar erro na tela.
     if (foodOrder.paymentStatus === PaymentStatusEnum.Paid) {
-      return this.findById(user, id);
+      return this.buildResponse(id);
     }
 
     await this.prisma.foodOrder.update({
@@ -426,7 +459,7 @@ export class FoodOrdersService {
       `Olá! O pagamento do pedido #${foodOrder.id} foi confirmado.`,
     );
 
-    return this.findById(user, id);
+    return this.buildResponse(id);
   }
 
   /**

@@ -11,6 +11,8 @@ import {
 import { randomUUID } from 'crypto';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
+import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
+import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
@@ -49,6 +51,8 @@ export class WorksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
+    private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
+    private readonly marketplaceFee: MarketplaceFeeService,
     private readonly whatsappService: WhatsappService,
   ) {}
 
@@ -866,12 +870,18 @@ export class WorksService {
         providerId: true,
         totalValue: true,
         serviceValue: true,
+        serviceId: true,
+        provider: { select: { id: true, mpUserId: true, mpAccessToken: true } },
       },
     });
 
     if (!work) {
       throw new WorkNotFoundException();
     }
+
+    // O pagamento passa pelo Mercado Pago, então o prestador precisa ter conta
+    // vinculada — é para ela que a parte dele vai, direto.
+    this.mercadoPagoService.verifySellerLinked(work.provider);
 
     if (work.requesterId !== user.id) {
       throw new WorkPaymentNotAllowedException();
@@ -901,11 +911,16 @@ export class WorksService {
 
     const externalReference = randomUUID();
 
+    const sellerAccessToken = await this.mercadoPagoAccounts.accessTokenFor(work.providerId);
+    const marketplaceFeeRate = await this.marketplaceFee.rateForService(work.serviceId);
+
     const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
       title: `Trabalho #${work.id}`,
       unitPrice: Number(amount),
       externalReference,
       payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeRate,
     });
 
     await this.prisma.payment.create({

@@ -424,7 +424,7 @@ que também o prometia no Swagger.
 
 ### Fase C — Delivery e cobrança · ✅ entregue
 
-Decisões 3 a 6 tomadas em 26/08. Seis patches.
+Decisões 3 a 6 tomadas em 26/08. Oito patches.
 
 | Patch | O quê | Decisão |
 |---|---|---|
@@ -434,6 +434,8 @@ Decisões 3 a 6 tomadas em 26/08. Seis patches.
 | `C4` | Avaliação de restaurante com nota de 1 a 5 e trava de uma por cliente | 5 |
 | `C5` | Exclusão de item de cardápio | BE-F1 |
 | `C6` | Contratos do Swagger: respostas tipadas, autenticação e enums nomeados | — |
+| `C7` | `postinstall` roda `prisma generate` | — |
+| `C8` | Curinga de rota no formato do Express 5 | — |
 
 **Sobre o `C1`.** O enum tinha três valores e `mapPaymentMethod()` dobrava
 `debit_card` em `CreditCard` — uma linha deliberada, não um acidente. Débito e
@@ -552,6 +554,49 @@ da documentação publicada sem ninguém perceber.
 > qualquer mudança em rota ou DTO. Contrato exportado desatualizado é pior que
 > nenhum, porque parece confiável.
 
+**Sobre o `C7`, que nasceu de um tropeço real.** Aplicados todos os patches, o
+`start:dev` devolveu **42 erros de compilação** — `DeliveryFeeRule` inexistente,
+`Cash` fora do enum, `paymentStatus` desconhecido, `rating` idem. Nenhum era de
+código: o Prisma Client em `node_modules` ainda descrevia o schema antigo.
+
+O sintoma que entrega o diagnóstico:
+
+```
+Property 'Cash' does not exist on type
+  '{ CreditCard: "CreditCard"; Pix: "Pix"; BankSlip: "BankSlip"; }'
+```
+
+Três valores — o enum de antes do `C1`.
+
+O projeto nunca teve `postinstall`, então `prisma generate` dependia de alguém
+lembrar. Passa a rodar sozinho depois de todo `npm install` e `npm ci`, o que
+cobre também o time e o deploy. **Não substitui o `migrate deploy`**: o
+`generate` lê o `schema.prisma` e conserta o TypeScript; quem altera o banco é
+a migration.
+
+Depois de aplicar patches com migration, a sequência é sempre:
+
+```bash
+npx prisma migrate deploy   # altera o banco
+npx prisma generate         # atualiza o cliente TypeScript
+```
+
+E reinicie o `start:dev` — o watch não recompila o que está em `node_modules`.
+
+**Sobre o `C8`, que veio do mesmo boot.** O log trazia:
+
+```
+WARN [LegacyRouteConverter] Unsupported route path: "/v1/*"
+```
+
+Culpa minha, do `D4`: o middleware de correlação usava
+`forRoutes('*')`. O NestJS 11 roda sobre o Express 5, cujo `path-to-regexp`
+exige curinga nomeado — `'*path'`. Ele converte sozinho e avisa, mas a
+conversão automática não é para durar.
+
+Trocado e verificado: o aviso sumiu, o `x-request-id` continua saindo em todas
+as rotas e o log de requisição do `D4` segue funcionando.
+
 **Validação executada**, 217 rotas, contra banco real:
 
 | Caso | Resultado |
@@ -572,6 +617,219 @@ da documentação publicada sem ninguém perceber.
 | Média na listagem | `ratingAverage: 5`, `ratingCount: 1` |
 | Excluir item nunca pedido | Apagado, `deleted: true` |
 | Excluir item já pedido | Desativado, `deleted: false`, histórico intacto |
+
+---
+
+### Fase T — Ambiente de teste · 🟡 em andamento
+
+Motivada por uma necessidade concreta: **não havia como ter um fornecedor
+operante sem pagamento real.** A assinatura nasce `Pending` e só é ativada pelo
+webhook do provedor. A rota de bônus do admin, que parecia resolver, apenas
+estende o `currentPeriodEnd` de uma assinatura existente — não cria nem ativa.
+
+| Patch | O quê |
+|---|---|
+| `T1` | `POST /admin-providers/:id/subscriptions/grant` — concessão administrativa de assinatura |
+| `T2` | Confirmação de pagamento deixa de estourar `403` para o entregador |
+| `T3` | `npm run seed:test` — cenário completo em um comando |
+
+**Por que rota, e não variável de ambiente.** A alternativa barata seria um
+`BYPASS_SUBSCRIPTION=true`. Ficaria a um `.env` de distância de desligar a
+cobrança em produção, e ninguém perceberia até o fechamento do mês não bater.
+A concessão, além de não abrir esse caminho, é funcionalidade que o negócio vai
+querer de qualquer forma: cortesia a parceiro, acordo comercial, compensação por
+indisponibilidade, migração de base antiga.
+
+**O que a concessão registra.** `grantedById` e `grantReason` são colunas novas
+em `Subscription`. Sem elas, uma cortesia seria indistinguível de uma assinatura
+paga — e a diferença importa, porque numa entrou dinheiro e na outra não. O
+`amount` vai zerado e **nenhum lançamento financeiro é criado**: o razão
+continua refletindo só o que de fato entrou.
+
+**Uma assinatura ativa por vez.** Conceder por cima de uma ativa responde `409`
+apontando para a rota de bônus, que é o caminho de estender. Duas assinaturas
+válidas ao mesmo tempo fariam o guard depender de qual o banco devolvesse
+primeiro.
+
+**Validação executada** contra banco real:
+
+| Caso | Resultado |
+|---|---|
+| Fornecedor publica serviço **antes** da concessão | `403` "assinatura ativa" |
+| Concessão de 12 meses | `201` · `Active` · validade em 2027 |
+| Fornecedor publica serviço **depois** | `201` |
+| Conceder de novo a quem já tem | `409` apontando a rota de bônus |
+| Bônus de 6 meses sobre a concessão | `200` · validade estendida para 2028 |
+| Fornecedor concedendo para si mesmo | `403` |
+| Plano inexistente · duração acima de 120 meses | `404` · `400` |
+| Razão financeiro | Nenhum `payment` criado, nenhum lançamento novo |
+
+**Ainda por fazer nesta fase:**
+
+**Sobre o `T3`, e o bug que ele encontrou.** O seed monta o cenário inteiro de
+forma idempotente — quatro contas com telefone em E.164 e status `Active`,
+assinatura concedida para fornecedor e restaurante, restaurante com cardápio,
+endereços com coordenadas a ~1,5 km um do outro, e três faixas de frete reais
+no lugar da faixa única que a migration do `C3` semeia.
+
+Rodar o ciclo completo em cima dele expôs um defeito do `C2` que os testes
+isolados não pegaram: **o entregador confirmava o pagamento em dinheiro e
+recebia `403`.**
+
+A gravação funcionava; o que estourava era a montagem da resposta.
+`confirmCashPayment` terminava chamando `findById`, que só autoriza cliente e
+dono do restaurante. O entregador via erro numa operação que tinha dado certo, e
+o segundo toque no botão dava o mesmo erro — porque o caminho idempotente também
+terminava em `findById`.
+
+Corrigido no `T2`, separando a montagem da resposta da checagem de acesso. A
+política de leitura ficou intacta de propósito: `GET /food-orders/:id` continua
+recusando o entregador, que já enxerga o pedido pelas rotas de entrega.
+
+> **A lição vale além deste caso:** teste de unidade não pega isso. Só apareceu
+> quando o cenário foi exercitado de ponta a ponta com os quatro perfis reais,
+> que é exatamente para o que o seed serve.
+
+**Ainda por fazer nesta fase:**
+
+- Ao trazer o split, mover o `verifySellerLinked` para valer só quando o
+  pagamento passa pelo Mercado Pago — hoje ele bloqueia até pedido em dinheiro,
+  o que mata o caminho de teste que não depende de gateway
+
+---
+
+### Fase MP — Split automático do Mercado Pago · ✅ entregue
+
+Trazido da `luan/develop` (commits de 18 a 20/08), com as correções que a
+revisão levantou. Reescrito em cima da nossa base em vez de mesclado: os dois
+lados tinham tocado os mesmos arquivos, e as seis ressalvas precisavam ser
+endereçadas de qualquer forma.
+
+| Patch | O quê |
+|---|---|
+| `MP1` | Vínculo da conta do vendedor por OAuth, com tokens cifrados |
+| `MP2` | Split nos fluxos que cobram, com taxa vinda de configuração |
+| `MP3` | A trava de vínculo vale só quando o pagamento passa pelo gateway |
+
+**Como funciona.** O vendedor autoriza a plataforma pelo OAuth do Mercado Pago.
+A partir daí o checkout é criado **com o token dele**, e o `marketplace_fee`
+informa quanto a plataforma retém — o dinheiro é dividido na origem. Isso
+fecha a lacuna registrada na seção 4: até então o razão creditava 100% ao
+prestador e a plataforma não retinha nada.
+
+**As seis correções, uma a uma:**
+
+| # | O que estava | O que ficou |
+|---|---|---|
+| 1 | Sem migration, commits marcados `[RESET DB]` | Migration escrita. Homolog e produção têm caminho |
+| 2 | 10% fixos no código | `PlatformSettings.marketplaceFeeRate`, ajustável pelo admin sem deploy. A categoria do serviço, quando define taxa própria, tem precedência |
+| 3 | Tokens em texto puro | AES-256-GCM antes de gravar (`src/utils/secretBox.ts`) |
+| 4 | Refresh token guardado e nunca usado | `refreshSellerLink()` renova o vínculo |
+| 5 | Restaurante sem vínculo não recebia nem pedido em dinheiro | A trava vale só quando o meio de pagamento passa pelo gateway |
+| 6 | Delivery ganhou a trava mas não a cobrança | A trava saiu do caminho do dinheiro. A cobrança de delivery pelo Mercado Pago continua pendente, e agora está registrada como tal |
+
+**Sobre a cifragem.** O formato guardado carrega a versão do esquema —
+`v1:<iv>:<tag>:<cifra>` — para permitir trocar algoritmo ou chave sem precisar
+adivinhar como cada registro antigo foi cifrado. O GCM autentica além de cifrar:
+texto adulterado falha na decifragem em vez de devolver lixo.
+
+> **Trocar `MERCADOPAGO_TOKEN_ENCRYPTION_KEY` invalida os vínculos existentes.**
+> Os tokens gravados não poderão ser decifrados e cada vendedor terá que
+> autorizar de novo. A chave é dado de infraestrutura, não configuração casual.
+
+**Onde a renovação acontece.** No ponto de uso, não em rotina agendada: é onde
+se descobre que o token venceu, e é onde o vendedor perderia a venda se nada
+fosse feito.
+
+**Rotas novas** — três, todas autenticadas:
+
+| Rota | O quê |
+|---|---|
+| `GET /mercado-pago/status` | Se a conta do usuário está vinculada |
+| `GET /mercado-pago/connect-url` | Endereço para onde levar o vendedor |
+| `POST /mercado-pago/oauth/callback` | Troca o código pelos tokens e vincula |
+
+Nenhum token sai da API: o callback devolve só o identificador público do
+vendedor.
+
+**Validação executada** (221 rotas), com o vínculo simulado por um token cifrado
+inserido direto no banco — as credenciais reais do cliente ainda não chegaram:
+
+| Caso | Resultado |
+|---|---|
+| Pedido em **dinheiro**, restaurante sem vínculo | `201` — o caminho de teste segue de pé |
+| Pedido no **cartão**, restaurante sem vínculo | `400` "vendedor não vinculou conta" |
+| `GET /mercado-pago/status` sem vínculo | `{"isLinked": false}` |
+| `GET /mercado-pago/status` com vínculo | `isLinked`, `mpUserId` e `linkedAt` — nenhum token |
+| `connect-url` sem `CLIENT_ID` | `503` explicando qual variável falta |
+| Token no banco | `v1:a92ca77e…` · zero ocorrências de texto em claro |
+| Admin lê e altera a taxa | `10` → `15` → `10`, refletido no banco |
+| Configuração ausente | Criada com o padrão do schema, em vez de virar taxa zero silenciosa |
+| Cifragem | 8 testes: ida e volta, IV aleatório, chave errada, conteúdo adulterado, acentuação |
+
+**O que continua pendente**, e é importante não confundir com entregue:
+
+- **Nada foi exercitado contra o Mercado Pago de verdade.** Faltam as
+  credenciais do cliente. O fluxo OAuth completo, o split real e o webhook só
+  podem ser validados com uma aplicação de teste do Mercado Pago
+- **Delivery continua sem cobrança pelo gateway.** Pedido de comida não cria
+  `Payment`; só dinheiro é confirmado, pela rota do `C2`
+
+---
+
+### Fase W — WhatsApp no Twilio · ✅ entregue
+
+**Objetivo.** Trocar o provedor das notificações assíncronas por WhatsApp da
+Cloud API da Meta para o Twilio, unificando o canal com o SMS de verificação,
+que já roda no Twilio desde a Fase S.
+
+**Motivo técnico.** Manter dois provedores significava duas contas, dois
+processos de aprovação de template e dois modos de falha para depurar. O SMS já
+estava validado no Twilio com número real (`+12527134087`), então o WhatsApp
+passar a usar a mesma conta elimina um fornecedor inteiro do caminho crítico.
+
+**Patch W1 — `src/modules/whatsapp/whatsapp.service.ts`, `whatsapp.service.spec.ts`, `.env.example`, `env.example`**
+
+- Envio passa a usar o SDK do Twilio (`messages.create`) com **Content
+  Template** (`contentSid` + `contentVariables`), no lugar do `fetch` direto
+  contra `graph.facebook.com`
+- Destino vira `whatsapp:+E164`, derivado do **`normalizePhoneBR` já existente**
+  (`src/utils/normalizePhone.ts`), em vez das regras próprias de contagem de
+  dígitos que existiam no serviço
+- Guarda de formato do SID replicada do `SmsService`: sem `AC` no início, o
+  client fica `null` e o serviço apenas se desabilita — o placeholder do
+  `.env.example` deixa de derrubar o bootstrap
+- Quebras de linha na mensagem são achatadas em espaço antes de virar variável
+  do template
+- Falha do provedor continua sem propagar: notificação é acessório e não pode
+  derrubar a operação de negócio que a disparou
+
+**Duas melhorias deliberadas sobre a versão da `luan/develop`.** A implementação
+que existia lá não tinha a guarda de formato do SID (o placeholder derrubava o
+boot) e trocava a normalização de telefone por regras próprias que estreitavam
+a faixa aceita de 10–13 para 12–13 dígitos, silenciosamente. As duas foram
+corrigidas aqui.
+
+**Variáveis de ambiente.** Saem `WHATSAPP_ACCESS_TOKEN`,
+`WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_API_VERSION`, `WHATSAPP_TEMPLATE_NAME` e
+`WHATSAPP_TEMPLATE_LANGUAGE_CODE`. Entram `TWILIO_WHATSAPP_FROM` (formato
+`whatsapp:+E164`) e `TWILIO_WHATSAPP_CONTENT_SID` (`HX...`). `TWILIO_ACCOUNT_SID`
+e `TWILIO_AUTH_TOKEN` são reaproveitados da seção de SMS — é a mesma conta.
+
+**Ajuste de infraestrutura de teste.** O bloco `jest` do `package.json` não tinha
+`moduleNameMapper`, então nenhuma suíte conseguia importar um módulo por alias
+(`@database/...`, `@utils/...`). As suítes existentes passavam só porque todas
+usavam import relativo. Adicionado — sem isso a suíte do WhatsApp nem carrega.
+
+**Validação.** `npx jest`: 6 suítes, **44 testes, todos passando** (11 novos).
+`npm run build` limpo. `npx eslint src` limpo. Patch verificado em worktree
+descartável a partir de `464e3a7`, com conferência byte a byte contra a árvore
+de trabalho.
+
+**Pendente.** Criar a Content Template no Twilio Content Template Builder (um
+único parâmetro de corpo, `{{1}}`) e preencher as duas variáveis novas em
+homologação. Enquanto não existirem, a notificação é apenas logada — por
+desenho, nada quebra.
 
 ---
 
@@ -804,10 +1062,11 @@ Ambiente local: ver `docs/` e o runbook de setup. Resumo:
 
 ```bash
 git checkout ajustes-gerais
-npm install && npx prisma generate
+npm install                   # o postinstall já roda o prisma generate
 cp .env.example .env          # ajustar JWT_SECRET, DATABASE_URL, FRONTEND_URL
 npx prisma migrate deploy
 npm run seed
+npm run seed:test             # cenário de teste completo, idempotente
 npm run start:dev             # 217 rotas · Swagger em http://localhost:8000/docs
 npm run swagger:export        # regrava docs/openapi.json para o front
 ```
@@ -830,7 +1089,9 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 | **B** | Desbloqueio do front | ✅ Entregue | 7 | 2 |
 | **S** | Integração de SMS | ✅ Entregue e validada de ponta a ponta | 2 | 13 |
 | **E** | Débito técnico | ✅ Entregue · resíduos na 5.4 | 3 | — |
-| **C** | Delivery e cobrança | ✅ Entregue · resíduos na 5.3 e 5.4 | 6 | 5 |
+| **C** | Delivery e cobrança | ✅ Entregue · resíduos na 5.3 e 5.4 | 8 | 5 |
+| **T** | Ambiente de teste | 🟡 Em andamento | 3 | — |
+| **MP** | Split do Mercado Pago | ✅ Entregue · falta validar com credenciais reais | 3 | 8 |
 
-**Total: 30 patches**, todos verificados aplicando em sequência sobre `b2ae83e`
+**Total: 38 patches**, todos verificados aplicando em sequência sobre `b2ae83e`
 em worktree limpa, com build, `jest` e `eslint` no fim da cadeia.
