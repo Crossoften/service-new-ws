@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsBoolean, IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsBoolean, IsInt, IsOptional, IsString, Max, Min, ValidateNested } from 'class-validator';
+import { RestaurantAddressDto } from './restaurant-address.dto';
 
 export class UpdateRestaurantDto {
   @ApiPropertyOptional({ description: 'Nome do restaurante.' })
@@ -39,4 +40,44 @@ export class UpdateRestaurantDto {
   @IsOptional()
   @IsBoolean({ message: 'O campo isActive deve ser um booleano.' })
   isActive?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Endereço do restaurante. É a origem do frete por distância e o ponto de coleta do ' +
+      'entregador — próprio do estabelecimento, não o endereço do perfil do dono.',
+    type: RestaurantAddressDto,
+  })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => RestaurantAddressDto)
+  address?: RestaurantAddressDto;
+
+  @ApiPropertyOptional({
+    description:
+      'Tempo mínimo estimado de entrega, em minutos. Com o máximo, forma a faixa exibida ' +
+      'na vitrine ("30-45 min"). Ausente significa não informado: a tela deve omitir o ' +
+      'tempo, não mostrar zero.',
+    example: 30,
+    minimum: 1,
+    maximum: 480,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'O tempo mínimo de entrega deve ser um número inteiro de minutos.' })
+  @Min(1, { message: 'O tempo mínimo de entrega deve ser de ao menos 1 minuto.' })
+  @Max(480, { message: 'O tempo mínimo de entrega deve ser de no máximo 480 minutos.' })
+  deliveryTimeMinMinutes?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tempo máximo estimado de entrega, em minutos. Não pode ser menor que o mínimo.',
+    example: 45,
+    minimum: 1,
+    maximum: 480,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt({ message: 'O tempo máximo de entrega deve ser um número inteiro de minutos.' })
+  @Min(1, { message: 'O tempo máximo de entrega deve ser de ao menos 1 minuto.' })
+  @Max(480, { message: 'O tempo máximo de entrega deve ser de no máximo 480 minutos.' })
+  deliveryTimeMaxMinutes?: number;
 }

@@ -1,6 +1,42 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/category-icons/{vertical}/{fileName}": {
+      "get": {
+        "description": "Pública por desenho: é imagem de vitrine, exibida antes de qualquer login. A URL devolvida em `iconUrl` nas rotas de categoria aponta para cá quando os ícones são servidos pela própria API. Definindo SERVICE_CATEGORY_PUBLIC_URL_BASE, as URLs passam a apontar para o host externo e esta rota deixa de ser usada.",
+        "operationId": "CategoryIconsController_serve",
+        "parameters": [
+          {
+            "name": "vertical",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "fileName",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ícone encontrado."
+          },
+          "404": {
+            "description": "Ícone não encontrado."
+          }
+        },
+        "summary": "Serve o ícone de uma categoria.",
+        "tags": [
+          "Ícones de categoria"
+        ]
+      }
+    },
     "/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -695,6 +731,34 @@
           }
         },
         "summary": "Rota para upload de múltiplos arquivos.",
+        "tags": [
+          "Upload de arquivos"
+        ]
+      }
+    },
+    "/files/{fileKey}": {
+      "get": {
+        "description": "Só responde quando a API está sem credenciais da AWS e grava em disco. Com S3 configurado, a URL pública é a do próprio bucket e esta rota devolve 404. É pública por desenho: reproduz o `public_read` com que os objetos vão para o S3 — a proteção, nos dois casos, é a chave não ser adivinhável.",
+        "operationId": "UploadController_serveLocalFile",
+        "parameters": [
+          {
+            "name": "fileKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Arquivo encontrado."
+          },
+          "404": {
+            "description": "Arquivo não encontrado."
+          }
+        },
+        "summary": "Serve um arquivo do armazenamento local.",
         "tags": [
           "Upload de arquivos"
         ]
@@ -10634,8 +10698,25 @@
     },
     "/restaurants/me/payouts": {
       "get": {
+        "description": "Sem `period`, considera todo o histórico — o comportamento anterior a este parâmetro. Com `period`, recorta em hoje, semana corrente ou mês corrente, nas mesmas fronteiras usadas nos ganhos do entregador.",
         "operationId": "RestaurantsController_findMyPayouts",
-        "parameters": [],
+        "parameters": [
+          {
+            "name": "period",
+            "required": false,
+            "in": "query",
+            "description": "Recorte do relatório. `day` começa à meia-noite de hoje, `week` no domingo desta semana e `month` no dia 1º deste mês — as mesmas fronteiras usadas nos ganhos do entregador. Ausente, o relatório considera todo o histórico, que é o comportamento anterior a este parâmetro.",
+            "schema": {
+              "example": "month",
+              "type": "string",
+              "enum": [
+                "day",
+                "week",
+                "month"
+              ]
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -18404,6 +18485,16 @@
             "type": "string",
             "example": "38400-000"
           },
+          "latitude": {
+            "type": "string",
+            "description": "Latitude do endereço. Ausente nos endereços cadastrados antes da geocodificação.",
+            "example": "-18.9186000"
+          },
+          "longitude": {
+            "type": "string",
+            "description": "Longitude do endereço.",
+            "example": "-48.2772000"
+          },
           "createdAt": {
             "type": "string",
             "example": "2026-03-17T01:00:00.000Z"
@@ -18640,6 +18731,16 @@
             "type": "string",
             "description": "CEP.",
             "example": "38400-000"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitude do endereço, obtida pela geocodificação no app. Sem ela, o frete do delivery cai na faixa padrão em vez de variar por distância, e o app do entregador não tem destino para traçar a rota.",
+            "example": -18.9186
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude do endereço, obtida pela geocodificação no app.",
+            "example": -48.2772
           }
         }
       },
@@ -22364,6 +22465,47 @@
           "slug"
         ]
       },
+      "ResponseRestaurantAddressDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "street": {
+            "type": "string",
+            "example": "Avenida Rondon Pacheco"
+          },
+          "number": {
+            "type": "string",
+            "example": "1200"
+          },
+          "neighborhood": {
+            "type": "string",
+            "example": "Tibery"
+          },
+          "city": {
+            "type": "string",
+            "example": "Uberlândia"
+          },
+          "state": {
+            "type": "string",
+            "example": "Minas Gerais"
+          },
+          "zipCode": {
+            "type": "string",
+            "example": "38400-000"
+          },
+          "latitude": {
+            "type": "string",
+            "example": "-18.9146000"
+          },
+          "longitude": {
+            "type": "string",
+            "example": "-48.2754000"
+          }
+        }
+      },
       "ResponseMenuItemAdditionDto": {
         "type": "object",
         "properties": {
@@ -22488,6 +22630,24 @@
           "userId": {
             "type": "number"
           },
+          "address": {
+            "description": "Endereço do restaurante. Ausente nos cadastrados antes do endereço passar a ser informável. Sem `latitude`/`longitude`, o frete cai na faixa padrão.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseRestaurantAddressDto"
+              }
+            ]
+          },
+          "deliveryTimeMinMinutes": {
+            "type": "number",
+            "description": "Tempo mínimo estimado de entrega, em minutos. Ausente = não informado.",
+            "example": 30
+          },
+          "deliveryTimeMaxMinutes": {
+            "type": "number",
+            "description": "Tempo máximo estimado de entrega, em minutos. Ausente = não informado.",
+            "example": 45
+          },
           "menuCategories": {
             "type": "array",
             "items": {
@@ -22545,6 +22705,17 @@
           "netAmount": {
             "type": "string",
             "description": "Valor líquido a repassar ao estabelecimento (itens - comissão)."
+          },
+          "period": {
+            "type": "string",
+            "description": "Recorte considerado no relatório. `all` quando nenhum período foi pedido.",
+            "enum": [
+              "day",
+              "week",
+              "month",
+              "all"
+            ],
+            "example": "all"
           }
         },
         "required": [
@@ -22552,8 +22723,54 @@
           "totalOrders",
           "totalItemsValue",
           "totalCommission",
-          "netAmount"
+          "netAmount",
+          "period"
         ]
+      },
+      "RestaurantAddressDto": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string",
+            "description": "Logradouro.",
+            "example": "Avenida Rondon Pacheco"
+          },
+          "number": {
+            "type": "string",
+            "description": "Número.",
+            "example": "1200"
+          },
+          "neighborhood": {
+            "type": "string",
+            "description": "Bairro.",
+            "example": "Tibery"
+          },
+          "city": {
+            "type": "string",
+            "description": "Cidade.",
+            "example": "Uberlândia"
+          },
+          "state": {
+            "type": "string",
+            "description": "Estado.",
+            "example": "Minas Gerais"
+          },
+          "zipCode": {
+            "type": "string",
+            "description": "CEP.",
+            "example": "38400-000"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitude do restaurante, obtida pela geocodificação no app. É a origem do cálculo do frete por distância: sem ela, o pedido cai na faixa padrão.",
+            "example": -18.9146
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude do restaurante.",
+            "example": -48.2754
+          }
+        }
       },
       "CreateRestaurantDto": {
         "type": "object",
@@ -22579,6 +22796,28 @@
             "type": "number",
             "description": "Id da categoria do restaurante.",
             "example": 1
+          },
+          "address": {
+            "description": "Endereço do restaurante. É a origem do frete por distância e o ponto de coleta do entregador — próprio do estabelecimento, não o endereço do perfil do dono.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RestaurantAddressDto"
+              }
+            ]
+          },
+          "deliveryTimeMinMinutes": {
+            "type": "number",
+            "description": "Tempo mínimo estimado de entrega, em minutos. Com o máximo, forma a faixa exibida na vitrine (\"30-45 min\"). Ausente significa não informado: a tela deve omitir o tempo, não mostrar zero.",
+            "example": 30,
+            "minimum": 1,
+            "maximum": 480
+          },
+          "deliveryTimeMaxMinutes": {
+            "type": "number",
+            "description": "Tempo máximo estimado de entrega, em minutos. Não pode ser menor que o mínimo.",
+            "example": 45,
+            "minimum": 1,
+            "maximum": 480
           }
         },
         "required": [
@@ -22874,6 +23113,28 @@
           "isActive": {
             "type": "boolean",
             "description": "Define se o restaurante está ativo na plataforma."
+          },
+          "address": {
+            "description": "Endereço do restaurante. É a origem do frete por distância e o ponto de coleta do entregador — próprio do estabelecimento, não o endereço do perfil do dono.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/RestaurantAddressDto"
+              }
+            ]
+          },
+          "deliveryTimeMinMinutes": {
+            "type": "number",
+            "description": "Tempo mínimo estimado de entrega, em minutos. Com o máximo, forma a faixa exibida na vitrine (\"30-45 min\"). Ausente significa não informado: a tela deve omitir o tempo, não mostrar zero.",
+            "example": 30,
+            "minimum": 1,
+            "maximum": 480
+          },
+          "deliveryTimeMaxMinutes": {
+            "type": "number",
+            "description": "Tempo máximo estimado de entrega, em minutos. Não pode ser menor que o mínimo.",
+            "example": 45,
+            "minimum": 1,
+            "maximum": 480
           }
         }
       },

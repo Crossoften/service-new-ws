@@ -22,6 +22,20 @@ export class ResponseAddressDto {
   @ApiPropertyOptional({ example: '38400-000', type: String })
   zipCode?: string;
 
+  @ApiPropertyOptional({
+    description: 'Latitude do endereço. Ausente nos endereços cadastrados antes da geocodificação.',
+    example: '-18.9186000',
+    type: String,
+  })
+  latitude?: string;
+
+  @ApiPropertyOptional({
+    description: 'Longitude do endereço.',
+    example: '-48.2772000',
+    type: String,
+  })
+  longitude?: string;
+
   @ApiProperty({ example: '2026-03-17T01:00:00.000Z', type: String })
   createdAt: Date;
 

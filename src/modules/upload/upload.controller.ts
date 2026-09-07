@@ -1,4 +1,3 @@
-import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { IfileEntity } from '@interfaces/entities/Ifile.entity';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import {
@@ -16,7 +15,6 @@ import {
   UploadedFiles,
   UseInterceptors,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import {
   ApiBody,
@@ -29,21 +27,17 @@ import {
 } from '@nestjs/swagger';
 import { User } from '@prisma/client';
 import { Response } from 'express';
-import { Readable } from 'stream';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { DeleteOneFileDto } from './dto/delete-one-file.dto';
 import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
-import { UploadFileNotFoundException } from './exceptions/upload-file-not-found.exception';
 import { UploadService } from './upload.service';
 
 @ApiTags('Upload de arquivos')
 @Controller()
 export class UploadController {
-  constructor(
-    private readonly _uploadService: UploadService,
-    private readonly _configService: ConfigService,
-  ) {}
+  constructor(private readonly _uploadService: UploadService) {}
 
   @Post('upload/one-file')
   @UseInterceptors(FileInterceptor('file'))
@@ -102,6 +96,26 @@ export class UploadController {
     return response;
   }
 
+  @Get('files/:fileKey')
+  @IsPublic()
+  @ApiOperation({
+    summary: 'Serve um arquivo do armazenamento local.',
+    description:
+      'Só responde quando a API está sem credenciais da AWS e grava em disco. Com S3 ' +
+      'configurado, a URL pública é a do próprio bucket e esta rota devolve 404. ' +
+      'É pública por desenho: reproduz o `public_read` com que os objetos vão para o S3 — ' +
+      'a proteção, nos dois casos, é a chave não ser adivinhável.',
+  })
+  @ApiResponse({ status: 200, description: 'Arquivo encontrado.' })
+  @ApiResponse({ status: 404, description: 'Arquivo não encontrado.' })
+  async serveLocalFile(@Param('fileKey') fileKey: string, @Res() res: Response) {
+    const { stream, fileName } = await this._uploadService.openLocalByKey(fileKey);
+
+    res.set({ 'Content-Disposition': `inline; filename=${fileName}` });
+
+    return stream.pipe(res);
+  }
+
   @Get('one-file/:id')
   @ApiOperation({ summary: 'Rota para recuperar informações de um arquivo pelo id.' })
   @ApiResponse({ status: 200, type: IfileEntity })
@@ -121,25 +135,12 @@ export class UploadController {
     description: 'Arquivo não encontrado.',
   })
   async dowload(@Param('id', ParseIntPipe) id: number, @Res() res: Response) {
-    const file = await this.getFileById(id);
-
-    const s3Client = new S3Client({ region: this._configService.get<string>('AWS_REGION') });
-
-    const getObjectCommand = new GetObjectCommand({
-      Bucket: this._configService.get<string>('AWS_BUCKET_NAME'),
-      Key: file.fileKey,
-    });
-
-    const { Body, ContentType } = await s3Client.send(getObjectCommand);
-
-    if (!Body) throw new UploadFileNotFoundException();
+    const { stream, contentType, fileName } = await this._uploadService.openForDownload(id);
 
     res.set({
-      'Content-Type': ContentType || 'application/octet-stream',
-      'Content-Disposition': `attachment; filename=${file.fileKey}`,
+      'Content-Type': contentType,
+      'Content-Disposition': `attachment; filename=${fileName}`,
     });
-
-    const stream = Body instanceof Readable ? Body : Readable.from(Body as any);
 
     return stream.pipe(res);
   }

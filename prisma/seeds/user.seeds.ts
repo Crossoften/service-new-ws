@@ -2,7 +2,10 @@ import { PrismaClient, Role, Status, UserProfileType } from '@prisma/client';
 import { hashSync } from 'bcrypt';
 
 export async function seedUser(prisma: PrismaClient) {
+  // `skipDuplicates` porque o e-mail é único: sem ele, rodar o seed numa base
+  // que já tem as contas de exemplo estoura P2002 e derruba o restante.
   await prisma.user.createMany({
+    skipDuplicates: true,
     data: [
       {
         name: 'client one',

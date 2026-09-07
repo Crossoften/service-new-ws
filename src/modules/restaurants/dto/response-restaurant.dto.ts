@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ResponseRestaurantAddressDto } from './restaurant-address.dto';
 
 export class ResponseRestaurantCategoryDto {
   @ApiProperty()
@@ -103,6 +104,28 @@ export class ResponseRestaurantDto {
   @ApiProperty()
   userId: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Endereço do restaurante. Ausente nos cadastrados antes do endereço passar a ser ' +
+      'informável. Sem `latitude`/`longitude`, o frete cai na faixa padrão.',
+    type: ResponseRestaurantAddressDto,
+  })
+  address?: ResponseRestaurantAddressDto;
+
+  @ApiPropertyOptional({
+    description: 'Tempo mínimo estimado de entrega, em minutos. Ausente = não informado.',
+    example: 30,
+    type: Number,
+  })
+  deliveryTimeMinMinutes?: number;
+
+  @ApiPropertyOptional({
+    description: 'Tempo máximo estimado de entrega, em minutos. Ausente = não informado.',
+    example: 45,
+    type: Number,
+  })
+  deliveryTimeMaxMinutes?: number;
+
   @ApiPropertyOptional({ type: [ResponseMenuCategoryDto] })
   menuCategories?: ResponseMenuCategoryDto[];
 
@@ -139,6 +162,13 @@ export class ResponseRestaurantPayoutDto {
 
   @ApiProperty({ description: 'Valor líquido a repassar ao estabelecimento (itens - comissão).' })
   netAmount: string;
+
+  @ApiProperty({
+    description: 'Recorte considerado no relatório. `all` quando nenhum período foi pedido.',
+    enum: ['day', 'week', 'month', 'all'],
+    example: 'all',
+  })
+  period: string;
 }
 
 export class ResponseFindAllRestaurantDto {

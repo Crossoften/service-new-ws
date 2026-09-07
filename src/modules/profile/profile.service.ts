@@ -57,6 +57,8 @@ export class ProfileService {
             city: true,
             state: true,
             zipCode: true,
+            latitude: true,
+            longitude: true,
             createdAt: true,
             updatedAt: true,
           },
@@ -103,6 +105,8 @@ export class ProfileService {
             city: profile.address.city || undefined,
             state: profile.address.state || undefined,
             zipCode: profile.address.zipCode || undefined,
+            latitude: profile.address.latitude?.toString(),
+            longitude: profile.address.longitude?.toString(),
             createdAt: profile.address.createdAt,
             updatedAt: profile.address.updatedAt,
           }
@@ -168,6 +172,8 @@ export class ProfileService {
           city: payload.city,
           state: payload.state,
           zipCode: payload.zipCode,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
         },
       });
     } else {
@@ -179,6 +185,8 @@ export class ProfileService {
           city: payload.city,
           state: payload.state,
           zipCode: payload.zipCode,
+          latitude: payload.latitude,
+          longitude: payload.longitude,
           user: {
             connect: { id: user.id },
           },
@@ -194,6 +202,8 @@ export class ProfileService {
       city: address.city || undefined,
       state: address.state || undefined,
       zipCode: address.zipCode || undefined,
+      latitude: address.latitude?.toString(),
+      longitude: address.longitude?.toString(),
       createdAt: address.createdAt,
       updatedAt: address.updatedAt,
     };

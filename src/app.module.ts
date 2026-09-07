@@ -35,9 +35,11 @@ import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
 import { RequestContextMiddleware } from './middlewares/request-context.middleware';
+import { CategoryIconsModule } from './modules/category-icons/category-icons.module';
 
 @Module({
   imports: [
+    CategoryIconsModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,

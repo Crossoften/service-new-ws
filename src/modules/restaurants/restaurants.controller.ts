@@ -29,6 +29,7 @@ import { RestaurantsService } from './restaurants.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { QueryRestaurantDto } from './dto/query-restaurant.dto';
+import { QueryRestaurantPayoutDto } from './dto/query-restaurant-payout.dto';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
@@ -75,14 +76,21 @@ export class RestaurantsController {
   @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
     summary: 'Rota para o fornecedor consultar o relatório de repasse de comissão do delivery.',
+    description:
+      'Sem `period`, considera todo o histórico — o comportamento anterior a este ' +
+      'parâmetro. Com `period`, recorta em hoje, semana corrente ou mês corrente, nas ' +
+      'mesmas fronteiras usadas nos ganhos do entregador.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseRestaurantPayoutDto })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
-  async findMyPayouts(@CurrentUser() user: User): Promise<ResponseRestaurantPayoutDto> {
-    return this.restaurantsService.findMyPayouts(user);
+  async findMyPayouts(
+    @CurrentUser() user: User,
+    @Query() query: QueryRestaurantPayoutDto,
+  ): Promise<ResponseRestaurantPayoutDto> {
+    return this.restaurantsService.findMyPayouts(user, query);
   }
 
   @Post()

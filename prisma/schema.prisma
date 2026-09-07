@@ -1083,6 +1083,12 @@ model Restaurant {
   userId      Int     @unique
   addressId   Int?    @unique
 
+  /// Faixa de tempo estimado de entrega, em minutos, exibida na vitrine.
+  /// Dois campos em vez de um porque a tela mostra intervalo ("30-45 min");
+  /// preenchendo os dois com o mesmo valor, vira número único.
+  deliveryTimeMinMinutes Int?
+  deliveryTimeMaxMinutes Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

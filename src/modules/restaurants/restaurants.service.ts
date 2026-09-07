@@ -4,6 +4,12 @@ import { FoodOrderStatusEnum, Prisma, ReviewTypeEnum, User } from '@prisma/clien
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
+import { RestaurantAddressDto } from './dto/restaurant-address.dto';
+import {
+  QueryRestaurantPayoutDto,
+  RestaurantPayoutPeriodEnum,
+} from './dto/query-restaurant-payout.dto';
+import { RestaurantInvalidDeliveryTimeException } from './exceptions/restaurant-invalid-delivery-time.exception';
 import { QueryRestaurantDto } from './dto/query-restaurant.dto';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
@@ -44,6 +50,18 @@ export class RestaurantsService {
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
 
+  private readonly addressSelect = Prisma.validator<Prisma.AddressSelect>()({
+    id: true,
+    street: true,
+    number: true,
+    neighborhood: true,
+    city: true,
+    state: true,
+    zipCode: true,
+    latitude: true,
+    longitude: true,
+  });
+
   private readonly restaurantSelect = Prisma.validator<Prisma.RestaurantSelect>()({
     id: true,
     name: true,
@@ -52,9 +70,12 @@ export class RestaurantsService {
     isActive: true,
     isOpen: true,
     userId: true,
+    deliveryTimeMinMinutes: true,
+    deliveryTimeMaxMinutes: true,
     createdAt: true,
     updatedAt: true,
     category: { select: { id: true, name: true, slug: true, iconUrl: true } },
+    address: { select: this.addressSelect },
   });
 
   private readonly restaurantWithMenuSelect = Prisma.validator<Prisma.RestaurantSelect>()({
@@ -65,9 +86,12 @@ export class RestaurantsService {
     isActive: true,
     isOpen: true,
     userId: true,
+    deliveryTimeMinMinutes: true,
+    deliveryTimeMaxMinutes: true,
     createdAt: true,
     updatedAt: true,
     category: { select: { id: true, name: true, slug: true, iconUrl: true } },
+    address: { select: this.addressSelect },
     menuCategories: {
       orderBy: { sortOrder: 'asc' },
       select: {
@@ -121,6 +145,8 @@ export class RestaurantsService {
     });
     if (!category || !category.isActive) throw new RestaurantCategoryNotFoundException();
 
+    this.assertDeliveryTimeRange(payload.deliveryTimeMinMinutes, payload.deliveryTimeMaxMinutes);
+
     const restaurant = await this.prisma.restaurant.create({
       data: {
         name: payload.name,
@@ -129,6 +155,12 @@ export class RestaurantsService {
         imageKey: payload.imageKey || null,
         categoryId: payload.categoryId,
         userId: user.id,
+        // O `addressId` existia no schema desde sempre e nada o preenchia: o
+        // restaurante nascia sem endereço, e o frete por distância ficava sem
+        // origem para calcular.
+        addressId: payload.address ? (await this.createAddress(payload.address)).id : undefined,
+        deliveryTimeMinMinutes: payload.deliveryTimeMinMinutes,
+        deliveryTimeMaxMinutes: payload.deliveryTimeMaxMinutes,
       },
       select: { id: true },
     });
@@ -182,15 +214,24 @@ export class RestaurantsService {
     return this.toResponseDto(restaurant, ratings.get(restaurant.id));
   }
 
-  async findMyPayouts(user: User): Promise<ResponseRestaurantPayoutDto> {
+  async findMyPayouts(
+    user: User,
+    query: QueryRestaurantPayoutDto = {},
+  ): Promise<ResponseRestaurantPayoutDto> {
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { userId: user.id },
       select: { id: true },
     });
     if (!restaurant) throw new RestaurantNotFoundException();
 
+    const desde = this.payoutPeriodStart(query.period);
+
     const aggregate = await this.prisma.foodOrder.aggregate({
-      where: { restaurantId: restaurant.id, status: FoodOrderStatusEnum.Delivered },
+      where: {
+        restaurantId: restaurant.id,
+        status: FoodOrderStatusEnum.Delivered,
+        ...(desde ? { updatedAt: { gte: desde } } : {}),
+      },
       _count: { _all: true },
       _sum: { itemsValue: true, commissionAmount: true },
     });
@@ -205,7 +246,33 @@ export class RestaurantsService {
       totalItemsValue: totalItemsValue.toFixed(2),
       totalCommission: totalCommission.toFixed(2),
       netAmount: totalItemsValue.minus(totalCommission).toFixed(2),
+      period: query.period ?? 'all',
     };
+  }
+
+  /**
+   * Início do recorte, nas mesmas fronteiras dos ganhos do entregador.
+   *
+   * Sem período, devolve `undefined` e o relatório considera todo o histórico —
+   * que era o único comportamento antes deste parâmetro existir.
+   */
+  private payoutPeriodStart(period?: RestaurantPayoutPeriodEnum): Date | undefined {
+    if (!period) return undefined;
+
+    const agora = new Date();
+    const inicioDoDia = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+
+    if (period === RestaurantPayoutPeriodEnum.Day) return inicioDoDia;
+
+    if (period === RestaurantPayoutPeriodEnum.Week) {
+      const inicioDaSemana = new Date(inicioDoDia);
+
+      inicioDaSemana.setDate(inicioDoDia.getDate() - inicioDoDia.getDay());
+
+      return inicioDaSemana;
+    }
+
+    return new Date(agora.getFullYear(), agora.getMonth(), 1);
   }
 
   async findById(id: number): Promise<ResponseRestaurantDto> {
@@ -227,6 +294,14 @@ export class RestaurantsService {
     const restaurant = await this.findRawById(id);
     if (restaurant.userId !== user.id) throw new RestaurantAccessDeniedException();
 
+    // Compara com o que já está gravado: mandar só o máximo, menor que o mínimo
+    // existente, produziria uma faixa inválida sem que o payload sozinho
+    // parecesse errado.
+    this.assertDeliveryTimeRange(
+      payload.deliveryTimeMinMinutes ?? restaurant.deliveryTimeMinMinutes,
+      payload.deliveryTimeMaxMinutes ?? restaurant.deliveryTimeMaxMinutes,
+    );
+
     if (payload.categoryId) {
       const category = await this.prisma.restaurantCategory.findUnique({
         where: { id: payload.categoryId },
@@ -245,10 +320,68 @@ export class RestaurantsService {
         categoryId: payload.categoryId,
         isOpen: payload.isOpen,
         isActive: payload.isActive,
+        addressId: payload.address
+          ? await this.upsertAddressId(restaurant.addressId, payload.address)
+          : undefined,
+        deliveryTimeMinMinutes: payload.deliveryTimeMinMinutes,
+        deliveryTimeMaxMinutes: payload.deliveryTimeMaxMinutes,
       },
     });
 
     return this.findById(id);
+  }
+
+  /**
+   * Só os campos informados vão para o banco: mandar `undefined` no Prisma é
+   * "não mexe", enquanto `null` apagaria o valor. Atualizar só a coordenada não
+   * pode zerar a rua.
+   */
+  private toAddressData(address: RestaurantAddressDto): Prisma.AddressUpdateInput {
+    return {
+      street: address.street,
+      number: address.number,
+      neighborhood: address.neighborhood,
+      city: address.city,
+      state: address.state,
+      zipCode: address.zipCode,
+      latitude: address.latitude,
+      longitude: address.longitude,
+    };
+  }
+
+  private assertDeliveryTimeRange(minimo?: number | null, maximo?: number | null): void {
+    if (minimo != null && maximo != null && maximo < minimo) {
+      throw new RestaurantInvalidDeliveryTimeException();
+    }
+  }
+
+  private async createAddress(address: RestaurantAddressDto): Promise<{ id: number }> {
+    return this.prisma.address.create({
+      data: this.toAddressData(address) as Prisma.AddressCreateInput,
+      select: { id: true },
+    });
+  }
+
+  /**
+   * Atualiza o endereço quando ele já existe, cria quando não.
+   *
+   * Restaurante cadastrado antes desta entrega não tem endereço nenhum — o que
+   * hoje é a totalidade deles.
+   */
+  private async upsertAddressId(
+    addressId: number | null,
+    address: RestaurantAddressDto,
+  ): Promise<number> {
+    if (addressId) {
+      await this.prisma.address.update({
+        where: { id: addressId },
+        data: this.toAddressData(address),
+      });
+
+      return addressId;
+    }
+
+    return (await this.createAddress(address)).id;
   }
 
   async createMenuCategory(
@@ -536,7 +669,13 @@ export class RestaurantsService {
   private async findRawById(id: number) {
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id },
-      select: { id: true, userId: true },
+      select: {
+        id: true,
+        userId: true,
+        addressId: true,
+        deliveryTimeMinMinutes: true,
+        deliveryTimeMaxMinutes: true,
+      },
     });
     if (!restaurant) throw new RestaurantNotFoundException();
     return restaurant;
@@ -609,6 +748,21 @@ export class RestaurantsService {
         iconUrl: restaurant.category.iconUrl ?? undefined,
       },
       userId: restaurant.userId,
+      deliveryTimeMinMinutes: restaurant.deliveryTimeMinMinutes ?? undefined,
+      deliveryTimeMaxMinutes: restaurant.deliveryTimeMaxMinutes ?? undefined,
+      address: restaurant.address
+        ? {
+            id: restaurant.address.id,
+            street: restaurant.address.street ?? undefined,
+            number: restaurant.address.number ?? undefined,
+            neighborhood: restaurant.address.neighborhood ?? undefined,
+            city: restaurant.address.city ?? undefined,
+            state: restaurant.address.state ?? undefined,
+            zipCode: restaurant.address.zipCode ?? undefined,
+            latitude: restaurant.address.latitude?.toString(),
+            longitude: restaurant.address.longitude?.toString(),
+          }
+        : undefined,
       menuCategories: restaurant.menuCategories?.map((menuCategory: any) => ({
         id: menuCategory.id,
         name: menuCategory.name,
