@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -22,6 +23,8 @@ import {
   ResponseFindAllFoodOrderDto,
   ResponseFoodOrderDto,
 } from './dto/response-food-order.dto';
+import { PayFoodOrderDto } from './dto/pay-food-order.dto';
+import { PayFoodOrderResponseDto } from './dto/pay-food-order-response.dto';
 
 @ApiTags('Pedidos de Delivery')
 @ApiBadRequestResponse({ description: 'Dados inválidos.' })
@@ -35,6 +38,9 @@ export class FoodOrdersController {
   @ProfileTypes(UserProfileType.Client)
   @ApiOperation({ summary: 'Realiza um pedido de delivery em um restaurante.' })
   @ApiCreatedResponse({ type: CreateFoodOrderResponseDto })
+  @ApiConflictResponse({
+    description: 'Fornecedor com assinatura vencida: não pode receber novos pedidos.',
+  })
   @ApiForbiddenResponse({ description: 'Apenas clientes podem realizar pedidos.' })
   create(@CurrentUser() user, @Body() payload: CreateFoodOrderDto) {
     return this.foodOrdersService.create(user, payload);
@@ -79,6 +85,32 @@ export class FoodOrdersController {
   @ApiForbiddenResponse({ description: 'Apenas o restaurante do pedido pode alterá-lo.' })
   markPreparing(@CurrentUser() user, @Param('id', ParseIntPipe) id: number) {
     return this.foodOrdersService.markPreparing(user, id);
+  }
+
+  @Post(':id/pay')
+  @ProfileTypes(UserProfileType.Client)
+  @ApiOperation({
+    summary: 'Gera o checkout de pagamento (Mercado Pago) de um pedido de delivery.',
+    description:
+      'Só vale para pedidos que não são em dinheiro — pedido em dinheiro é liquidado na ' +
+      'entrega e responde 400. A confirmação do pagamento ocorre de forma assíncrona via ' +
+      'webhook: esta rota apenas devolve a URL do checkout. Enquanto houver um checkout em ' +
+      'aberto para o pedido, uma nova chamada responde 400; um pagamento recusado libera ' +
+      'gerar outro.',
+  })
+  @ApiCreatedResponse({ type: PayFoodOrderResponseDto })
+  @ApiBadRequestResponse({
+    description:
+      'Pedido em dinheiro, já pago, cancelado, com checkout em aberto, ou restaurante sem ' +
+      'conta do Mercado Pago vinculada.',
+  })
+  @ApiForbiddenResponse({ description: 'Apenas o cliente do pedido pode pagar.' })
+  pay(
+    @CurrentUser() user,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: PayFoodOrderDto,
+  ) {
+    return this.foodOrdersService.pay(user, id, payload);
   }
 
   @Patch(':id/confirm-payment')

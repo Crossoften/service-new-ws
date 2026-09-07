@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -36,6 +37,9 @@ export class TransportRequestsController {
     security: [{ bearerAuth: [] }],
   })
   @ApiCreatedResponse({ type: CreateTransportRequestResponseDto })
+  @ApiConflictResponse({
+    description: 'Fornecedor com assinatura vencida: não pode receber novos pedidos.',
+  })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })

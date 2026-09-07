@@ -1,6 +1,7 @@
 import { Controller, Get, Param, ParseIntPipe, Patch, Post, Query, Body } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -38,6 +39,9 @@ export class CommercialTransactionsController {
     security: [{ bearerAuth: [] }],
   })
   @ApiCreatedResponse({ type: CreateCommercialTransactionResponseDto })
+  @ApiConflictResponse({
+    description: 'Fornecedor com assinatura vencida: não pode receber novos pedidos.',
+  })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })

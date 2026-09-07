@@ -644,11 +644,6 @@ model Payment {
   mpPreferenceId    String?                  @db.VarChar(120)
   mpPaymentId       String?                  @unique @db.VarChar(120)
 
-  /// Valor retido pela plataforma no split, gravado na geração do checkout.
-  /// É o único momento em que ele é conhecido: o Mercado Pago desconta na
-  /// origem e o recebedor nunca vê esse dinheiro entrar.
-  platformFeeAmount Decimal?                 @db.Decimal(10, 2)
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -139,39 +139,6 @@ export class WebhooksService {
     );
   }
 
-  /**
-   * Lançamento da taxa retida pela plataforma no split, do lado do recebedor.
-   *
-   * O crédito continua sendo o valor cheio, de propósito: o extrato precisa
-   * mostrar quanto a venda gerou. A taxa entra como débito na mesma data, e a
-   * diferença entre os dois é o que o vendedor de fato recebeu — que é como o
-   * saldo é calculado (`soma de créditos menos soma de débitos`).
-   *
-   * Sem isso o saldo exibia o bruto enquanto o Mercado Pago já havia descontado
-   * a comissão na origem. Valia para trabalho, negociação e pedido de delivery,
-   * os três fluxos com split.
-   */
-  private feeTransaction(localPayment: Payment, paidAt: Date, descricao: string) {
-    if (!localPayment.platformFeeAmount || localPayment.platformFeeAmount.lte(0)) {
-      return [];
-    }
-
-    return [
-      {
-        type: FinancialTransactionTypeEnum.Debit,
-        category: FinancialTransactionCategoryEnum.Fee,
-        status: PaymentStatusEnum.Paid,
-        amount: localPayment.platformFeeAmount,
-        description: descricao,
-        availableAt: paidAt,
-        referenceType: localPayment.referenceType,
-        referenceId: localPayment.referenceId,
-        userId: localPayment.receiverId,
-        paymentId: localPayment.id,
-      },
-    ];
-  }
-
   private async confirmCommercialTransactionPayment(
     localPayment: Payment,
     mpPayment: Record<string, any>,
@@ -216,11 +183,6 @@ export class WebhooksService {
             userId: localPayment.receiverId,
             paymentId: localPayment.id,
           },
-          ...this.feeTransaction(
-            localPayment,
-            paidAt,
-            `Taxa da plataforma sobre a negociação #${localPayment.referenceId}`,
-          ),
         ],
       });
     });
@@ -274,11 +236,6 @@ export class WebhooksService {
             userId: localPayment.receiverId,
             paymentId: localPayment.id,
           },
-          ...this.feeTransaction(
-            localPayment,
-            paidAt,
-            `Taxa da plataforma sobre o trabalho #${localPayment.referenceId}`,
-          ),
         ],
       });
     });
@@ -359,11 +316,6 @@ export class WebhooksService {
             userId: localPayment.receiverId,
             paymentId: localPayment.id,
           },
-          ...this.feeTransaction(
-            localPayment,
-            paidAt,
-            `Taxa da plataforma sobre o pedido #${foodOrder.id}`,
-          ),
         ],
       });
     });

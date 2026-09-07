@@ -16,10 +16,14 @@ import { TransportRequestInvalidStatusException } from './exceptions/transport-r
 import { TransportRequestNotFoundException } from './exceptions/transport-request-not-found.exception';
 import { TransportationForRequestNotFoundException } from './exceptions/transportation-not-found.exception';
 import { TransportRequestSelfNotAllowedException } from './exceptions/transport-request-self-not-allowed.exception';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class TransportRequestsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly select = Prisma.validator<Prisma.TransportRequestSelect>()({
     id: true,
@@ -59,6 +63,11 @@ export class TransportRequestsService {
     if (transportation.userId === user.id) {
       throw new TransportRequestSelfNotAllowedException();
     }
+
+    // A assinatura do fornecedor precisa estar vigente para ele receber negócio
+    // novo. Antes, ela só era conferida quando ele cadastrava o anúncio: tudo
+    // publicado enquanto estava em dia seguia vendendo depois do vencimento.
+    await this.subscriptionGuard.assertProviderCanSell(transportation.userId);
 
     const defaultMessage = `Solicitação de transporte de "${payload.origin.trim()}" para "${payload.destination.trim()}".`;
 

@@ -350,6 +350,7 @@ conta errada.
 | `401` | Senha errada, usuário inexistente, token expirado, conta `Pending` | "Acesso não autorizado" · deslogar se veio de rota autenticada |
 | `403` | Perfil sem permissão para a rota | "Você não tem acesso a esta área" |
 | `409` | Telefone ou e-mail já cadastrado | Mensagem genérica, sem dizer qual campo |
+| `409` | **Fornecedor com assinatura vencida** (seção 8.3) | Mostrar a mensagem da API · não é erro do cliente |
 | `503` | SMS não pôde ser enviado (inclusive no cadastro) | Mostrar a mensagem da API · **oferecer retry** |
 
 O `503` é novo e vale explicar: antes, falha no envio de SMS virava `500`
@@ -567,19 +568,25 @@ meio em dinheiro como saída.
 
 O fornecedor conecta a própria conta do Mercado Pago por OAuth — a plataforma
 não guarda cartão nem recebe pelo fornecedor, ela intermedia e retém a comissão.
-São três passos, e o front participa de dois:
+São três rotas, e o front participa de duas:
 
-1. **Pedir a URL de conexão** — o back devolve a URL do Mercado Pago; o front
-   redireciona o fornecedor para lá
-2. **Retorno do Mercado Pago** — o Mercado Pago devolve o usuário com um `code`
-   na query; o front repassa esse `code` ao back, que troca pelo vínculo
-3. **Estado do vínculo** — o front lê se o fornecedor está ou não vinculado,
-   para decidir entre mostrar o botão "conectar" ou o selo "conectado"
+```
+GET  /v1/mercado-pago/status
+GET  /v1/mercado-pago/connect-url?redirectUri=...
+POST /v1/mercado-pago/oauth/callback
+```
 
-> **Confirme os caminhos exatos dessas três rotas no `docs/swagger.json`
-> regenerado antes de codar.** Elas entraram junto com os patches de Mercado
-> Pago e ainda não estão na branch remota — o Swagger publicado está atrás do
-> que já existe no back local.
+1. **`status`** — devolve `{ isLinked, mpUserId?, linkedAt? }`. É o que decide
+   entre mostrar o botão "conectar" e o selo "conectado"
+2. **`connect-url`** — devolve `{ url }`. O front leva o fornecedor até lá. O
+   `redirectUri` é opcional; se você mandar aqui, **tem que mandar exatamente o
+   mesmo no callback** — o Mercado Pago compara os dois e recusa se diferirem
+3. **`oauth/callback`** — o Mercado Pago devolve o usuário com um `code` na
+   query; o front repassa esse `code` para cá e o vínculo é criado
+
+Nenhum token do vendedor sai da API: eles são gravados cifrados e a resposta
+devolve só o identificador público. O front não guarda credencial de pagamento
+em lugar nenhum.
 
 ### Notificações por WhatsApp — sem impacto no front
 
@@ -592,6 +599,106 @@ e `TWILIO_WHATSAPP_CONTENT_SID`. Sem elas, a notificação é apenas registrada 
 log e ignorada; **nenhuma operação de negócio falha por causa disso**, por
 desenho. Se em homologação o WhatsApp não chegar, é configuração de ambiente, não
 bug de tela.
+
+---
+
+## 8.3 Pagamento online do pedido e fornecedor vencido ✅
+
+Duas mudanças que o front **precisa** absorver antes de publicar qualquer tela
+de delivery: apareceu uma rota de pagamento que não existia, e apareceu um `409`
+em seis rotas de criação.
+
+### O pedido não-dinheiro agora tem como ser pago
+
+Até aqui, um pedido em Pix ou cartão era criado e **ficava parado para sempre**.
+Não era falha de integração: não existia rota de cobrança. Só o caminho em
+dinheiro fechava o ciclo.
+
+Agora existe:
+
+```
+POST /v1/food-orders/:id/pay
+```
+
+Corpo opcional: `{ "payerEmail": "cliente@example.com" }` — serve só para
+pré-preencher o checkout. Resposta:
+
+```json
+{
+  "message": "Checkout de pagamento gerado com sucesso.",
+  "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=...",
+  "foodOrder": { }
+}
+```
+
+O front leva o cliente até a `checkoutUrl`. **A confirmação não vem por esta
+rota** — quem confirma é o Mercado Pago, de forma assíncrona, chamando o webhook
+do back. Depois de mandar o cliente para o checkout, a tela precisa reconsultar
+o pedido para ver o `paymentStatus` virar `Paid`. Não existe resposta síncrona
+dizendo "pago".
+
+### As travas desta rota, e o que a tela faz com cada uma
+
+| Situação | Código | O que mostrar |
+|---|---|---|
+| Pedido em dinheiro | `400` | Não deveria acontecer: esconda o botão de pagar quando `paymentMethod` for `Cash` |
+| Pedido já pago | `400` | Recarregar o pedido — a tela está com dado velho |
+| Pedido cancelado | `400` | Recarregar o pedido |
+| **Já existe checkout em aberto** | `400` | "Você já tem um pagamento em andamento para este pedido" |
+| Restaurante sem conta do Mercado Pago | `400` | "Este restaurante não aceita pagamento online" |
+| Quem chama não é o cliente do pedido | `403` | Não deveria acontecer: só o cliente vê o botão |
+| Pedido inexistente | `404` | Voltar para a lista de pedidos |
+
+> **O checkout em aberto é o caso que mais vai aparecer na prática.** Se o
+> cliente gerar o checkout e fechar o app sem pagar, ele **não consegue gerar
+> outro** enquanto aquele não vencer ou for recusado. Dois checkouts abertos
+> continuariam ambos válidos no Mercado Pago e ele poderia pagar os dois — por
+> isso a trava. Vale a tela avisar antes de gerar: *"você será levado ao
+> pagamento"*.
+
+### Pagamento recusado não cancela o pedido
+
+Se o Pix vencer ou o cartão for recusado, o pedido **continua de pé** com
+`paymentStatus: Pending` — a cozinha pode já estar preparando. O que acontece é
+que o checkout anterior é marcado como cancelado, e aí **o cliente pode gerar um
+novo** pela mesma rota. Do ponto de vista da tela: o botão de pagar volta a
+funcionar sozinho.
+
+### O `409` novo: fornecedor com assinatura vencida
+
+Seis rotas de criação passaram a responder `409` quando o **fornecedor do outro
+lado** está com a assinatura vencida:
+
+```
+POST /v1/food-orders
+POST /v1/budgets
+POST /v1/bookings
+POST /v1/rentals
+POST /v1/transport-requests
+POST /v1/commercial-transactions
+```
+
+A mensagem vem pronta da API e pode ir direto para a tela: *"Este fornecedor
+está temporariamente indisponível e não pode receber novos pedidos."*
+
+Três coisas que valem entender para não tratar isso errado:
+
+**Não é erro do cliente.** Ele não tem pendência nenhuma — a pendência é do
+fornecedor. Por isso é `409` e não `403`: `403` diria que o usuário não tem
+permissão, o que é falso. A tela **não deve** deslogar, nem mandar para
+"acesso negado", nem sugerir que ele fez algo errado.
+
+**O fornecedor continua aparecendo nas listagens.** Foi decisão de produto: ele
+mantém vitrine, avaliações e histórico visíveis, só não recebe negócio novo. Ou
+seja, **a tela de detalhe de um fornecedor pode existir normalmente e o `409` só
+aparecer no momento de fechar**. Se você quiser evitar a frustração, não há hoje
+um campo dizendo "este fornecedor está vencido" — se a tela precisar disso
+antes, é rota nova, me peça.
+
+**O que já estava em andamento não é afetado.** Pedido aceito, trabalho em
+execução, reserva confirmada — tudo segue até o fim, inclusive o pagamento.
+A trava só vale para começar coisa nova. Então não trate o `409` como "este
+fornecedor sumiu": os pedidos antigos do cliente com ele continuam funcionando.
 
 ---
 
@@ -619,8 +726,15 @@ bug de tela.
 8. **Botão de liberar fornecedor no admin** (seção 8.2) ✅ — é o que destrava
    testar qualquer tela de fornecedor hoje, então vale subir antes do resto do
    delivery
-9. **Vínculo com o Mercado Pago e tratamento do `403`** (seção 8.2) — pode
-   esperar as credenciais do cliente; até lá, teste em dinheiro
+9. **Tratamento do `409` de fornecedor vencido** (seção 8.3) ✅ — são seis rotas
+   de criação e o texto já vem pronto da API; é o ajuste mais barato da lista e
+   evita a tela mostrar "acesso negado" para um cliente que não errou nada
+10. **Pagamento online do pedido** (seção 8.3) ✅ — a rota existe e funciona,
+    mas só dá para validar de ponta a ponta quando as credenciais do Mercado
+    Pago do cliente chegarem. Até lá, teste em dinheiro
+11. **Vínculo com o Mercado Pago** (seção 8.2) ✅ — as três rotas estão no ar e
+    documentadas; pode codar sem esperar as credenciais, só não dá para
+    concluir o OAuth
 
 **Tudo já está no ar.** Não há mais nada esperando entrega do back-end.
 
@@ -635,6 +749,10 @@ bug de tela.
 - **Conta `Pending` no login.** Implementado como `401` genérico, com o link de
   reenvio como saída (seção 6). Se preferir distinguir, me avise
 - **Tempo de bloqueio do botão de reenvio.** Sugeri 60s; quem define é você
+- **Sinalizar fornecedor vencido antes de fechar.** Hoje o `409` (seção 8.3) só
+  aparece no momento de criar o pedido — não existe campo dizendo, na listagem
+  ou no detalhe, que aquele fornecedor está indisponível. Se a tela precisar
+  avisar antes, é rota (ou campo) novo; me peça
 - **Cotação de frete antes de fechar o pedido.** Hoje o valor só aparece na
   resposta da criação. Se a tela precisa mostrar antes, é uma rota nova — peça
 - **Tempo de entrega do restaurante.** Ficou de fora da Fase C por não ter sido

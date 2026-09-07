@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -48,6 +49,9 @@ export class BudgetsController {
     security: [{ bearerAuth: [] }],
   })
   @ApiCreatedResponse({ type: CreateBudgetResponseDto })
+  @ApiConflictResponse({
+    description: 'Fornecedor com assinatura vencida: não pode receber novos pedidos.',
+  })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })

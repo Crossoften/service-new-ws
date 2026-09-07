@@ -512,15 +512,14 @@ export class FoodOrdersService {
       ? Number(foodOrder.platformFeeRate)
       : undefined;
 
-    const { preferenceId, checkoutUrl, marketplaceFee } =
-      await this.mercadoPagoService.createPreference({
-        title: `Pedido #${foodOrder.id} - ${foodOrder.restaurant.name}`,
-        unitPrice: Number(foodOrder.totalValue),
-        externalReference,
-        payerEmail: payload.payerEmail,
-        sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
-      });
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Pedido #${foodOrder.id} - ${foodOrder.restaurant.name}`,
+      unitPrice: Number(foodOrder.totalValue),
+      externalReference,
+      payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeRate,
+    });
 
     await this.prisma.payment.create({
       data: {
@@ -533,9 +532,6 @@ export class FoodOrdersService {
         receiverId: foodOrder.restaurant.userId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
-        platformFeeAmount: marketplaceFee ?? null,
       },
     });
 

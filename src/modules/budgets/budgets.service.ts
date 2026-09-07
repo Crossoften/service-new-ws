@@ -27,10 +27,14 @@ import { BudgetNotRespondedException } from './exceptions/budget-not-responded.e
 import { BudgetProviderReplyNotAllowedException } from './exceptions/budget-provider-reply-not-allowed.exception';
 import { BudgetUpdateFailedException } from './exceptions/budget-update-failed.exception';
 import { ServiceNotFoundException } from '../services/exceptions/service-not-found.exception';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class BudgetsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly budgetSelect = Prisma.validator<Prisma.BudgetSelect>()({
     id: true,
@@ -215,6 +219,11 @@ export class BudgetsService {
     if (!service || !service.isActive) {
       throw new ServiceNotFoundException();
     }
+
+    // A assinatura do fornecedor precisa estar vigente para ele receber negócio
+    // novo. Antes, ela só era conferida quando ele cadastrava o anúncio: tudo
+    // publicado enquanto estava em dia seguia vendendo depois do vencimento.
+    await this.subscriptionGuard.assertProviderCanSell(service.userId);
 
     try {
       const budget = await this.prisma.budget.create({

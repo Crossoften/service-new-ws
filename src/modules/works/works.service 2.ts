@@ -914,15 +914,14 @@ export class WorksService {
     const sellerAccessToken = await this.mercadoPagoAccounts.accessTokenFor(work.providerId);
     const marketplaceFeeRate = await this.marketplaceFee.rateForService(work.serviceId);
 
-    const { preferenceId, checkoutUrl, marketplaceFee } =
-      await this.mercadoPagoService.createPreference({
-        title: `Trabalho #${work.id}`,
-        unitPrice: Number(amount),
-        externalReference,
-        payerEmail: payload.payerEmail,
-        sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
-      });
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Trabalho #${work.id}`,
+      unitPrice: Number(amount),
+      externalReference,
+      payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeRate,
+    });
 
     await this.prisma.payment.create({
       data: {
@@ -934,9 +933,6 @@ export class WorksService {
         receiverId: work.providerId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
-        platformFeeAmount: marketplaceFee ?? null,
       },
     });
 

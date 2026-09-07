@@ -16,10 +16,14 @@ import { BookingNotFoundException } from './exceptions/booking-not-found.excepti
 import { AccommodationForBookingNotFoundException } from './exceptions/accommodation-not-found.exception';
 import { BookingSelfNotAllowedException } from './exceptions/booking-self-not-allowed.exception';
 import { BookingUnavailableDatesException } from './exceptions/booking-unavailable-dates.exception';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class BookingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly select = Prisma.validator<Prisma.BookingSelect>()({
     id: true,
@@ -56,6 +60,11 @@ export class BookingsService {
     if (accommodation.userId === user.id) {
       throw new BookingSelfNotAllowedException();
     }
+
+    // A assinatura do fornecedor precisa estar vigente para ele receber negócio
+    // novo. Antes, ela só era conferida quando ele cadastrava o anúncio: tudo
+    // publicado enquanto estava em dia seguia vendendo depois do vencimento.
+    await this.subscriptionGuard.assertProviderCanSell(accommodation.userId);
 
     const checkIn = new Date(payload.checkIn);
     const checkOut = new Date(payload.checkOut);

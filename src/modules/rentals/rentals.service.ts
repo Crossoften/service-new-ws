@@ -15,10 +15,14 @@ import { RentalInvalidStatusException } from './exceptions/rental-invalid-status
 import { RentalNotFoundException } from './exceptions/rental-not-found.exception';
 import { RentalProductNotFoundException } from './exceptions/rental-product-not-found.exception';
 import { RentalSelfRequestNotAllowedException } from './exceptions/rental-self-request-not-allowed.exception';
+import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 
 @Injectable()
 export class RentalsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly subscriptionGuard: SubscriptionGuardService,
+  ) {}
 
   private readonly rentalSelect = Prisma.validator<Prisma.RentalSelect>()({
     id: true,
@@ -54,6 +58,11 @@ export class RentalsService {
     if (product.userId === user.id) {
       throw new RentalSelfRequestNotAllowedException();
     }
+
+    // A assinatura do fornecedor precisa estar vigente para ele receber negócio
+    // novo. Antes, ela só era conferida quando ele cadastrava o anúncio: tudo
+    // publicado enquanto estava em dia seguia vendendo depois do vencimento.
+    await this.subscriptionGuard.assertProviderCanSell(product.userId);
 
     const startDate = new Date(payload.startDate);
     const endDate = new Date(payload.endDate);

@@ -4,9 +4,10 @@ import { MercadoPagoModule } from '../mercado-pago/mercado-pago.module';
 import { WhatsappModule } from '../whatsapp/whatsapp.module';
 import { CommercialTransactionsController } from './commercial-transactions.controller';
 import { CommercialTransactionsService } from './commercial-transactions.service';
+import { SubscriptionGuardModule } from '../subscription-guard/subscription-guard.module';
 
 @Module({
-  imports: [MercadoPagoModule, WhatsappModule],
+  imports: [MercadoPagoModule, WhatsappModule, SubscriptionGuardModule],
   controllers: [CommercialTransactionsController],
   providers: [CommercialTransactionsService, PrismaService],
 })

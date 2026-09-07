@@ -601,15 +601,14 @@ export class CommercialTransactionsService {
     // Negociação de produto não passa por categoria de serviço: taxa global.
     const marketplaceFeeRate = await this.marketplaceFee.globalRate();
 
-    const { preferenceId, checkoutUrl, marketplaceFee } =
-      await this.mercadoPagoService.createPreference({
-        title: `Negociação #${transaction.id}`,
-        unitPrice: Number(amount),
-        externalReference,
-        payerEmail: payload.payerEmail,
-        sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
-      });
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Negociação #${transaction.id}`,
+      unitPrice: Number(amount),
+      externalReference,
+      payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeRate,
+    });
 
     await this.prisma.payment.create({
       data: {
@@ -621,9 +620,6 @@ export class CommercialTransactionsService {
         receiverId: transaction.sellerId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
-        platformFeeAmount: marketplaceFee ?? null,
       },
     });
 

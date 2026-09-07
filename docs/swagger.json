@@ -4358,6 +4358,9 @@
           "401": {
             "description": "Token inválido."
           },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
+          },
           "500": {
             "description": "Erro interno no servidor."
           }
@@ -8345,6 +8348,9 @@
           "403": {
             "description": "Acesso não autorizado."
           },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
+          },
           "500": {
             "description": "Erro interno no servidor."
           }
@@ -8819,6 +8825,9 @@
           "401": {
             "description": "Token inválido."
           },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
+          },
           "500": {
             "description": "Erro interno no servidor."
           }
@@ -9205,6 +9214,9 @@
           },
           "401": {
             "description": "Token inválido."
+          },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
           },
           "500": {
             "description": "Erro interno no servidor."
@@ -9651,6 +9663,9 @@
           },
           "401": {
             "description": "Token inválido."
+          },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
           },
           "500": {
             "description": "Erro interno no servidor."
@@ -11300,6 +11315,9 @@
           "403": {
             "description": "Apenas clientes podem realizar pedidos."
           },
+          "409": {
+            "description": "Fornecedor com assinatura vencida: não pode receber novos pedidos."
+          },
           "500": {
             "description": "Erro interno do servidor."
           }
@@ -11512,6 +11530,60 @@
           }
         },
         "summary": "Restaurante marca o pedido como em preparo.",
+        "tags": [
+          "Pedidos de Delivery"
+        ]
+      }
+    },
+    "/food-orders/{id}/pay": {
+      "post": {
+        "description": "Só vale para pedidos que não são em dinheiro — pedido em dinheiro é liquidado na entrega e responde 400. A confirmação do pagamento ocorre de forma assíncrona via webhook: esta rota apenas devolve a URL do checkout. Enquanto houver um checkout em aberto para o pedido, uma nova chamada responde 400; um pagamento recusado libera gerar outro.",
+        "operationId": "FoodOrdersController_pay",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PayFoodOrderDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayFoodOrderResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Pedido em dinheiro, já pago, cancelado, com checkout em aberto, ou restaurante sem conta do Mercado Pago vinculada."
+          },
+          "401": {
+            "description": "Usuário não autenticado."
+          },
+          "403": {
+            "description": "Apenas o cliente do pedido pode pagar."
+          },
+          "500": {
+            "description": "Erro interno do servidor."
+          }
+        },
+        "summary": "Gera o checkout de pagamento (Mercado Pago) de um pedido de delivery.",
         "tags": [
           "Pedidos de Delivery"
         ]
@@ -23151,6 +23223,44 @@
         },
         "required": [
           "status"
+        ]
+      },
+      "PayFoodOrderDto": {
+        "type": "object",
+        "properties": {
+          "payerEmail": {
+            "type": "string",
+            "description": "Email do pagador, usado para pré-preencher o checkout do Mercado Pago (opcional).",
+            "example": "cliente@example.com"
+          }
+        }
+      },
+      "PayFoodOrderResponseDto": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Mensagem de confirmação da geração do checkout de pagamento.",
+            "example": "Checkout de pagamento gerado com sucesso."
+          },
+          "checkoutUrl": {
+            "type": "string",
+            "description": "URL do checkout do Mercado Pago para o cliente concluir o pagamento.",
+            "example": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=123456789"
+          },
+          "foodOrder": {
+            "description": "Dados completos do pedido após a geração do checkout.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseFoodOrderDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "message",
+          "checkoutUrl",
+          "foodOrder"
         ]
       },
       "CancelFoodOrderDto": {

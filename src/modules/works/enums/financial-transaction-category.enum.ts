@@ -1,6 +1,7 @@
 export enum FinancialTransactionCategoryEnum {
   WorkPayment = 'WorkPayment',
   CommercialTransaction = 'CommercialTransaction',
+  FoodOrderPayment = 'FoodOrderPayment',
   Subscription = 'Subscription',
   Fee = 'Fee',
   Withdrawal = 'Withdrawal',
