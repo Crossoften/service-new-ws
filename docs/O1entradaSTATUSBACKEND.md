@@ -1,71 +1,65 @@
 <!-- Cole em docs/STATUSBACKEND.md, na seção 3, depois da Fase N. -->
 
-### Fase O — Ícones de categoria pela API (BE-D5) · ✅ entregue
+### Fase O — Ícone de categoria só quando o arquivo existe · ✅ entregue
+
+**Decisão da Brendha:** os ícones ficam no front, que já os traz localmente e os
+mapeia por slug. Nada foi transferido para o back — e isso está certo: para as
+categorias que vêm do seed, o arquivo local carrega instantâneo, funciona
+offline e não corre risco de 404.
 
 **O diagnóstico do documento do front estava incompleto.** Ele registra que
 `GET /restaurants/categories` não traz `iconUrl`. A rota **traz** — o campo está
-no `select` e na resposta. O que não existe é dado: consultei as cinco tabelas e
-nenhuma linha tinha ícone, incluindo as de serviço, que já tinham seed próprio
-para isso.
+no `select` e na resposta. O que não existe é dado.
 
-E o inventário é pior do que parece: **existe um único arquivo de ícone no
-repositório inteiro** (`pintor.png`). As outras oito categorias de serviço
-apontavam para caminhos sem arquivo, e as quatro tabelas restantes não tinham
-mecanismo de ícone nenhum.
+**O bug real, e é uma armadilha armada.** O seed montava a URL do ícone para
+**todas** as nove categorias de serviço a partir de
+`SERVICE_CATEGORY_PUBLIC_URL_BASE`. Existe **um único arquivo de imagem no
+repositório inteiro** (`pintor.png`). Com a variável vazia — o padrão — nenhuma
+categoria ficava com ícone e o problema não aparecia. No dia em que alguém
+preenchesse aquela variável, as nove ganhariam URL e **oito apontariam para
+arquivo inexistente**: a vitrine passaria a exibir imagem quebrada exatamente
+onde hoje exibe o fallback do app. Um ajuste de ambiente, sem deploy de código,
+quebraria a tela.
 
-**Patch O1 — 18 arquivos**
+**Patch O1 — 5 arquivos**
 
-*Rota pública* `GET /v1/category-icons/:vertical/:arquivo`, servindo de
-`assets/category-icons/<vertical>/`. Pública por desenho: é imagem de vitrine,
-exibida antes de qualquer login. Responde com `Cache-Control` de um dia — ícone
-muda raramente e é pedido em toda abertura de tela.
+- `serviceCategoryIconExists` em `service-category.constants.ts`, ao lado do
+  construtor de URL que já morava lá. Confere o arquivo nos dois diretórios que
+  o projeto tem: `assets/service-categories`, que casa com o caminho declarado
+  em `localIcon`, e `images/services-categories`, onde a única imagem está de
+  fato guardada
+- O seed só monta a URL para categoria cuja imagem existe
+- `iconUrl` fica **fora do update** quando não há URL a gravar: rodar o seed sem
+  a variável configurada não pode apagar ícone que o admin tenha definido pelo
+  painel
+- `.env.example` explica as duas situações em vez de só avisar que "vazia, as
+  categorias ficam sem imagem"
 
-*O ponto central do desenho: orientado a arquivo.* O seed grava `iconUrl`
-**apenas para a categoria que tem imagem em disco**. Antes, a URL era montada às
-cegas: com `SERVICE_CATEGORY_PUBLIC_URL_BASE` vazia, ninguém tinha ícone;
-preenchida, **todas** as nove categorias de serviço apontariam para lá,
-inclusive as oito sem arquivo — nove URLs, oito quebradas.
+**Validação executada contra o banco:**
 
-Agora é só soltar `<slug>.png` na pasta da vertical e rodar `npm run seed`.
-Funciona porque o K1 tornou o seed re-executável; sem aquele patch, este
-mecanismo seria inútil em qualquer banco já semeado.
+- base vazia (o padrão) → 9 categorias, **0 com ícone** — idêntico a hoje
+- base preenchida → **1 com ícone** (`pintor`, a única com arquivo), 8 seguem
+  nulas. Antes deste patch, seriam 9 URLs, 8 quebradas
 
-*Rodar o seed sem os ícones não apaga os já gravados* — `iconUrl` fica fora do
-`update` quando não há arquivo.
-
-*As cinco verticais ganharam o mecanismo*, não só serviço: restaurante, produto,
-hospedagem e transporte usam o mesmo resolvedor.
-
-*`SERVICE_CATEGORY_PUBLIC_URL_BASE` mantém precedência.* Quem já hospeda os
-ícones em bucket ou CDN não deve passar a servi-los pela API só porque este
-mecanismo apareceu — preenchida, as URLs apontam para lá e a rota nova deixa de
-ser usada.
-
-**Validação executada contra a API no ar**, com um ícone plantado em duas
-verticais:
-
-- URL gravada pelo seed, buscada **sem token** → `200`, `image/png`, bytes
-  idênticos ao arquivo em disco
-- `Cache-Control: public, max-age=86400` presente
-- arquivo inexistente → `404` · vertical desconhecida → `404` · travessia
-  (`..%2f..%2f..%2fetc%2fpasswd`) → `404` · extensão fora da lista, **mesmo com
-  o arquivo existindo** → `404`
-- `GET /v1/products/categories` devolve `iconUrl` só na categoria com arquivo;
-  as demais vêm nulas, como projetado
-
-`npx jest`: 15 suítes, **120 testes passando** (11 novos). Build e lint limpos.
+`npx jest`: 15 suítes, **116 testes passando** (7 novos). Build e lint limpos.
 Cadeia `F1 → … → O1`, onze patches, verificada a partir de `98b4e05`, byte a
 byte.
 
-**Depois de aplicar:**
+**Nada a rodar depois de aplicar** além do `npm run seed`, se quiser refletir no
+banco. Sem migration, sem swagger — o patch não muda contrato.
 
-1. `git mv prisma/seeds/images/services-categories/pintor.png assets/category-icons/services/`
-   — o patch não carrega binário, então o único ícone existente precisa ser
-   movido à mão
-2. `npm run seed`
-3. `npm run swagger:generate`
+#### Registro de uma correção de rumo
 
-**Resíduo: falta o conteúdo.** O mecanismo está pronto e testado, mas há **um**
-ícone para trinta e cinco categorias. Enquanto os arquivos não chegarem,
-`iconUrl` continua nulo e o front segue com o fallback local por slug — que é o
-comportamento correto, e não quebra nada.
+A primeira versão desta fase construía uma rota pública
+`GET /v1/category-icons/:vertical/:arquivo`, um diretório `assets/` versionado e
+o mecanismo estendido às cinco verticais — cerca de 200 linhas a mais. Foi
+descartada: parti de "servir os ícones pela API" sem antes verificar onde eles
+estavam, e eles já estavam no front.
+
+**O que sobreviveu da investigação, e continua valendo:** existe **CRUD de
+categoria no admin** (`POST /v1/admin-categories/:context`), e o
+`CreateCategoryDto` já aceita `iconUrl` e `iconKey`. Categoria criada pelo
+painel depois que o app foi publicado **não tem ícone local no front** — o
+fallback por slug não tem para onde cair. Para essas, a tela do admin precisa
+subir a imagem em `POST /v1/upload/one-file` e mandar `iconUrl`/`iconKey` na
+criação. O caminho já funciona, inclusive sem AWS, por causa da Fase L.

@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { categoryIconUrlFor } from '../../src/modules/category-icons/category-icon-file';
 
 /**
  * Categorias de hospedagem. Mesmo raciocínio do seed de produto: sem linha
@@ -18,21 +17,16 @@ const accommodationCategoryDefinitions = [
 
 export async function seedAccommodationCategory(prisma: PrismaClient) {
   for (const category of accommodationCategoryDefinitions) {
-    // Grava o ícone só quando o arquivo existe em `assets/category-icons`.
-    const iconUrl = categoryIconUrlFor('accommodations', category.slug);
-
     await prisma.accommodationCategory.upsert({
       where: { slug: category.slug },
       create: {
         name: category.name,
         slug: category.slug,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
       update: {
         name: category.name,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
     });
   }

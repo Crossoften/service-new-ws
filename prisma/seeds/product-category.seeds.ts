@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { categoryIconUrlFor } from '../../src/modules/category-icons/category-icon-file';
 
 /**
  * Categorias de produto, usadas tanto na compra e venda quanto no aluguel — as
@@ -23,23 +22,18 @@ const productCategoryDefinitions = [
 
 export async function seedProductCategory(prisma: PrismaClient) {
   for (const category of productCategoryDefinitions) {
-    // Grava o ícone só quando o arquivo existe em `assets/category-icons`.
-    const iconUrl = categoryIconUrlFor('products', category.slug);
-
     await prisma.productCategory.upsert({
       where: { slug: category.slug },
       create: {
         name: category.name,
         slug: category.slug,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
       // `isActive` fica de fora do update de propósito: se o admin desativou uma
       // categoria, rodar o seed de novo não pode reativá-la sozinho.
       update: {
         name: category.name,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
     });
   }

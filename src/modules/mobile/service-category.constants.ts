@@ -1,3 +1,6 @@
+import { existsSync } from 'fs';
+import { basename, resolve } from 'path';
+
 export const serviceCategoryDefinitions = [
   { name: 'Pintor', slug: 'pintor', sortOrder: 1, localIcon: 'service-categories/pintor.png' },
   {
@@ -55,6 +58,35 @@ export const serviceCategoryIconMap: Record<ServiceCategorySlug, string> =
     },
     {} as Record<ServiceCategorySlug, string>,
   );
+
+/**
+ * Onde os arquivos de ícone de categoria de serviço ficam no repositório.
+ *
+ * O primeiro é o local atual. Os outros dois são herdados e continuam na lista
+ * porque o projeto ainda tem os diretórios: `assets/service-categories` casa
+ * com o caminho declarado em `localIcon`, e `images/services-categories` era
+ * onde a imagem morava antes de ser movida.
+ */
+const SERVICE_CATEGORY_ICON_DIRS = [
+  'assets/category-icons/services',
+  'prisma/seeds/assets/service-categories',
+  'prisma/seeds/images/services-categories',
+];
+
+/**
+ * Confirma que a imagem existe no repositório antes de alguém montar a URL.
+ *
+ * Sem esta checagem, o seed montava a URL para TODAS as categorias a partir de
+ * `SERVICE_CATEGORY_PUBLIC_URL_BASE`. Com a variável vazia — o padrão — ninguém
+ * ficava com ícone e o problema não aparecia. Preenchida, as nove categorias
+ * ganhavam URL e oito apontavam para arquivo que não existe: a vitrine passaria
+ * a exibir imagem quebrada onde hoje exibe o fallback do app.
+ */
+export function serviceCategoryIconExists(localIcon: string): boolean {
+  const arquivo = basename(localIcon);
+
+  return SERVICE_CATEGORY_ICON_DIRS.some((diretorio) => existsSync(resolve(diretorio, arquivo)));
+}
 
 export function buildServiceCategoryPublicIconUrl(
   localIcon: string,

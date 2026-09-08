@@ -1,5 +1,4 @@
 import { PrismaClient } from '@prisma/client';
-import { categoryIconUrlFor } from '../../src/modules/category-icons/category-icon-file';
 
 /**
  * Categorias de transporte. Mesmo raciocínio dos outros dois: sem linha ativa,
@@ -17,21 +16,16 @@ const transportationCategoryDefinitions = [
 
 export async function seedTransportationCategory(prisma: PrismaClient) {
   for (const category of transportationCategoryDefinitions) {
-    // Grava o ícone só quando o arquivo existe em `assets/category-icons`.
-    const iconUrl = categoryIconUrlFor('transportations', category.slug);
-
     await prisma.transportationCategory.upsert({
       where: { slug: category.slug },
       create: {
         name: category.name,
         slug: category.slug,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
       update: {
         name: category.name,
         sortOrder: category.sortOrder,
-        ...(iconUrl ? { iconUrl } : {}),
       },
     });
   }
