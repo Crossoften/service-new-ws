@@ -702,6 +702,117 @@ fornecedor sumiu": os pedidos antigos do cliente com ele continuam funcionando.
 
 ---
 
+## 8.4 Mapa, rastreamento e o que mudou no cadastro ✅
+
+Esta seção existe por causa do pedido de integrar o Google Maps. A primeira
+coisa a dizer é que **a maior parte já está pronta no back** — o risco aqui é
+reconstruir o que existe.
+
+### O rastreamento em tempo real já está no ar
+
+Nada disso precisa ser construído:
+
+| Peça | Onde |
+|---|---|
+| Entregador envia a posição | `PATCH /v1/deliveries/:id/location` com `{ lat, lng }` |
+| WebSocket autenticado por JWT | namespace `/deliveries` |
+| Cliente entra no canal da entrega | evento `delivery:track` com `{ deliveryId }` |
+| Posição chega em tempo real | evento `delivery:location` → `{ deliveryId, lat, lng, updatedAt }` |
+| Mudança de status da entrega | evento `delivery:status` → `{ deliveryId, status }` |
+| Sair do canal | evento `delivery:untrack` |
+
+O token vai no handshake, em `auth.token` ou no header `Authorization`, com ou
+sem o prefixo `Bearer` — as duas formas são aceitas.
+
+A última posição também fica **gravada** no pedido (`currentLat`, `currentLng`,
+`locationUpdatedAt`). Quem abre a tela no meio do trajeto vê onde o entregador
+está antes do próximo evento chegar, em vez de um mapa vazio.
+
+> **A posição só pode ser enviada depois da coleta.** Antes disso, o
+> `PATCH .../location` responde `400`. E a primeira chamada muda o status da
+> entrega para `OnTheWay` sozinha — o app do entregador não precisa de uma
+> chamada separada para isso.
+
+### O que o Google Maps faz, e é tudo no front
+
+- **App do entregador:** pega o GPS do aparelho, manda para o `PATCH`, e desenha
+  a rota chamando o Directions com origem no GPS e destino no endereço do
+  cliente
+- **App do cliente:** assina `delivery:track` e move o marcador a cada
+  `delivery:location`
+
+O back **não chama o Google**. Não há geocodificação no servidor: quem converte
+endereço em coordenada é o app, no momento em que o usuário escolhe o endereço.
+
+> **Sobre a chave.** Uma chave do Maps JavaScript é pública por natureza — ela
+> fica no bundle e qualquer um lê no DevTools. O que protege não é o segredo, é
+> a **restrição por referenciador HTTP e por API**, no console do Google Cloud.
+> Sem isso, qualquer pessoa que a veja consome a cota. Se algum dia o back
+> precisar chamar o Google, aquilo exige uma **chave separada, restrita por IP**,
+> que nunca vai para o cliente.
+
+### As coordenadas agora existem — e são obrigatórias na prática
+
+Faltava exatamente isto para o mapa ter destino e para o frete variar.
+
+**Endereço do cliente** — `PATCH /v1/profile/me/address` aceita `latitude` e
+`longitude`, e `GET /v1/profile/me` devolve as duas. Aceitam número ou texto
+(`-18.9186` e `"-18.9186"` funcionam, porque é assim que a geocodificação do
+Google costuma devolver). Voltam como **string**, para não perder as últimas
+casas decimais.
+
+**Endereço do restaurante** — `POST /v1/restaurants` e `PATCH /v1/restaurants/:id`
+aceitam um objeto `address` aninhado, com os campos de endereço mais
+`latitude`/`longitude`. É endereço **próprio do estabelecimento**, não o do
+perfil do dono: o fornecedor pode morar longe da cozinha, e é da cozinha que a
+entrega sai.
+
+> **Sem as duas pontas, o frete não varia.** O cálculo por distância precisa da
+> coordenada do cliente **e** da do restaurante. Faltando qualquer uma, o pedido
+> cai na faixa padrão — foi o que aconteceu em todos os pedidos até agora. Com as
+> duas, medimos: 1,5 km cobrou R$ 6,00, 5 km cobrou R$ 12,00 e 50 km cobrou o
+> percentual. As telas de endereço **precisam** mandar as coordenadas.
+
+### Tempo de entrega no cadastro do restaurante
+
+`deliveryTimeMinMinutes` e `deliveryTimeMaxMinutes`, aceitos na criação e na
+edição, devolvidos na vitrine. Dois campos porque a tela mostra faixa
+("30-45 min"); preenchendo os dois iguais, vira número único.
+
+**Ausente significa não informado, e a tela deve omitir o tempo** — não mostrar
+zero, nem "0 min". Restaurante que não configurou é diferente de restaurante que
+entrega na hora.
+
+Validações: 1 a 480 minutos por campo, e **máximo não pode ser menor que
+mínimo** — inclusive quando você manda só um dos dois e o outro já está gravado.
+Nos dois casos a resposta é `400` com mensagem pronta para a tela.
+
+### Relatório de repasse com recorte por período
+
+`GET /v1/restaurants/me/payouts` aceita `?period=day|week|month`. **Sem o
+parâmetro, o comportamento é o mesmo de antes** — todo o histórico —, então
+nada quebra em quem já consome a rota. A resposta ganhou o campo `period`, que
+devolve `all` quando nenhum recorte foi pedido.
+
+As fronteiras são as mesmas de `GET /v1/deliveries/me/earnings`: `day` à
+meia-noite de hoje, `week` no domingo desta semana, `month` no dia 1º.
+
+### Ícones de categoria: o caso que o fallback local não cobre
+
+Os ícones continuam no app, mapeados por slug, e isso está certo — carrega
+instantâneo e funciona offline.
+
+Só que **existe CRUD de categoria no admin** (`POST /v1/admin-categories/:context`).
+Categoria criada pelo painel **depois** que o app foi publicado é um slug que o
+front nunca viu: o fallback local não tem para onde cair.
+
+Para essas, a tela do admin precisa **subir a imagem** em
+`POST /v1/upload/one-file` e mandar o `iconUrl` e o `iconKey` recebidos na
+criação da categoria. É o único ponto em que o `iconUrl` do back é de fato
+necessário — e é responsabilidade da tela de admin, não das telas de vitrine.
+
+---
+
 ## 9. O que não muda
 
 - A base `/v1` e as rotas existentes
@@ -735,6 +846,13 @@ fornecedor sumiu": os pedidos antigos do cliente com ele continuam funcionando.
 11. **Vínculo com o Mercado Pago** (seção 8.2) ✅ — as três rotas estão no ar e
     documentadas; pode codar sem esperar as credenciais, só não dá para
     concluir o OAuth
+12. **Coordenadas nas telas de endereço** (seção 8.4) ✅ — **é o item de maior
+    efeito da lista**: sem ele o frete não varia e o mapa não tem destino. Vale
+    antes de qualquer tela de mapa
+13. **Rastreamento no mapa** (seção 8.4) ✅ — o back já está pronto; é consumir
+    o WebSocket e desenhar. Depende do item 12 para ter o ponto de chegada
+14. **Tempo de entrega e período no repasse** (seção 8.4) ✅ — os dois são
+    pequenos e independentes do resto
 
 **Tudo já está no ar.** Não há mais nada esperando entrega do back-end.
 
@@ -749,6 +867,12 @@ fornecedor sumiu": os pedidos antigos do cliente com ele continuam funcionando.
 - **Conta `Pending` no login.** Implementado como `401` genérico, com o link de
   reenvio como saída (seção 6). Se preferir distinguir, me avise
 - **Tempo de bloqueio do botão de reenvio.** Sugeri 60s; quem define é você
+- **Faixas de frete reais.** Com as faixas de exemplo, medimos uma entrega de
+  50 km custando **menos** que uma de 5 km: a faixa percentual (20% dos itens)
+  não tem valor mínimo, então pedido pequeno e distante sai quase de graça. Não
+  é erro de cálculo, é a configuração. Precisa de um piso na faixa percentual ou
+  de faixas fixas até um limite maior — decisão de negócio, e vale resolver
+  antes de qualquer cliente real fazer pedido
 - **Sinalizar fornecedor vencido antes de fechar.** Hoje o `409` (seção 8.3) só
   aparece no momento de criar o pedido — não existe campo dizendo, na listagem
   ou no detalhe, que aquele fornecedor está indisponível. Se a tela precisar
