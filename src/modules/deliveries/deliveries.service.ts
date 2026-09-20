@@ -232,7 +232,7 @@ export class DeliveriesService {
 
     const foodOrder = await this.prisma.foodOrder.findUnique({
       where: { id: delivery.foodOrderId },
-      select: { id: true, deliveryFee: true, customerId: true },
+      select: { id: true, deliveryFee: true, tip: true, customerId: true },
     });
 
     const now = new Date();
@@ -250,8 +250,12 @@ export class DeliveriesService {
         data: {
           type: FinancialTransactionTypeEnum.Credit,
           category: FinancialTransactionCategoryEnum.DeliveryPayout,
-          amount: foodOrder.deliveryFee,
-          description: `Repasse pela entrega do pedido #${foodOrder.id}.`,
+          // Frete mais gorjeta: os dois foram retidos pela plataforma no split
+          // e são repassados juntos. A gorjeta não sofre comissão.
+          amount: foodOrder.deliveryFee.plus(foodOrder.tip),
+          description: foodOrder.tip.greaterThan(0)
+            ? `Repasse pela entrega do pedido #${foodOrder.id}, com gorjeta de R$ ${foodOrder.tip.toFixed(2)}.`
+            : `Repasse pela entrega do pedido #${foodOrder.id}.`,
           availableAt: now,
           referenceType: PaymentReferenceTypeEnum.FoodOrder,
           referenceId: foodOrder.id,

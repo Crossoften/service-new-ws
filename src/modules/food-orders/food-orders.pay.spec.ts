@@ -20,7 +20,10 @@ const PEDIDO_BASE = {
   paymentMethod: PaymentMethodEnum.Pix,
   paymentStatus: PaymentStatusEnum.Pending,
   totalValue: new Prisma.Decimal('58.00'),
-  platformFeeRate: new Prisma.Decimal('20.00'),
+  itemsValue: new Prisma.Decimal('50.00'),
+  deliveryFee: new Prisma.Decimal('8.00'),
+  tip: new Prisma.Decimal('0.00'),
+  commissionAmount: new Prisma.Decimal('10.00'),
   customerId: 10,
   restaurant: {
     name: 'Cantina',
@@ -129,7 +132,7 @@ describe('FoodOrdersService.pay', () => {
     );
   });
 
-  it('cria a preferência na conta do vendedor com a taxa gravada no pedido', async () => {
+  it('cria a preferência na conta do vendedor cobrando o total do cliente', async () => {
     const { service, createPreference } = build(PEDIDO_BASE);
 
     const resultado = await service.pay(CLIENTE, 1, { payerEmail: 'cliente@example.com' });
@@ -139,9 +142,56 @@ describe('FoodOrdersService.pay', () => {
       unitPrice: 58,
       payerEmail: 'cliente@example.com',
       sellerAccessToken: 'token-do-vendedor',
-      marketplaceFeeRate: 20,
     });
     expect(resultado.checkoutUrl).toBe('https://mp/checkout');
+  });
+
+  it('a plataforma retém comissão MAIS frete', async () => {
+    const { service, createPreference } = build(PEDIDO_BASE);
+
+    await service.pay(CLIENTE, 1, {});
+
+    // Comissão de R$ 10 sobre os itens, mais os R$ 8 de frete. É desse valor
+    // retido que sai o repasse do entregador — sem isso, o frete cairia na
+    // conta do restaurante e o repasse existiria só no razão.
+    expect(createPreference.mock.calls[0][0].marketplaceFeeAmount).toBe(18);
+  });
+
+  it('a gorjeta entra na retenção, sem sofrer comissão', async () => {
+    const { service, createPreference } = build({
+      ...PEDIDO_BASE,
+      tip: new Prisma.Decimal('5.00'),
+      totalValue: new Prisma.Decimal('63.00'),
+    });
+
+    await service.pay(CLIENTE, 1, {});
+
+    // Comissão 10 + frete 8 + gorjeta 5. A plataforma retém os três e repassa
+    // frete e gorjeta ao entregador na entrega.
+    expect(createPreference.mock.calls[0][0].marketplaceFeeAmount).toBe(23);
+  });
+
+  it('sem comissão, ainda assim retém o frete', async () => {
+    const { service, createPreference } = build({ ...PEDIDO_BASE, commissionAmount: null });
+
+    await service.pay(CLIENTE, 1, {});
+
+    // Dono que fatura por assinatura não paga comissão, mas o entregador
+    // continua precisando ser pago.
+    expect(createPreference.mock.calls[0][0].marketplaceFeeAmount).toBe(8);
+  });
+
+  it('o restaurante recebe o líquido: total menos a retenção', async () => {
+    const { service, createPreference } = build(PEDIDO_BASE);
+
+    await service.pay(CLIENTE, 1, {});
+
+    const cobrado = createPreference.mock.calls[0][0].unitPrice;
+    const retido = createPreference.mock.calls[0][0].marketplaceFeeAmount;
+
+    // R$ 58 cobrados, R$ 18 retidos, R$ 40 para o restaurante — que é
+    // exatamente `itemsValue` (50) menos a comissão (10).
+    expect(cobrado - retido).toBe(40);
   });
 
   it('grava o pagamento local pendente amarrado ao pedido', async () => {
@@ -166,30 +216,22 @@ describe('FoodOrdersService.pay', () => {
     expect(gravado.externalReference).toBe(createPreference.mock.calls[0][0].externalReference);
   });
 
-  it('grava a taxa retida no pagamento: é o único momento em que ela é conhecida', async () => {
+  it('grava no pagamento a COMISSÃO, não a retenção inteira', async () => {
     const { service, create } = build(PEDIDO_BASE);
 
     await service.pay(CLIENTE, 1, {});
 
-    // 20% de R$ 58,00. Sem gravar aqui, o webhook creditaria o bruto e o saldo
-    // do restaurante mostraria mais do que de fato entrou na conta dele.
-    expect(Number(create.mock.calls[0][0].data.platformFeeAmount)).toBe(11.6);
+    // R$ 10, não R$ 18. É este valor que vira débito do restaurante no razão;
+    // incluir o frete o penalizaria duas vezes, já que ele também não é
+    // creditado pelo frete.
+    expect(Number(create.mock.calls[0][0].data.platformFeeAmount)).toBe(10);
   });
 
-  it('grava taxa nula quando não houve split', async () => {
-    const { service, create, createPreference } = build({ ...PEDIDO_BASE, platformFeeRate: null });
+  it('grava taxa nula quando o pedido não tem comissão', async () => {
+    const { service, create } = build({ ...PEDIDO_BASE, commissionAmount: null });
 
-    createPreference.mockResolvedValue({ preferenceId: 'pref-1', checkoutUrl: 'https://mp/x' });
     await service.pay(CLIENTE, 1, {});
 
     expect(create.mock.calls[0][0].data.platformFeeAmount).toBeNull();
-  });
-
-  it('não manda taxa de split quando o pedido não tem percentual gravado', async () => {
-    const { service, createPreference } = build({ ...PEDIDO_BASE, platformFeeRate: null });
-
-    await service.pay(CLIENTE, 1, {});
-
-    expect(createPreference.mock.calls[0][0].marketplaceFeeRate).toBeUndefined();
   });
 });

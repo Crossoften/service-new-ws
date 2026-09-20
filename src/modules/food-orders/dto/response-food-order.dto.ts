@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ResponseFoodOrderAddressDto } from './delivery-address.dto';
 import { FoodOrderStatusEnum, PaymentMethodEnum, PaymentStatusEnum } from '@prisma/client';
 
 class ResponseFoodOrderUserDto {
@@ -82,6 +83,9 @@ export class ResponseFoodOrderDto {
   @ApiProperty()
   deliveryFee: string;
 
+  @ApiProperty({ description: 'Gorjeta ao entregador. `0.00` quando não houve.', example: '5.00' })
+  tip: string;
+
   @ApiProperty()
   totalValue: string;
 
@@ -102,6 +106,14 @@ export class ResponseFoodOrderDto {
   })
   paymentStatus: PaymentStatusEnum;
 
+  @ApiPropertyOptional({
+    description:
+      'Horário pedido pelo cliente. Ausente é pedido para agora. Não altera o `status`: ' +
+      'o restaurante usa este campo para separar o que é para já do que é para depois.',
+    example: '2026-09-08T20:00:00.000Z',
+  })
+  scheduledFor?: Date;
+
   @ApiPropertyOptional({ description: 'Momento em que o pagamento foi confirmado.' })
   paidAt?: Date;
 
@@ -111,7 +123,15 @@ export class ResponseFoodOrderDto {
   @ApiPropertyOptional()
   cancelReason?: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'Endereço de entrega do pedido. Congelado como estava no momento do pedido: editar ' +
+      'o perfil depois não reescreve para onde este pedido foi.',
+    type: ResponseFoodOrderAddressDto,
+  })
+  deliveryAddress?: ResponseFoodOrderAddressDto;
+
+  @ApiProperty({ description: 'Id da sala de chat do pedido.', example: 1 })
   chatRoomId: number;
 
   @ApiProperty({ type: ResponseFoodOrderRestaurantDto })

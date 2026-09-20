@@ -10,6 +10,7 @@ import {
   User,
 } from '@prisma/client';
 import { CreateFoodOrderDto } from './dto/create-food-order.dto';
+import { DeliveryAddressDto } from './dto/delivery-address.dto';
 import { RespondFoodOrderDto } from './dto/respond-food-order.dto';
 import { CancelFoodOrderDto } from './dto/cancel-food-order.dto';
 import { QueryFoodOrderDto } from './dto/query-food-order.dto';
@@ -29,6 +30,7 @@ import { RestaurantClosedException } from './exceptions/restaurant-closed.except
 import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-restaurant-not-found.exception';
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
+import { FoodOrderInvalidScheduleException } from './exceptions/food-order-invalid-schedule.exception';
 import { WhatsappService } from '../whatsapp/whatsapp.service';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
@@ -50,16 +52,31 @@ export class FoodOrdersService {
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
 
+  private readonly deliveryAddressSelect = Prisma.validator<Prisma.AddressSelect>()({
+    id: true,
+    street: true,
+    number: true,
+    neighborhood: true,
+    city: true,
+    state: true,
+    zipCode: true,
+    latitude: true,
+    longitude: true,
+  });
+
   private readonly foodOrderSelect = Prisma.validator<Prisma.FoodOrderSelect>()({
     id: true,
     status: true,
+    address: { select: this.deliveryAddressSelect },
     itemsValue: true,
     deliveryFee: true,
+    tip: true,
     totalValue: true,
     platformFeeRate: true,
     commissionAmount: true,
     paymentMethod: true,
     paymentStatus: true,
+    scheduledFor: true,
     paidAt: true,
     notes: true,
     cancelReason: true,
@@ -96,7 +113,11 @@ export class FoodOrdersService {
   });
 
   async create(user: User, payload: CreateFoodOrderDto): Promise<CreateFoodOrderResponseDto> {
-    if (!user.addressId) throw new FoodOrderAddressRequiredException();
+    // Sem endereço no pedido, cai no do cadastro. Sem nenhum dos dois, não há
+    // para onde entregar.
+    if (!payload.deliveryAddress && !user.addressId) throw new FoodOrderAddressRequiredException();
+
+    const scheduledFor = this.parseSchedule(payload.scheduledFor);
 
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: payload.restaurantId },
@@ -173,14 +194,24 @@ export class FoodOrdersService {
       });
     }
 
+    // O endereço do pedido é resolvido antes do frete: é dele que sai a
+    // distância. Endereço informado no pedido é gravado como registro próprio e
+    // não toca no cadastro do cliente.
+    const deliveryAddressId = payload.deliveryAddress
+      ? (await this.createDeliveryAddress(payload.deliveryAddress)).id
+      : (user.addressId as number);
+
     // A taxa é calculada aqui, não recebida. O valor que o cliente enviasse
     // viraria, integralmente, o repasse do entregador.
     const deliveryFee = await this.calculateDeliveryFee(
-      user.addressId,
+      deliveryAddressId,
       restaurant.address,
       itemsValue,
     );
-    const totalValue = itemsValue.plus(deliveryFee);
+    // A gorjeta entra no total cobrado, mas NÃO na base da comissão: ela é
+    // dinheiro do entregador, não receita da venda do restaurante.
+    const tip = new Prisma.Decimal(payload.tip ?? 0);
+    const totalValue = itemsValue.plus(deliveryFee).plus(tip);
 
     const owner = await this.prisma.user.findUnique({
       where: { id: restaurant.userId },
@@ -203,14 +234,16 @@ export class FoodOrdersService {
           status: FoodOrderStatusEnum.Received,
           itemsValue,
           deliveryFee,
+          tip,
           totalValue,
           platformFeeRate,
           commissionAmount,
           paymentMethod: payload.paymentMethod,
+          scheduledFor,
           notes: payload.notes?.trim() || null,
           restaurantId: restaurant.id,
           customerId: user.id,
-          addressId: user.addressId,
+          addressId: deliveryAddressId,
           items: { create: itemsData },
         },
         select: { id: true },
@@ -441,7 +474,10 @@ export class FoodOrdersService {
         paymentMethod: true,
         paymentStatus: true,
         totalValue: true,
-        platformFeeRate: true,
+        itemsValue: true,
+        deliveryFee: true,
+        tip: true,
+        commissionAmount: true,
         customerId: true,
         restaurant: {
           select: {
@@ -505,22 +541,28 @@ export class FoodOrdersService {
       foodOrder.restaurant.userId,
     );
 
-    // A taxa do split é a que o próprio pedido gravou na criação, derivada do
-    // `billingType` do dono. Consultar a taxa global aqui aplicaria uma regra
-    // diferente da que o cliente viu no momento do pedido.
-    const marketplaceFeeRate = foodOrder.platformFeeRate
-      ? Number(foodOrder.platformFeeRate)
-      : undefined;
+    // A comissão é a que o próprio pedido gravou na criação — calculada sobre o
+    // valor dos ITENS, derivada do `billingType` do dono. Antes o checkout
+    // mandava só o percentual e o Mercado Pago o aplicava sobre o total, de
+    // modo que a plataforma cobrava comissão também sobre o frete e o número
+    // divergia do `commissionAmount` guardado no pedido.
+    const comissao = foodOrder.commissionAmount ? Number(foodOrder.commissionAmount) : 0;
+    const frete = Number(foodOrder.deliveryFee);
+    const gorjeta = Number(foodOrder.tip);
 
-    const { preferenceId, checkoutUrl, marketplaceFee } =
-      await this.mercadoPagoService.createPreference({
-        title: `Pedido #${foodOrder.id} - ${foodOrder.restaurant.name}`,
-        unitPrice: Number(foodOrder.totalValue),
-        externalReference,
-        payerEmail: payload.payerEmail,
-        sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
-      });
+    // A plataforma retém comissão MAIS frete MAIS gorjeta. Frete e gorjeta são
+    // do entregador e é a plataforma quem os repassa; deixá-los entrar na conta
+    // do restaurante criava repasse que existia no razão e não no banco.
+    const retencaoDaPlataforma = comissao + frete + gorjeta;
+
+    const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
+      title: `Pedido #${foodOrder.id} - ${foodOrder.restaurant.name}`,
+      unitPrice: Number(foodOrder.totalValue),
+      externalReference,
+      payerEmail: payload.payerEmail,
+      sellerAccessToken: sellerAccessToken ?? undefined,
+      marketplaceFeeAmount: retencaoDaPlataforma,
+    });
 
     await this.prisma.payment.create({
       data: {
@@ -533,9 +575,11 @@ export class FoodOrdersService {
         receiverId: foodOrder.restaurant.userId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
-        platformFeeAmount: marketplaceFee ?? null,
+        // Guarda a COMISSÃO, não a retenção inteira. É ela que vira débito do
+        // restaurante no razão; incluir o frete aqui o penalizaria duas vezes,
+        // já que ele também não é creditado pelo frete. A retenção total é
+        // sempre reconstruível somando o `deliveryFee` do pedido.
+        platformFeeAmount: comissao > 0 ? comissao : null,
       },
     });
 
@@ -620,6 +664,49 @@ export class FoodOrdersService {
    * melhor que recusar o pedido: o cliente não tem como resolver a ausência de
    * uma coordenada que nem sabe que existe.
    */
+  /**
+   * Grava o endereço informado no pedido como registro próprio.
+   *
+   * Uma linha nova por pedido, de propósito: o endereço precisa ficar
+   * congelado como estava no momento da entrega. Reaproveitar o registro do
+   * cadastro faria uma edição de perfil reescrever para onde pedidos antigos
+   * foram entregues.
+   */
+  /**
+   * Converte e valida o horário pedido.
+   *
+   * A checagem de "no futuro" fica aqui porque `@IsDateString` valida só o
+   * formato: uma data bem formada e no passado passaria pela validação e
+   * produziria um pedido agendado para ontem.
+   */
+  private parseSchedule(scheduledFor?: string): Date | undefined {
+    if (!scheduledFor) return undefined;
+
+    const quando = new Date(scheduledFor);
+
+    if (Number.isNaN(quando.getTime()) || quando.getTime() <= Date.now()) {
+      throw new FoodOrderInvalidScheduleException();
+    }
+
+    return quando;
+  }
+
+  private async createDeliveryAddress(address: DeliveryAddressDto): Promise<{ id: number }> {
+    return this.prisma.address.create({
+      data: {
+        street: address.street,
+        number: address.number,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        zipCode: address.zipCode,
+        latitude: address.latitude,
+        longitude: address.longitude,
+      },
+      select: { id: true },
+    });
+  }
+
   private async calculateDeliveryFee(
     customerAddressId: number,
     restaurantAddress: { latitude: Prisma.Decimal | null; longitude: Prisma.Decimal | null } | null,
@@ -692,14 +779,29 @@ export class FoodOrdersService {
       status: foodOrder.status,
       itemsValue: foodOrder.itemsValue.toFixed(2),
       deliveryFee: foodOrder.deliveryFee.toFixed(2),
+      tip: foodOrder.tip.toFixed(2),
       totalValue: foodOrder.totalValue.toFixed(2),
       platformFeeRate: foodOrder.platformFeeRate?.toFixed(2) ?? undefined,
       commissionAmount: foodOrder.commissionAmount?.toFixed(2) ?? undefined,
       paymentMethod: foodOrder.paymentMethod,
       paymentStatus: foodOrder.paymentStatus,
+      scheduledFor: foodOrder.scheduledFor ?? undefined,
       paidAt: foodOrder.paidAt ?? undefined,
       notes: foodOrder.notes ?? undefined,
       cancelReason: foodOrder.cancelReason ?? undefined,
+      deliveryAddress: foodOrder.address
+        ? {
+            id: foodOrder.address.id,
+            street: foodOrder.address.street ?? undefined,
+            number: foodOrder.address.number ?? undefined,
+            neighborhood: foodOrder.address.neighborhood ?? undefined,
+            city: foodOrder.address.city ?? undefined,
+            state: foodOrder.address.state ?? undefined,
+            zipCode: foodOrder.address.zipCode ?? undefined,
+            latitude: foodOrder.address.latitude?.toString(),
+            longitude: foodOrder.address.longitude?.toString(),
+          }
+        : undefined,
       chatRoomId,
       restaurant: {
         id: foodOrder.restaurant.id,

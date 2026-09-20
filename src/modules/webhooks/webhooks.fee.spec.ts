@@ -91,3 +91,90 @@ describe('WebhooksService — taxa da plataforma no razão', () => {
     ).toEqual([]);
   });
 });
+
+describe('WebhooksService — quem recebe o quê no pedido de delivery', () => {
+  const PEDIDO = {
+    id: 7,
+    status: 'Delivered',
+    itemsValue: new Prisma.Decimal('25.00'),
+    deliveryFee: new Prisma.Decimal('6.00'),
+  };
+
+  const PAGAMENTO_DO_PEDIDO = {
+    id: 9,
+    // O cliente pagou itens + frete: é o que passou pelo gateway.
+    amount: new Prisma.Decimal('31.00'),
+    payerId: 10,
+    receiverId: 20,
+    referenceType: PaymentReferenceTypeEnum.FoodOrder,
+    referenceId: 7,
+    platformFeeAmount: null,
+  } as unknown as Payment;
+
+  async function confirmar(pagamento: Payment = PAGAMENTO_DO_PEDIDO) {
+    const createMany = jest.fn();
+    const tx = {
+      payment: { update: jest.fn() },
+      foodOrder: { update: jest.fn() },
+      financialTransaction: { createMany },
+    };
+
+    const prisma = {
+      foodOrder: { findUnique: jest.fn().mockResolvedValue(PEDIDO) },
+      $transaction: (fn: (t: unknown) => Promise<void>) => fn(tx),
+    } as never;
+
+    const service = new WebhooksService(prisma, {} as never, { notifyUser: jest.fn() } as never);
+
+    await (
+      service as unknown as {
+        confirmFoodOrderPayment: (p: Payment, mp: unknown, m: unknown) => Promise<void>;
+      }
+    ).confirmFoodOrderPayment(pagamento, { id: 'mp-1' }, 'Pix');
+
+    return createMany.mock.calls[0][0].data as Record<string, unknown>[];
+  }
+
+  it('debita do cliente o valor cheio que ele pagou', async () => {
+    const lancamentos = await confirmar();
+    const debito = lancamentos.find((l) => l.type === FinancialTransactionTypeEnum.Debit);
+
+    expect(Number(debito?.amount)).toBe(31);
+    expect(debito?.userId).toBe(10);
+  });
+
+  it('credita ao restaurante SÓ os itens, não o total', async () => {
+    const lancamentos = await confirmar();
+    const credito = lancamentos.find((l) => l.type === FinancialTransactionTypeEnum.Credit);
+
+    // O frete é receita do entregador e é creditado a ele na entrega. Creditar
+    // o total aqui punha o mesmo frete no razão duas vezes.
+    expect(Number(credito?.amount)).toBe(25);
+    expect(credito?.userId).toBe(20);
+  });
+
+  it('a diferença entre o que o cliente pagou e o que o restaurante recebeu é o frete', async () => {
+    const lancamentos = await confirmar();
+    const debito = Number(
+      lancamentos.find((l) => l.type === FinancialTransactionTypeEnum.Debit)?.amount,
+    );
+    const credito = Number(
+      lancamentos.find((l) => l.type === FinancialTransactionTypeEnum.Credit)?.amount,
+    );
+
+    expect(debito - credito).toBe(Number(PEDIDO.deliveryFee));
+  });
+
+  it('com split, a taxa entra como débito do restaurante além do crédito dos itens', async () => {
+    const lancamentos = await confirmar({
+      ...PAGAMENTO_DO_PEDIDO,
+      platformFeeAmount: new Prisma.Decimal('5.00'),
+    } as Payment);
+
+    expect(lancamentos).toHaveLength(3);
+    const taxa = lancamentos.find((l) => l.category === FinancialTransactionCategoryEnum.Fee);
+
+    expect(Number(taxa?.amount)).toBe(5);
+    expect(taxa?.userId).toBe(20);
+  });
+});

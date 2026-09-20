@@ -15,6 +15,16 @@ export interface CreatePreferenceParams {
   sellerAccessToken?: string;
   /** Percentual retido pela plataforma. Calculado por quem chama, nunca fixo aqui. */
   marketplaceFeeRate?: number;
+  /**
+   * Valor absoluto retido pela plataforma, em reais. Quando informado, TEM
+   * PRECEDÊNCIA sobre `marketplaceFeeRate`.
+   *
+   * Existe porque nem toda retenção é um percentual do que foi cobrado. No
+   * delivery, a plataforma precisa reter a comissão sobre os itens MAIS o
+   * frete inteiro — é dela que sai o repasse do entregador. Um percentual sobre
+   * o total não expressa isso.
+   */
+  marketplaceFeeAmount?: number;
 }
 
 export interface CreatePreferenceResult {
@@ -225,13 +235,19 @@ export class MercadoPagoService {
       : this.ensureConfigured();
     const preference = new Preference(client);
 
-    // A taxa vem de quem chama, que a lê da configuração da plataforma ou da
+    // A retenção vem de quem chama, que a lê da configuração da plataforma ou da
     // categoria. Fixá-la aqui tornaria impossível cobrar diferente por
     // categoria, e mudar o percentual exigiria deploy.
-    const marketplaceFee =
-      params.sellerAccessToken && params.marketplaceFeeRate && params.marketplaceFeeRate > 0
-        ? Number(((params.unitPrice * params.marketplaceFeeRate) / 100).toFixed(2))
-        : undefined;
+    //
+    // Sem token do vendedor não há split: o dinheiro cai na conta da plataforma
+    // e não há o que reter de terceiro.
+    const marketplaceFee = !params.sellerAccessToken
+      ? undefined
+      : params.marketplaceFeeAmount && params.marketplaceFeeAmount > 0
+        ? Number(params.marketplaceFeeAmount.toFixed(2))
+        : params.marketplaceFeeRate && params.marketplaceFeeRate > 0
+          ? Number(((params.unitPrice * params.marketplaceFeeRate) / 100).toFixed(2))
+          : undefined;
 
     const backUrls =
       this.frontendUrl && this.notificationUrl

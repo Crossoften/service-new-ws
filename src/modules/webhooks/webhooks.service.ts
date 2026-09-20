@@ -310,7 +310,7 @@ export class WebhooksService {
   ): Promise<void> {
     const foodOrder = await this.prisma.foodOrder.findUnique({
       where: { id: localPayment.referenceId },
-      select: { id: true, status: true },
+      select: { id: true, status: true, itemsValue: true, deliveryFee: true },
     });
 
     if (!foodOrder) {
@@ -340,7 +340,7 @@ export class WebhooksService {
             category: FinancialTransactionCategoryEnum.FoodOrderPayment,
             status: PaymentStatusEnum.Paid,
             amount: localPayment.amount,
-            description: `Pagamento do pedido #${foodOrder.id}`,
+            description: `Pagamento do pedido #${foodOrder.id} (itens e frete)`,
             availableAt: paidAt,
             referenceType: PaymentReferenceTypeEnum.FoodOrder,
             referenceId: foodOrder.id,
@@ -351,8 +351,12 @@ export class WebhooksService {
             type: FinancialTransactionTypeEnum.Credit,
             category: FinancialTransactionCategoryEnum.FoodOrderPayment,
             status: PaymentStatusEnum.Paid,
-            amount: localPayment.amount,
-            description: `Recebimento do pedido #${foodOrder.id}`,
+            // Só o valor dos itens. O frete é receita do entregador, creditado
+            // a ele em `deliveries.service` na entrega — creditar o total aqui
+            // colocava o mesmo frete no razão duas vezes e inflava o saldo do
+            // restaurante exatamente nesse valor.
+            amount: foodOrder.itemsValue,
+            description: `Recebimento dos itens do pedido #${foodOrder.id}`,
             availableAt: paidAt,
             referenceType: PaymentReferenceTypeEnum.FoodOrder,
             referenceId: foodOrder.id,

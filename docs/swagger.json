@@ -1,42 +1,6 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/category-icons/{vertical}/{fileName}": {
-      "get": {
-        "description": "Pública por desenho: é imagem de vitrine, exibida antes de qualquer login. A URL devolvida em `iconUrl` nas rotas de categoria aponta para cá quando os ícones são servidos pela própria API. Definindo SERVICE_CATEGORY_PUBLIC_URL_BASE, as URLs passam a apontar para o host externo e esta rota deixa de ser usada.",
-        "operationId": "CategoryIconsController_serve",
-        "parameters": [
-          {
-            "name": "vertical",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "fileName",
-            "required": true,
-            "in": "path",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Ícone encontrado."
-          },
-          "404": {
-            "description": "Ícone não encontrado."
-          }
-        },
-        "summary": "Serve o ícone de uma categoria.",
-        "tags": [
-          "Ícones de categoria"
-        ]
-      }
-    },
     "/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -23169,6 +23133,54 @@
           "quantity"
         ]
       },
+      "DeliveryAddressDto": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string",
+            "description": "Logradouro.",
+            "example": "Rua das Palmeiras"
+          },
+          "number": {
+            "type": "string",
+            "description": "Número.",
+            "example": "458"
+          },
+          "neighborhood": {
+            "type": "string",
+            "description": "Bairro.",
+            "example": "Centro"
+          },
+          "city": {
+            "type": "string",
+            "description": "Cidade.",
+            "example": "Uberlândia"
+          },
+          "state": {
+            "type": "string",
+            "description": "Estado.",
+            "example": "Minas Gerais"
+          },
+          "zipCode": {
+            "type": "string",
+            "description": "CEP.",
+            "example": "38400-000"
+          },
+          "latitude": {
+            "type": "number",
+            "description": "Latitude do destino. Sem ela o frete cai na faixa padrão e o app do entregador não tem para onde traçar a rota.",
+            "example": -18.9186
+          },
+          "longitude": {
+            "type": "number",
+            "description": "Longitude do destino.",
+            "example": -48.2772
+          }
+        },
+        "required": [
+          "street"
+        ]
+      },
       "CreateFoodOrderDto": {
         "type": "object",
         "properties": {
@@ -23198,12 +23210,76 @@
             "items": {
               "$ref": "#/components/schemas/CreateFoodOrderItemDto"
             }
+          },
+          "deliveryAddress": {
+            "description": "Endereço de entrega deste pedido. Omitido, o pedido usa o endereço do cadastro — o comportamento de sempre. Informado, vale só para este pedido e NÃO altera o perfil do cliente.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryAddressDto"
+              }
+            ]
+          },
+          "scheduledFor": {
+            "type": "string",
+            "description": "Quando o cliente quer receber, em ISO 8601. Omitido, o pedido é para agora — o comportamento de sempre. Precisa ser no futuro. Não muda o status do pedido: serve para o restaurante separar o que é para já do que é para depois.",
+            "example": "2026-09-08T20:00:00.000Z"
+          },
+          "tip": {
+            "type": "number",
+            "description": "Gorjeta ao entregador, em reais. Entra no total cobrado e vai INTEIRA para o entregador — a plataforma não cobra comissão sobre ela. Omitida ou zero, o pedido segue sem gorjeta.",
+            "example": 5,
+            "minimum": 0,
+            "maximum": 1000
           }
         },
         "required": [
           "restaurantId",
           "paymentMethod",
           "items"
+        ]
+      },
+      "ResponseFoodOrderAddressDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "street": {
+            "type": "string",
+            "example": "Rua das Palmeiras"
+          },
+          "number": {
+            "type": "string",
+            "example": "458"
+          },
+          "neighborhood": {
+            "type": "string",
+            "example": "Centro"
+          },
+          "city": {
+            "type": "string",
+            "example": "Uberlândia"
+          },
+          "state": {
+            "type": "string",
+            "example": "Minas Gerais"
+          },
+          "zipCode": {
+            "type": "string",
+            "example": "38400-000"
+          },
+          "latitude": {
+            "type": "string",
+            "example": "-18.9186000"
+          },
+          "longitude": {
+            "type": "string",
+            "example": "-48.2772000"
+          }
+        },
+        "required": [
+          "id"
         ]
       },
       "ResponseFoodOrderRestaurantDto": {
@@ -23334,6 +23410,11 @@
           "deliveryFee": {
             "type": "string"
           },
+          "tip": {
+            "type": "string",
+            "description": "Gorjeta ao entregador. `0.00` quando não houve.",
+            "example": "5.00"
+          },
           "totalValue": {
             "type": "string"
           },
@@ -23362,6 +23443,12 @@
             ],
             "description": "Situação do pagamento. Pedidos em dinheiro nascem Pending e só passam a Paid quando quem entrega confirma o recebimento."
           },
+          "scheduledFor": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Horário pedido pelo cliente. Ausente é pedido para agora. Não altera o `status`: o restaurante usa este campo para separar o que é para já do que é para depois.",
+            "example": "2026-09-08T20:00:00.000Z"
+          },
           "paidAt": {
             "format": "date-time",
             "type": "string",
@@ -23373,8 +23460,18 @@
           "cancelReason": {
             "type": "string"
           },
+          "deliveryAddress": {
+            "description": "Endereço de entrega do pedido. Congelado como estava no momento do pedido: editar o perfil depois não reescreve para onde este pedido foi.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseFoodOrderAddressDto"
+              }
+            ]
+          },
           "chatRoomId": {
-            "type": "number"
+            "type": "number",
+            "description": "Id da sala de chat do pedido.",
+            "example": 1
           },
           "restaurant": {
             "$ref": "#/components/schemas/ResponseFoodOrderRestaurantDto"
@@ -23417,6 +23514,7 @@
           "status",
           "itemsValue",
           "deliveryFee",
+          "tip",
           "totalValue",
           "paymentMethod",
           "paymentStatus",

@@ -1170,6 +1170,10 @@ model FoodOrder {
   status           FoodOrderStatusEnum @default(Received)
   itemsValue       Decimal             @db.Decimal(10, 2)
   deliveryFee      Decimal             @default(0) @db.Decimal(10, 2)
+
+  /// Gorjeta ao entregador, escolhida pelo cliente. Entra no total cobrado e
+  /// vai inteira para o entregador — a plataforma não cobra comissão sobre ela.
+  tip              Decimal             @default(0) @db.Decimal(10, 2)
   totalValue       Decimal             @db.Decimal(10, 2)
   platformFeeRate  Decimal?            @db.Decimal(5, 2)
   commissionAmount Decimal?            @db.Decimal(10, 2)
@@ -1178,6 +1182,12 @@ model FoodOrder {
   // o meio escolhido e nada dizia se o dinheiro entrou. Com `Cash` no enum,
   // alguém precisa confirmar o recebimento — não há gateway para fazer isso.
   paymentStatus    PaymentStatusEnum   @default(Pending)
+
+  /// Quando o cliente quer receber. Nulo é o pedido comum, para agora.
+  /// Não altera o `status`: quem move o pedido pela cozinha continua sendo o
+  /// restaurante, que usa este campo para separar o que é para já do que é
+  /// para depois.
+  scheduledFor     DateTime?
   paidAt           DateTime?
   paidConfirmedById Int?
   notes            String?             @db.LongText()
