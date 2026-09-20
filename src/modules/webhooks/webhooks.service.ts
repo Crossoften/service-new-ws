@@ -9,7 +9,7 @@ import { FinancialTransactionCategoryEnum } from '../works/enums/financial-trans
 import { CommercialTransactionStatusEnum } from '../commercial-transactions/enums/commercial-transaction-status.enum';
 import { SubscriptionStatusEnum } from '../plans/enums/subscription-status.enum';
 import { SubscriptionIntervalEnum } from '../plans/enums/subscription-interval.enum';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class WebhooksService {
@@ -18,7 +18,7 @@ export class WebhooksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
-    private readonly whatsappService: WhatsappService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async handleMercadoPagoNotification(
@@ -133,7 +133,7 @@ export class WebhooksService {
       // `Pending`, e é isso que libera o cliente a gerar um novo checkout.
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.payerId,
       'Olá! Seu pagamento não foi aprovado ou foi cancelado. Você pode tentar novamente pelo app.',
     );
@@ -225,11 +225,11 @@ export class WebhooksService {
       });
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.payerId,
       'Olá! Seu pagamento foi confirmado com sucesso.',
     );
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.receiverId,
       'Olá! Você recebeu um pagamento pela negociação.',
     );
@@ -283,11 +283,11 @@ export class WebhooksService {
       });
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.payerId,
       'Olá! Seu pagamento foi confirmado com sucesso.',
     );
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.receiverId,
       'Olá! Você recebeu um pagamento pelo trabalho.',
     );
@@ -380,11 +380,11 @@ export class WebhooksService {
       );
     }
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.payerId,
       `Olá! O pagamento do pedido #${foodOrder.id} foi confirmado.`,
     );
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.receiverId,
       `Olá! O pagamento do pedido #${foodOrder.id} foi confirmado.`,
     );
@@ -519,11 +519,11 @@ export class WebhooksService {
       }
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.payerId,
       'Olá! Seu pagamento foi confirmado com sucesso.',
     );
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       localPayment.receiverId,
       'Olá! Você recebeu um pagamento pela assinatura.',
     );

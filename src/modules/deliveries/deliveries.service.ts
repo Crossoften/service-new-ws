@@ -19,7 +19,7 @@ import { DeliveryNotFoundException } from './exceptions/delivery-not-found.excep
 import { DeliveryAccessDeniedException } from './exceptions/delivery-access-denied.exception';
 import { DeliveryInvalidStatusException } from './exceptions/delivery-invalid-status.exception';
 import { DeliveryAlreadyTakenException } from './exceptions/delivery-already-taken.exception';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class DeliveriesService {
@@ -27,7 +27,7 @@ export class DeliveriesService {
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => DeliveriesGateway))
     private readonly deliveriesGateway: DeliveriesGateway,
-    private readonly whatsappService: WhatsappService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private readonly deliverySelect = Prisma.validator<Prisma.DeliveryAssignmentSelect>()({
@@ -173,7 +173,7 @@ export class DeliveriesService {
 
     this.deliveriesGateway.emitStatusChange(id, DeliveryAssignmentStatusEnum.PickedUp);
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       foodOrder.customerId,
       `Olá! Seu pedido #${foodOrder.id} saiu para entrega.`,
     );
@@ -266,7 +266,7 @@ export class DeliveriesService {
 
     this.deliveriesGateway.emitStatusChange(id, DeliveryAssignmentStatusEnum.Delivered);
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       foodOrder.customerId,
       `Olá! Seu pedido #${foodOrder.id} foi entregue. Bom apetite!`,
     );

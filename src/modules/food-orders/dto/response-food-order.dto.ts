@@ -86,6 +86,14 @@ export class ResponseFoodOrderDto {
   @ApiProperty({ description: 'Gorjeta ao entregador. `0.00` quando não houve.', example: '5.00' })
   tip: string;
 
+  @ApiProperty({
+    description:
+      'Desconto do cupom. `0.00` quando não houve. Custeado pela plataforma: o restaurante ' +
+      'recebe os itens integrais e o entregador recebe frete e gorjeta normalmente.',
+    example: '10.00',
+  })
+  discount: string;
+
   @ApiProperty()
   totalValue: string;
 

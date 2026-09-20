@@ -31,13 +31,14 @@ import { FoodOrderRestaurantNotFoundException } from './exceptions/food-order-re
 import { FoodOrderMenuItemNotFoundException } from './exceptions/food-order-menu-item-not-found.exception';
 import { FoodOrderAddressRequiredException } from './exceptions/food-order-address-required.exception';
 import { FoodOrderInvalidScheduleException } from './exceptions/food-order-invalid-schedule.exception';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { PaymentReferenceTypeEnum } from '../works/enums/payment-reference-type.enum';
 import { distanceInKm } from '@utils/haversine';
 import { randomUUID } from 'crypto';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
+import { CouponsService } from '../coupons/coupons.service';
 
 const DEFAULT_DELIVERY_FEE = 8;
 const DEFAULT_COMMISSION_RATE = 20;
@@ -46,10 +47,11 @@ const DEFAULT_COMMISSION_RATE = 20;
 export class FoodOrdersService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsappService: WhatsappService,
+    private readonly notificationsService: NotificationsService,
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
     private readonly subscriptionGuard: SubscriptionGuardService,
+    private readonly couponsService: CouponsService,
   ) {}
 
   private readonly deliveryAddressSelect = Prisma.validator<Prisma.AddressSelect>()({
@@ -71,6 +73,7 @@ export class FoodOrdersService {
     itemsValue: true,
     deliveryFee: true,
     tip: true,
+    discount: true,
     totalValue: true,
     platformFeeRate: true,
     commissionAmount: true,
@@ -211,7 +214,6 @@ export class FoodOrdersService {
     // A gorjeta entra no total cobrado, mas NÃO na base da comissão: ela é
     // dinheiro do entregador, não receita da venda do restaurante.
     const tip = new Prisma.Decimal(payload.tip ?? 0);
-    const totalValue = itemsValue.plus(deliveryFee).plus(tip);
 
     const owner = await this.prisma.user.findUnique({
       where: { id: restaurant.userId },
@@ -226,6 +228,27 @@ export class FoodOrdersService {
       commissionAmount = new Prisma.Decimal((itemsValue.toNumber() * (rate / 100)).toFixed(2));
     }
 
+    // O cupom entra depois da comissão porque é dela que o desconto sai: a
+    // plataforma custeia abatendo da própria retenção no split.
+    let discount = new Prisma.Decimal(0);
+    let couponId: number | undefined;
+
+    if (payload.couponCode) {
+      const resolvido = await this.couponsService.resolveForOrder({
+        code: payload.couponCode,
+        user,
+        restaurantId: restaurant.id,
+        itemsValue,
+        deliveryFee,
+        commissionAmount: commissionAmount ?? null,
+      });
+
+      discount = resolvido.discount;
+      couponId = resolvido.coupon.id;
+    }
+
+    const totalValue = itemsValue.plus(deliveryFee).plus(tip).minus(discount);
+
     const defaultMessage = `Pedido realizado no restaurante "${restaurant.name}".`;
 
     const foodOrder = await this.prisma.$transaction(async (tx) => {
@@ -235,6 +258,8 @@ export class FoodOrdersService {
           itemsValue,
           deliveryFee,
           tip,
+          discount,
+          couponId,
           totalValue,
           platformFeeRate,
           commissionAmount,
@@ -248,6 +273,20 @@ export class FoodOrdersService {
         },
         select: { id: true },
       });
+
+      // O resgate nasce junto com o pedido: é ele que conta uso do cupom, e
+      // gravá-lo fora da transação abriria janela para o mesmo cliente estourar
+      // o limite com dois pedidos simultâneos.
+      if (couponId) {
+        await tx.couponRedemption.create({
+          data: {
+            couponId,
+            userId: user.id,
+            foodOrderId: created.id,
+            discountAmount: discount,
+          },
+        });
+      }
 
       await tx.chatRoom.create({
         data: {
@@ -386,7 +425,7 @@ export class FoodOrdersService {
       });
     }
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       foodOrder.customerId,
       payload.status === FoodOrderStatusEnum.Accepted
         ? `Olá! Seu pedido #${foodOrder.id} foi aceito pelo restaurante e já está sendo preparado.`
@@ -433,7 +472,7 @@ export class FoodOrdersService {
       },
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       user.id === foodOrder.customerId ? foodOrder.restaurant.userId : foodOrder.customerId,
       `Olá! O pedido #${foodOrder.id} foi cancelado.`,
     );
@@ -477,6 +516,7 @@ export class FoodOrdersService {
         itemsValue: true,
         deliveryFee: true,
         tip: true,
+        discount: true,
         commissionAmount: true,
         customerId: true,
         restaurant: {
@@ -553,7 +593,13 @@ export class FoodOrdersService {
     // A plataforma retém comissão MAIS frete MAIS gorjeta. Frete e gorjeta são
     // do entregador e é a plataforma quem os repassa; deixá-los entrar na conta
     // do restaurante criava repasse que existia no razão e não no banco.
-    const retencaoDaPlataforma = comissao + frete + gorjeta;
+    const desconto = Number(foodOrder.discount);
+
+    // O desconto do cupom é custeado pela plataforma: sai da retenção dela, não
+    // do que o restaurante ou o entregador recebem. Por isso a criação do
+    // pedido garante que ele nunca passe da comissão — aqui a subtração é
+    // segura.
+    const retencaoDaPlataforma = comissao + frete + gorjeta - desconto;
 
     const { preferenceId, checkoutUrl } = await this.mercadoPagoService.createPreference({
       title: `Pedido #${foodOrder.id} - ${foodOrder.restaurant.name}`,
@@ -642,7 +688,7 @@ export class FoodOrdersService {
       },
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       foodOrder.customerId,
       `Olá! O pagamento do pedido #${foodOrder.id} foi confirmado.`,
     );
@@ -780,6 +826,7 @@ export class FoodOrdersService {
       itemsValue: foodOrder.itemsValue.toFixed(2),
       deliveryFee: foodOrder.deliveryFee.toFixed(2),
       tip: foodOrder.tip.toFixed(2),
+      discount: foodOrder.discount.toFixed(2),
       totalValue: foodOrder.totalValue.toFixed(2),
       platformFeeRate: foodOrder.platformFeeRate?.toFixed(2) ?? undefined,
       commissionAmount: foodOrder.commissionAmount?.toFixed(2) ?? undefined,

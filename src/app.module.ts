@@ -35,9 +35,15 @@ import { DeliveriesModule } from './modules/deliveries/deliveries.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { PrismaExceptionFilter } from './filters/prisma-exception.filter';
 import { RequestContextMiddleware } from './middlewares/request-context.middleware';
+import { CouponsModule } from './modules/coupons/coupons.module';
+import { PushModule } from './modules/push/push.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
+    PushModule,
+    NotificationsModule,
+    CouponsModule,
     ThrottlerModule.forRoot([
       {
         ttl: 60000,

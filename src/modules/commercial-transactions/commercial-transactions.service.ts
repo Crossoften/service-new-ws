@@ -9,7 +9,7 @@ import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
 import {
@@ -47,7 +47,7 @@ export class CommercialTransactionsService {
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
     private readonly marketplaceFee: MarketplaceFeeService,
-    private readonly whatsappService: WhatsappService,
+    private readonly notificationsService: NotificationsService,
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
 
@@ -539,7 +539,7 @@ export class CommercialTransactionsService {
       }
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       transaction.buyerId,
       payload.status === CommercialTransactionStatusEnum.Accepted
         ? `Olá! Sua negociação #${transaction.id} foi aceita pelo vendedor. Finalize o pagamento para prosseguir.`

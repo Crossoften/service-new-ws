@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   Max,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -76,4 +77,16 @@ export class CreateFoodOrderDto {
   @Min(0, { message: 'A gorjeta não pode ser negativa.' })
   @Max(1000, { message: 'A gorjeta não pode passar de R$ 1.000,00.' })
   tip?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Código do cupom. O desconto é recalculado aqui a partir dos preços reais do ' +
+      'cardápio — o valor da pré-visualização não é aceito como entrada. Cupom inválido ' +
+      'para este pedido responde 400 com a razão em `message`.',
+    example: 'BEMVINDO10',
+  })
+  @IsOptional()
+  @IsString({ message: 'O código do cupom deve ser um texto.' })
+  @MaxLength(40, { message: 'O código do cupom não pode ter mais que 40 caracteres.' })
+  couponCode?: string;
 }

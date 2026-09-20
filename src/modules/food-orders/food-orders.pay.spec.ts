@@ -23,6 +23,7 @@ const PEDIDO_BASE = {
   itemsValue: new Prisma.Decimal('50.00'),
   deliveryFee: new Prisma.Decimal('8.00'),
   tip: new Prisma.Decimal('0.00'),
+  discount: new Prisma.Decimal('0.00'),
   commissionAmount: new Prisma.Decimal('10.00'),
   customerId: 10,
   restaurant: {
@@ -62,6 +63,7 @@ function build(pedido: Record<string, unknown> | null, emAberto: { id: number } 
     mercadoPago,
     accounts,
     { assertProviderCanSell: jest.fn() } as never,
+    { resolveForOrder: jest.fn() } as never,
   );
 
   // A montagem da resposta já é coberta pelas rotas de leitura; aqui só
@@ -169,6 +171,39 @@ describe('FoodOrdersService.pay', () => {
     // Comissão 10 + frete 8 + gorjeta 5. A plataforma retém os três e repassa
     // frete e gorjeta ao entregador na entrega.
     expect(createPreference.mock.calls[0][0].marketplaceFeeAmount).toBe(23);
+  });
+
+  it('o desconto do cupom é abatido da retenção da plataforma', async () => {
+    const { service, createPreference } = build({
+      ...PEDIDO_BASE,
+      discount: new Prisma.Decimal('6.00'),
+      totalValue: new Prisma.Decimal('52.00'),
+    });
+
+    await service.pay(CLIENTE, 1, {});
+
+    // Comissão 10 + frete 8 + gorjeta 0 − desconto 6 = 12. O restaurante
+    // continua recebendo os itens menos a comissão (40) e o entregador continua
+    // recebendo o frete (8): quem paga o cupom é a plataforma, que fica com 4
+    // em vez de 10.
+    expect(createPreference.mock.calls[0][0].marketplaceFeeAmount).toBe(12);
+  });
+
+  it('com cupom, o restaurante recebe exatamente o mesmo de sempre', async () => {
+    const { service, createPreference } = build({
+      ...PEDIDO_BASE,
+      discount: new Prisma.Decimal('6.00'),
+      totalValue: new Prisma.Decimal('52.00'),
+    });
+
+    await service.pay(CLIENTE, 1, {});
+
+    const cobrado = createPreference.mock.calls[0][0].unitPrice;
+    const retido = createPreference.mock.calls[0][0].marketplaceFeeAmount;
+
+    // R$ 52 cobrados do cliente, R$ 12 retidos, R$ 40 para o restaurante — o
+    // mesmo líquido do pedido sem cupom.
+    expect(cobrado - retido).toBe(40);
   });
 
   it('sem comissão, ainda assim retém o frete', async () => {

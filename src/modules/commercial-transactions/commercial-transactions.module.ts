@@ -1,13 +1,13 @@
 import { Module } from '@nestjs/common';
 import { PrismaService } from '@database/PrismaService';
 import { MercadoPagoModule } from '../mercado-pago/mercado-pago.module';
-import { WhatsappModule } from '../whatsapp/whatsapp.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { CommercialTransactionsController } from './commercial-transactions.controller';
 import { CommercialTransactionsService } from './commercial-transactions.service';
 import { SubscriptionGuardModule } from '../subscription-guard/subscription-guard.module';
 
 @Module({
-  imports: [MercadoPagoModule, WhatsappModule, SubscriptionGuardModule],
+  imports: [MercadoPagoModule, NotificationsModule, SubscriptionGuardModule],
   controllers: [CommercialTransactionsController],
   providers: [CommercialTransactionsService, PrismaService],
 })

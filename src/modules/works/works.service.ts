@@ -13,7 +13,7 @@ import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
-import { WhatsappService } from '../whatsapp/whatsapp.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
 import { CreateWorkDto } from './dto/create-work.dto';
@@ -53,7 +53,7 @@ export class WorksService {
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
     private readonly marketplaceFee: MarketplaceFeeService,
-    private readonly whatsappService: WhatsappService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   private readonly workSelect = Prisma.validator<Prisma.WorkSelect>()({
@@ -757,7 +757,7 @@ export class WorksService {
       },
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       work.requesterId,
       `Olá! O prestador iniciou o atendimento do seu trabalho #${work.id}.`,
     );
@@ -852,7 +852,7 @@ export class WorksService {
       },
     });
 
-    void this.whatsappService.notifyUser(
+    void this.notificationsService.notifyUser(
       work.requesterId,
       `Olá! Seu trabalho #${work.id} foi concluído pelo prestador.`,
     );
@@ -1192,7 +1192,10 @@ export class WorksService {
           ? [work.requesterId]
           : [work.requesterId, work.providerId];
     for (const notifyId of notifyIds) {
-      void this.whatsappService.notifyUser(notifyId, `Olá! O trabalho #${work.id} foi cancelado.`);
+      void this.notificationsService.notifyUser(
+        notifyId,
+        `Olá! O trabalho #${work.id} foi cancelado.`,
+      );
     }
 
     return this.findById(user, id);

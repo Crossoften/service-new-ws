@@ -90,6 +90,11 @@ model User {
   jobApplications            JobApplication[]        @relation("JobApplicant")
   addressId                  Int?                    @unique
   address                    Address?                @relation(fields: [addressId], references: [id])
+  couponsCreated   Coupon[]           @relation("CouponCreator")
+  couponRedemptions CouponRedemption[] @relation("CouponRedeemer")
+  pushSubscriptions PushSubscription[] @relation("UserPushSubscriptions")
+
+
 
   @@map("users")
 }
@@ -933,6 +938,112 @@ model DeliveryFeeRule {
   @@map("delivery_fee_rules")
 }
 
+/// Inscrição de push de um navegador. Um usuário tem várias: celular, desktop,
+/// e cada navegador é uma inscrição distinta.
+model PushSubscription {
+  id Int @id @default(autoincrement())
+
+  userId Int
+
+  /// Endereço que o navegador devolve na inscrição. Único porque é a identidade
+  /// dela: reinscrever o mesmo navegador tem de atualizar, não duplicar.
+  endpoint String @unique @db.VarChar(500)
+
+  /// Chaves da inscrição, usadas para cifrar a carga. Vêm do navegador.
+  p256dh String @db.VarChar(255)
+  auth   String @db.VarChar(255)
+
+  /// Guardado só para diagnóstico: identificar de qual aparelho veio uma
+  /// inscrição que passou a falhar.
+  userAgent String? @db.VarChar(255)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  lastSentAt DateTime?
+
+  user User @relation("UserPushSubscriptions", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("push_subscriptions")
+}
+
+model Coupon {
+  id Int @id @default(autoincrement())
+
+  code        String  @unique @db.VarChar(40)
+  description String? @db.VarChar(255)
+
+  type CouponTypeEnum
+
+  /// Percentual (0–100) para `Percent`, valor em reais para `Fixed`.
+  /// Nulo em `FreeShipping`, onde o desconto é o próprio frete do pedido.
+  value Decimal? @db.Decimal(10, 2)
+
+  /// Teto do desconto de um cupom percentual, em reais. Sem ele, "20% off" num
+  /// pedido grande vira um desconto que a comissão não cobre.
+  maxDiscountValue Decimal? @db.Decimal(10, 2)
+
+  /// Valor mínimo dos itens para o cupom valer. É o mecanismo que mantém o
+  /// desconto dentro da comissão do pedido.
+  minOrderValue Decimal? @db.Decimal(10, 2)
+
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  /// Limite total de usos e limite por cliente. Nulos = sem limite.
+  maxUses            Int?
+  maxUsesPerCustomer Int?
+
+  /// Restaurante ao qual o cupom se restringe. Nulo vale em todos.
+  restaurantId Int?
+
+  isActive    Boolean @default(true)
+  createdById Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  restaurant  Restaurant?        @relation(fields: [restaurantId], references: [id])
+  createdBy   User               @relation("CouponCreator", fields: [createdById], references: [id])
+  redemptions CouponRedemption[]
+  foodOrders  FoodOrder[]
+
+  @@index([isActive])
+  @@index([restaurantId])
+  @@map("coupons")
+}
+
+/// Um resgate por pedido. É esta tabela que responde "quantas vezes este cupom
+/// já foi usado" e "quantas vezes por este cliente" — contar em `FoodOrder`
+/// misturaria pedido cancelado com pedido válido.
+model CouponRedemption {
+  id Int @id @default(autoincrement())
+
+  couponId       Int
+  userId         Int
+  foodOrderId    Int     @unique
+  discountAmount Decimal @db.Decimal(10, 2)
+
+  createdAt DateTime @default(now())
+
+  coupon    Coupon    @relation(fields: [couponId], references: [id])
+  user      User      @relation("CouponRedeemer", fields: [userId], references: [id])
+  foodOrder FoodOrder @relation(fields: [foodOrderId], references: [id])
+
+  @@index([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+enum CouponTypeEnum {
+  /// Percentual sobre o valor dos itens. Não incide sobre frete nem gorjeta.
+  Percent
+  /// Valor fixo em reais, abatido dos itens.
+  Fixed
+  /// Zera o frete para o cliente. O entregador recebe normalmente — quem cobre
+  /// é a plataforma.
+  FreeShipping
+}
+
 enum PaymentMethodEnum {
   CreditCard
   DebitCard
@@ -1099,6 +1210,8 @@ model Restaurant {
   menuItems      MenuItem[]
   foodOrders     FoodOrder[]
   reviews        Review[]
+  coupons        Coupon[]
+
 
   @@index([categoryId])
   @@map("restaurants")
@@ -1174,6 +1287,12 @@ model FoodOrder {
   /// Gorjeta ao entregador, escolhida pelo cliente. Entra no total cobrado e
   /// vai inteira para o entregador — a plataforma não cobra comissão sobre ela.
   tip              Decimal             @default(0) @db.Decimal(10, 2)
+  /// Desconto do cupom aplicado ao pedido. Sai do bolso da PLATAFORMA: o
+  /// restaurante continua recebendo os itens integrais e o entregador continua
+  /// recebendo frete e gorjeta. Por isso o desconto nunca pode passar da
+  /// comissão daquele pedido — é só dela que há de onde tirar.
+  discount         Decimal             @default(0) @db.Decimal(10, 2)
+  couponId         Int?
   totalValue       Decimal             @db.Decimal(10, 2)
   platformFeeRate  Decimal?            @db.Decimal(5, 2)
   commissionAmount Decimal?            @db.Decimal(10, 2)
@@ -1206,8 +1325,10 @@ model FoodOrder {
   customer           User                @relation("FoodOrderCustomer", fields: [customerId], references: [id])
   paidConfirmedBy    User?               @relation("FoodOrderPaymentConfirmer", fields: [paidConfirmedById], references: [id])
   address            Address?            @relation(fields: [addressId], references: [id])
+  coupon             Coupon?             @relation(fields: [couponId], references: [id])
   items              FoodOrderItem[]
   deliveryAssignment DeliveryAssignment?
+  couponRedemption   CouponRedemption?
 
   @@index([restaurantId])
   @@index([customerId])
