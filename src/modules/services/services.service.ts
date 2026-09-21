@@ -104,7 +104,9 @@ export class ServicesService {
           name: capitalizeFirstLetter(payload.name.trim()),
           type: payload.type,
           registrationCode: payload.registrationCode ? payload.registrationCode.trim() : null,
-          price: new Prisma.Decimal(payload.price),
+          // Preço é opcional desde 21/09: o valor que vale é o que o
+          // profissional informa ao responder a solicitação de orçamento.
+          price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : null,
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
@@ -208,7 +210,7 @@ export class ServicesService {
         id: service.id,
         name: service.name,
         type: service.type as ServiceTypeEnum,
-        price: service.price.toFixed(2),
+        price: service.price ? service.price.toFixed(2) : undefined,
         description: service.description,
         imageUrl: service.imageUrl,
         isActive: service.isActive,
@@ -299,7 +301,7 @@ export class ServicesService {
         id: service.id,
         name: service.name,
         type: service.type as ServiceTypeEnum,
-        price: service.price.toFixed(2),
+        price: service.price ? service.price.toFixed(2) : undefined,
         description: service.description,
         imageUrl: service.imageUrl,
         isActive: service.isActive,
@@ -359,7 +361,7 @@ export class ServicesService {
       name: service.name,
       type: service.type as ServiceTypeEnum,
       registrationCode: service.registrationCode,
-      price: service.price.toFixed(2),
+      price: service.price ? service.price.toFixed(2) : undefined,
       description: service.description,
       imageUrl: service.imageUrl,
       imageKey: service.imageKey,
@@ -424,7 +426,7 @@ export class ServicesService {
       name: service.name,
       type: service.type as ServiceTypeEnum,
       registrationCode: service.registrationCode,
-      price: service.price.toFixed(2),
+      price: service.price ? service.price.toFixed(2) : undefined,
       description: service.description,
       imageUrl: service.imageUrl,
       imageKey: service.imageKey,
@@ -563,7 +565,14 @@ export class ServicesService {
                 ? payload.registrationCode.trim()
                 : null
               : undefined,
-          price: payload.price !== undefined ? new Prisma.Decimal(payload.price) : undefined,
+          // `undefined` não mexe no que está gravado; `null` explícito apaga
+          // o preço de um serviço que passou a ser só sob orçamento.
+          price:
+            payload.price === undefined
+              ? undefined
+              : payload.price === null
+                ? null
+                : new Prisma.Decimal(payload.price),
           description:
             payload.description !== undefined
               ? payload.description

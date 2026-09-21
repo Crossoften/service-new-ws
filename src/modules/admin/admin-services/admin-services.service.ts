@@ -122,7 +122,7 @@ export class AdminServicesService {
       name: service.name,
       type: service.type,
       registrationCode: service.registrationCode ?? undefined,
-      price: Number(service.price),
+      price: service.price !== null ? Number(service.price) : undefined,
       description: service.description ?? undefined,
       imageUrl: service.imageUrl ?? undefined,
       isActive: service.isActive,
@@ -144,8 +144,13 @@ export class AdminServicesService {
       totalWorks: service._count.works,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
+      // Sem preço de referência não há quanto a plataforma receberia: o valor
+      // só existe quando o orçamento é respondido. `0` aqui daria a entender
+      // que o serviço não gera receita, que é outra coisa.
       platformValueReceived:
-        (Number(service.category.platformFeeRate) / 100) * Number(service.price),
+        service.price !== null
+          ? (Number(service.category.platformFeeRate) / 100) * Number(service.price)
+          : undefined,
       platformFeeRate: Number(service.category.platformFeeRate),
     };
   }

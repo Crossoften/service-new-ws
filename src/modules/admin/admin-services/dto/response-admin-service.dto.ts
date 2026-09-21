@@ -53,7 +53,7 @@ export class ResponseAdminServiceDto {
   registrationCode?: string;
 
   @ApiProperty({ example: 150.0, type: Number })
-  price: number;
+  price?: number;
 
   @ApiProperty({
     required: false,

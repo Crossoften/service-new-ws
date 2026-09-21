@@ -117,6 +117,15 @@ export class ResponseRestaurantDto {
     example: 30,
     type: Number,
   })
+  @ApiProperty({
+    description:
+      'O estabelecimento cobra cartão na maquininha dele. Quando verdadeiro, pedido ' +
+      'no cartão não gera checkout online: é pago na entrega, na maquininha, e o ' +
+      'repasse ao entregador é responsabilidade do estabelecimento.',
+    example: false,
+  })
+  usesOwnCardMachine: boolean;
+
   deliveryTimeMinMinutes?: number;
 
   @ApiPropertyOptional({

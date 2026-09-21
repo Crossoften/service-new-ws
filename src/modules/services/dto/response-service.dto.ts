@@ -72,7 +72,7 @@ export class ResponseServiceListItemDto {
   type: ServiceTypeEnum;
 
   @ApiProperty({ description: 'Preço formatado com duas casas decimais.', example: '150.00' })
-  price: string;
+  price?: string;
 
   @ApiProperty({
     description: 'Descrição resumida do serviço.',
@@ -145,7 +145,7 @@ export class ResponseServiceDto {
   registrationCode?: string;
 
   @ApiProperty({ description: 'Preço formatado com duas casas decimais.', example: '150.00' })
-  price: string;
+  price?: string;
 
   @ApiProperty({
     description: 'Descrição detalhada do serviço.',

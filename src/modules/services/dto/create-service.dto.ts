@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -43,11 +43,19 @@ export class CreateServiceDto {
   @MaxLength(80, { message: 'O registro profissional deve ter no máximo 80 caracteres.' })
   registrationCode?: string;
 
-  @ApiProperty({ description: 'Valor monetário do serviço.', example: 150.0 })
+  @ApiPropertyOptional({
+    description:
+      'Valor de referência do serviço. **Opcional**: o preço que vale é o que o ' +
+      'profissional informa ao responder a solicitação de orçamento. Use para vitrine ' +
+      '("a partir de"), ou omita quando tudo for sob orçamento. Envie `null` numa ' +
+      'atualização para apagar o preço de um serviço que já tinha.',
+    example: 150.0,
+  })
+  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 }, { message: 'O preço do serviço deve ser um número válido.' })
   @Min(0)
-  price: number;
+  price?: number | null;
 
   @ApiProperty({ description: 'Descrição detalhada do serviço.', required: false, nullable: true })
   @IsString({ message: 'A descrição do serviço deve ser um texto.' })

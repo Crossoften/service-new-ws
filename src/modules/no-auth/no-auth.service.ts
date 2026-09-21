@@ -14,7 +14,7 @@ import { normalizePhoneBR, phoneLookupVariants } from '@utils/normalizePhone';
 import { compareSync, hashSync } from 'bcrypt';
 import { NewContactDto } from '../mail/dto/new-contact.dto';
 import { MailService } from '../mail/mail.service';
-import { SmsService } from '../sms/sms.service';
+import { VerificationCodeService } from '../verification-code/verification-code.service';
 import { ForgotChannelEnum } from './enums/forgot-channel.enum';
 import { RegisterBaseDto } from './dto/register-base.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
@@ -30,7 +30,7 @@ export class NoAuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mailService: MailService,
-    private readonly smsService: SmsService,
+    private readonly verificationCodeService: VerificationCodeService,
   ) {}
 
   async register(
@@ -77,14 +77,17 @@ export class NoAuthService {
       throw new ConflictException('Já existe usuário cadastrado com os dados informados.');
     }
 
-    // O SMS sai ANTES de criar a conta, de propósito. Criar primeiro e enviar
-    // depois deixaria, quando o provedor falhasse, uma conta órfã que nunca
-    // poderia ser verificada e ainda ocuparia o telefone — a segunda tentativa
-    // de cadastro bateria em 409. Falhando aqui, nada foi gravado e o usuário
-    // simplesmente tenta de novo.
+    // O código sai ANTES de criar a conta, de propósito. Criar primeiro e
+    // enviar depois deixaria, quando o provedor falhasse, uma conta órfã que
+    // nunca poderia ser verificada e ainda ocuparia o telefone — a segunda
+    // tentativa de cadastro bateria em 409. Falhando aqui, nada foi gravado e o
+    // usuário simplesmente tenta de novo.
     const verificationCode: string = generateCode();
 
-    await this.smsService.sendAccountVerificationCode(normalizedPhone, verificationCode);
+    await this.verificationCodeService.sendAccountVerificationCode(
+      normalizedPhone,
+      verificationCode,
+    );
 
     const user = await this.prisma.user.create({
       data: {
@@ -209,7 +212,7 @@ export class NoAuthService {
       throw new BadRequestException('Credenciais de e-mail não configuradas.');
     }
 
-    if (channel === ForgotChannelEnum.Sms && !this.smsService.hasCredentials()) {
+    if (channel === ForgotChannelEnum.Sms && !this.verificationCodeService.hasCredentials()) {
       throw new BadRequestException('Credenciais do Twilio não configuradas.');
     }
 
@@ -234,7 +237,18 @@ export class NoAuthService {
     if (channel === ForgotChannelEnum.Email) {
       await this.mailService.forgotPassword(trimmedIdentifier, code);
     } else {
-      await this.smsService.sendPasswordResetCode(normalizedPhone, code);
+      // Segunda tentativa dentro da validade do código anterior é tratada como
+      // "não recebi" e sai por SMS.
+      //
+      // O Twilio aceita a mensagem de WhatsApp para qualquer número e só
+      // descobre depois, de forma assíncrona, que o destinatário não está na
+      // plataforma — não há como checar antes. Sem esta regra, quem não tem
+      // WhatsApp pediria o código indefinidamente e nunca receberia nenhum.
+      const reenvio = Boolean(user.code && user.codeExpiresIn && user.codeExpiresIn > new Date());
+
+      await this.verificationCodeService.sendPasswordResetCode(normalizedPhone, code, {
+        forceSms: reenvio,
+      });
     }
 
     // O banco guarda apenas o hash: vazamento da tabela nao entrega os codigos
@@ -441,7 +455,11 @@ export class NoAuthService {
 
     const code: string = generateCode();
 
-    await this.smsService.sendAccountVerificationCode(user.phone, code);
+    // Reenvio sai por SMS: se o usuário chegou até aqui, o primeiro código não
+    // apareceu, e a hipótese mais provável é que o número não tenha WhatsApp.
+    await this.verificationCodeService.sendAccountVerificationCode(user.phone, code, {
+      forceSms: true,
+    });
 
     await this.prisma.user.update({
       where: { id: user.id },

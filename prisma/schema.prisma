@@ -33,7 +33,22 @@ model User {
   fileKey        String?          @db.VarChar(1500)
   referralCode   String?          @unique @db.VarChar(80)
   birthDate      DateTime?
+
+  /// Comissão do INFLUENCIADOR sobre as indicações dele, em percentual.
+  /// Escrita pelo admin em `/v1/admin/influencers/:id/commission` e lida em
+  /// `referrals.service`. Nula usa a taxa global de `PlatformSettings`.
+  ///
+  /// Até 21/09/2026 este campo era lido também pelo delivery, para calcular a
+  /// comissão do restaurante — dois domínios sem relação disputando a mesma
+  /// coluna. Um usuário que fosse influenciador e dono de restaurante tinha a
+  /// taxa de indicação aplicada sobre os pedidos dele, em silêncio.
   commissionRate Decimal?         @db.Decimal(5, 2)
+
+  /// Comissão do DELIVERY sobre os itens de cada pedido, em percentual.
+  /// Vale só para quem opera no modelo de comissão (`billingType`
+  /// `Commission`). Nula usa o padrão de 20% de `food-orders/commission.ts`.
+  deliveryCommissionRate Decimal?  @db.Decimal(5, 2)
+
   billingType    BillingTypeEnum?
 
   // Vínculo da conta do vendedor no Mercado Pago, para o split automático.
@@ -93,6 +108,9 @@ model User {
   couponsCreated   Coupon[]           @relation("CouponCreator")
   couponRedemptions CouponRedemption[] @relation("CouponRedeemer")
   pushSubscriptions PushSubscription[] @relation("UserPushSubscriptions")
+  deliveryPayouts        DeliveryPayout[] @relation("DeliveryPayoutCourier")
+  deliveryPayoutsCreated DeliveryPayout[] @relation("DeliveryPayoutCreator")
+  cardMachineAcceptances Restaurant[]     @relation("RestaurantCardMachineAcceptance")
 
 
 
@@ -332,6 +350,16 @@ model Address {
   @@map("addresses")
 }
 
+/// Tipo da chave Pix. Define como a chave é normalizada e validada.
+enum PixKeyTypeEnum {
+  Cpf
+  Cnpj
+  Email
+  Phone
+  /// Chave aleatória (EVP), o UUID que o banco gera.
+  Random
+}
+
 model BankAccount {
   id Int @id @default(autoincrement())
 
@@ -340,6 +368,17 @@ model BankAccount {
   agency      String              @db.VarChar(30)
   account     String              @db.VarChar(30)
   cpf         String              @db.VarChar(14)
+
+  /// Chave Pix, gravada já normalizada: CPF e CNPJ só com dígitos, telefone em
+  /// E.164, e-mail em minúsculas. É por ela que o repasse ao entregador é pago;
+  /// agência e conta ficam como alternativa para TED.
+  ///
+  /// Opcional porque a conta bancária existe desde antes do Pix no projeto, e
+  /// exigir a chave agora invalidaria todos os cadastros já feitos. Os dois
+  /// campos andam juntos: ou ambos preenchidos, ou ambos nulos.
+  pixKey      String?             @db.VarChar(191)
+  pixKeyType  PixKeyTypeEnum?
+
   userId      Int                 @unique
 
   createdAt DateTime @default(now())
@@ -356,7 +395,15 @@ model Service {
   name             String          @db.VarChar(160)
   type             ServiceTypeEnum
   registrationCode String?         @db.VarChar(80)
-  price            Decimal         @db.Decimal(10, 2)
+
+  /// Preço de referência, **opcional**.
+  ///
+  /// Decisão da reunião de 21/09: o serviço não precisa ter valor fixo no
+  /// cadastro. O preço que vale é o que o profissional informa ao responder a
+  /// solicitação (`Budget.responseValue`), e é dele que o trabalho e o
+  /// pagamento tiram o valor. Este campo vira vitrine — "a partir de R$ X" —
+  /// ou fica nulo quando tudo é sob orçamento.
+  price            Decimal?        @db.Decimal(10, 2)
   description      String?         @db.LongText()
   imageUrl         String?         @db.VarChar(1500)
   imageKey         String?         @db.VarChar(1500)
@@ -436,6 +483,16 @@ model Budget {
   extraRespondedAt        DateTime?
   responseTimeQuantity    Int?
   responseTimeUnit        BudgetTimeUnitEnum?
+
+  /// Quando o cliente decidiu, e por quê no caso da recusa.
+  ///
+  /// `Accepted` e `Rejected` são terminais: depois de qualquer um dos dois o
+  /// orçamento não aceita mais alteração. O motivo da recusa é opcional e serve
+  /// ao prestador — sem ele, a recusa chega como um "não" sem contexto.
+  acceptedAt              DateTime?
+  rejectedAt              DateTime?
+  rejectReason            String?             @db.LongText()
+
   serviceId               Int?
   requesterId             Int
   providerId              Int
@@ -747,14 +804,25 @@ model FinancialTransaction {
   userId        Int
   paymentId     Int?
 
+  /// Lote de repasse que liquidou este lançamento.
+  ///
+  /// Nulo num crédito de `DeliveryPayout` significa "ainda devido ao
+  /// entregador" — é essa ausência que define o saldo em aberto. Preenchido,
+  /// significa que o dinheiro saiu, e o lote diz quando, por qual meio e com
+  /// qual comprovante. Uma coluna resolve saldo, histórico e idempotência sem
+  /// tabela de ligação.
+  payoutId      Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user    User     @relation(fields: [userId], references: [id])
-  payment Payment? @relation(fields: [paymentId], references: [id])
+  user    User            @relation(fields: [userId], references: [id])
+  payment Payment?        @relation(fields: [paymentId], references: [id])
+  payout  DeliveryPayout? @relation(fields: [payoutId], references: [id])
 
   @@index([userId])
   @@index([paymentId])
+  @@index([payoutId])
   @@index([referenceType, referenceId])
   @@index([type, status])
   @@map("financial_transactions")
@@ -872,6 +940,17 @@ enum BudgetStatusEnum {
   Responded
   WaitingInformation
   Cancelled
+
+  /// O cliente aceitou a proposta. Nasce junto com o `Work`, na mesma
+  /// transação — até aqui o orçamento aprovado ficava eternamente em
+  /// `Responded`, e a única forma de saber que fora aceito era procurar se
+  /// existia um trabalho apontando para ele.
+  Accepted
+
+  /// O cliente recusou. Antes não havia caminho: ou o orçamento virava
+  /// `Cancelled` (que é desistência, não recusa) ou era apagado do banco,
+  /// levando junto o histórico da negociação.
+  Rejected
 }
 
 enum BudgetTimeUnitEnum {
@@ -1058,6 +1137,14 @@ enum PaymentStatusEnum {
   Pending
   Paid
   Cancelled
+
+  /// Pago e devolvido depois — estorno ou chargeback.
+  ///
+  /// Separado de `Cancelled` de propósito: cancelado é o que nunca entrou (Pix
+  /// vencido, cartão recusado), estornado é o que entrou e voltou. A diferença
+  /// decide coisas concretas — no cancelado não há o que reverter, no
+  /// estornado há dinheiro que já foi creditado a alguém.
+  Refunded
 }
 
 enum PaymentReferenceTypeEnum {
@@ -1066,6 +1153,10 @@ enum PaymentReferenceTypeEnum {
   Subscription
   FoodOrder
   Referral
+  /// Lançamento de saída do repasse ao entregador. `referenceId` aponta para
+  /// `delivery_payouts` — é o único referenceType que não nasce de um negócio
+  /// entre duas pessoas, e sim de a plataforma pagar o que devia.
+  DeliveryPayout
 }
 
 enum CommercialTransactionReferenceTypeEnum {
@@ -1200,11 +1291,30 @@ model Restaurant {
   deliveryTimeMinMinutes Int?
   deliveryTimeMaxMinutes Int?
 
+  /// O estabelecimento cobra cartão na própria maquininha, na entrega.
+  ///
+  /// Quando ligado, pedido no cartão não gera checkout nem split: o dinheiro
+  /// não passa pela plataforma em momento nenhum. A consequência é que o frete
+  /// e a gorjeta também não são retidos, e **o repasse ao entregador passa a
+  /// ser responsabilidade do estabelecimento** — é justamente essa
+  /// responsabilidade que o aceite registra.
+  ///
+  /// Pix e boleto continuam pelo gateway: a maquininha é de cartão.
+  usesOwnCardMachine Boolean @default(false)
+
+  /// Quando o aceite de responsabilidade foi dado, por quem, e sobre qual
+  /// texto. Os três nascem juntos ao ligar a modalidade e são limpos ao
+  /// desligar — religar exige aceitar de novo, porque o termo pode ter mudado.
+  cardMachineAcceptedAt   DateTime?
+  cardMachineAcceptedById Int?
+  cardMachineTermsVersion String?   @db.VarChar(40)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   category       RestaurantCategory @relation(fields: [categoryId], references: [id])
   user           User               @relation(fields: [userId], references: [id])
+  cardMachineAcceptedBy User?       @relation("RestaurantCardMachineAcceptance", fields: [cardMachineAcceptedById], references: [id])
   address        Address?           @relation(fields: [addressId], references: [id])
   menuCategories MenuCategory[]
   menuItems      MenuItem[]
@@ -1301,6 +1411,18 @@ model FoodOrder {
   // o meio escolhido e nada dizia se o dinheiro entrou. Com `Cash` no enum,
   // alguém precisa confirmar o recebimento — não há gateway para fazer isso.
   paymentStatus    PaymentStatusEnum   @default(Pending)
+
+  /// O dinheiro deste pedido não passa pela plataforma.
+  ///
+  /// Verdadeiro no pedido em dinheiro e no cartão cobrado na maquininha do
+  /// próprio estabelecimento. Nos dois casos não há checkout, não há split,
+  /// não há frete retido — e portanto **não há repasse a creditar ao
+  /// entregador**, que recebe do estabelecimento.
+  ///
+  /// Gravado no pedido, e não deduzido do restaurante na hora de ler, porque a
+  /// modalidade pode ser desligada depois: o pedido antigo tem de continuar
+  /// contando a verdade do dia em que foi feito.
+  settledOffPlatform Boolean          @default(false)
 
   /// Quando o cliente quer receber. Nulo é o pedido comum, para agora.
   /// Não altera o `status`: quem move o pedido pela cozinha continua sendo o
@@ -1405,6 +1527,51 @@ model DeliveryAssignment {
 // ============================================================
 // BE-04 — Aluguel: entidade transacional
 // ============================================================
+
+/// Como o dinheiro saiu da plataforma para o entregador.
+enum DeliveryPayoutMethodEnum {
+  Pix
+  BankTransfer
+  Cash
+  Other
+}
+
+/// Repasse pago ao entregador.
+///
+/// A plataforma retém frete e gorjeta no split e devia esses valores ao
+/// entregador — dívida que até aqui existia só como crédito no razão, sem
+/// nenhuma rotina que a liquidasse. Cada linha aqui é um pagamento que saiu de
+/// verdade, com meio e comprovante, e amarra os créditos que ele quitou.
+///
+/// O pagamento em si acontece fora do sistema nesta etapa: o admin faz o Pix e
+/// registra aqui. Automatizar o envio é etapa seguinte e não muda este modelo.
+model DeliveryPayout {
+  id Int @id @default(autoincrement())
+
+  amount            Decimal                  @db.Decimal(10, 2)
+  method            DeliveryPayoutMethodEnum
+  /// Identificador do comprovante no banco: end-to-end do Pix, número da TED.
+  reference         String?                  @db.VarChar(191)
+  notes             String?                  @db.VarChar(255)
+  /// Quantos créditos este lote quitou. Guardado em vez de contado depois
+  /// porque o histórico precisa continuar correto se a regra mudar.
+  transactionsCount Int                      @default(0)
+  paidAt            DateTime
+  courierId         Int
+  createdById       Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  courier      User                   @relation("DeliveryPayoutCourier", fields: [courierId], references: [id])
+  createdBy    User                   @relation("DeliveryPayoutCreator", fields: [createdById], references: [id])
+  transactions FinancialTransaction[]
+
+  @@index([courierId])
+  @@index([paidAt])
+  @@index([createdById])
+  @@map("delivery_payouts")
+}
 
 model Rental {
   id Int @id @default(autoincrement())

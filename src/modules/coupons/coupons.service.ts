@@ -1,6 +1,7 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { BillingTypeEnum, Coupon, CouponTypeEnum, Prisma, User } from '@prisma/client';
+import { calculateCommission, resolveCommissionRate } from '../food-orders/commission';
+import { Coupon, CouponTypeEnum, Prisma, User } from '@prisma/client';
 
 import { calculateCouponDiscount, platformDiscountAllowance } from './coupon-discount';
 import { CouponNotApplicableException } from './exceptions/coupon-not-applicable.exception';
@@ -11,7 +12,6 @@ export interface CouponResolution {
 }
 
 /** Mesmo padrão do módulo de pedidos, para as duas contas baterem. */
-const DEFAULT_COMMISSION_RATE = 20;
 
 @Injectable()
 export class CouponsService {
@@ -119,16 +119,14 @@ export class CouponsService {
   ): Promise<Prisma.Decimal | null> {
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { user: { select: { billingType: true, commissionRate: true } } },
+      select: { user: { select: { billingType: true, deliveryCommissionRate: true } } },
     });
 
-    const owner = restaurant?.user;
+    const rate = resolveCommissionRate(restaurant?.user);
 
-    if (owner?.billingType !== BillingTypeEnum.Commission) return null;
+    if (rate === null) return null;
 
-    const rate = owner.commissionRate ? Number(owner.commissionRate) : DEFAULT_COMMISSION_RATE;
-
-    return new Prisma.Decimal((itemsValue.toNumber() * (rate / 100)).toFixed(2));
+    return calculateCommission(itemsValue, rate);
   }
 
   /**

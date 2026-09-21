@@ -1,4 +1,5 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PixKeyTypeEnum } from '@prisma/client';
 import { BankAccountTypeEnum } from '../enums/bank-account-type.enum';
 
 export class ResponseBankAccountDto {
@@ -40,6 +41,20 @@ export class ResponseBankAccountDto {
     type: String,
   })
   cpf: string;
+
+  @ApiPropertyOptional({
+    description: 'Tipo da chave Pix cadastrada.',
+    enum: PixKeyTypeEnum,
+    enumName: 'PixKeyTypeEnum',
+  })
+  pixKeyType?: PixKeyTypeEnum;
+
+  @ApiPropertyOptional({
+    description: 'Chave Pix, já normalizada pelo servidor.',
+    example: '+5534998701109',
+    type: String,
+  })
+  pixKey?: string;
 
   @ApiProperty({ description: 'Id do usuário dono da conta.', example: 15, type: Number })
   userId: number;

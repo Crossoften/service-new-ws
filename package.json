@@ -105,7 +105,8 @@
     "moduleNameMapper": {
       "^@database/(.*)$": "<rootDir>/database/$1",
       "^@interfaces/(.*)$": "<rootDir>/interfaces/$1",
-      "^@utils/(.*)$": "<rootDir>/utils/$1"
+      "^@utils/(.*)$": "<rootDir>/utils/$1",
+      "^src/(.*)$": "<rootDir>/$1"
     }
   }
 }

@@ -8,8 +8,9 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
-import { User } from '@prisma/client';
+import { User, UserProfileType } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { ResponseProfileDto } from './dto/response-profile.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ProfileService } from './profile.service';
@@ -69,8 +70,17 @@ export class ProfileController {
   }
 
   @Patch('me/billing-type')
+  // `billingType` só é consultado para quem vende: o gate de assinatura
+  // (`SubscriptionGuardService`) e o cálculo de comissão do delivery. Cliente,
+  // entregador e influenciador não têm o que fazer com esse campo — e antes
+  // desta trava qualquer conta autenticada podia gravá-lo.
+  @ProfileTypes(UserProfileType.Supplier)
   @ApiOperation({
-    summary: 'Rota para atualizar o modelo de cobrança do usuário autenticado.',
+    summary: 'Rota para atualizar o modelo de cobrança do fornecedor autenticado.',
+    description:
+      'Restrito ao perfil Supplier. O modelo de cobrança define se o fornecedor ' +
+      'opera por assinatura ou por comissão por pedido, e é lido a cada pedido ' +
+      'de delivery para decidir se há comissão.',
     security: [{ bearerAuth: [] }],
   })
   @ApiOkResponse({ type: ResponseProfileDto })

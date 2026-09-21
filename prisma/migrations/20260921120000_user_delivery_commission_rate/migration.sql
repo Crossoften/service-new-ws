@@ -1,0 +1,13 @@
+-- Comissão do delivery ganha coluna própria.
+--
+-- `commissionRate` era lido por dois domínios sem relação: a comissão do
+-- influenciador sobre indicações (escrita pelo admin) e a comissão do
+-- restaurante sobre os pedidos (nunca escrita por ninguém, sempre caindo no
+-- padrão de 20%). Quem fosse as duas coisas tinha a taxa de indicação aplicada
+-- aos próprios pedidos.
+--
+-- A coluna nova nasce nula, então nenhum restaurante muda de comportamento:
+-- todos continuam no padrão de 20%, exatamente como antes. `commissionRate`
+-- fica com o influenciador, que é de quem são os valores já gravados — por
+-- isso não há backfill.
+ALTER TABLE `users` ADD COLUMN `deliveryCommissionRate` DECIMAL(5, 2) NULL;

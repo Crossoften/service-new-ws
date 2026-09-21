@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiNotFoundResponse,
   ApiCreatedResponse,
   ApiForbiddenResponse,
   ApiInternalServerErrorResponse,
@@ -30,6 +31,7 @@ import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 import { UpdateRestaurantDto } from './dto/update-restaurant.dto';
 import { QueryRestaurantDto } from './dto/query-restaurant.dto';
 import { QueryRestaurantPayoutDto } from './dto/query-restaurant-payout.dto';
+import { UpdateCardMachineDto } from './dto/update-card-machine.dto';
 import { CreateMenuCategoryDto } from './dto/create-menu-category.dto';
 import { UpdateMenuCategoryDto } from './dto/update-menu-category.dto';
 import { CreateMenuItemDto } from './dto/create-menu-item.dto';
@@ -91,6 +93,33 @@ export class RestaurantsController {
     @Query() query: QueryRestaurantPayoutDto,
   ): Promise<ResponseRestaurantPayoutDto> {
     return this.restaurantsService.findMyPayouts(user, query);
+  }
+
+  @Patch('me/card-machine')
+  @ProfileTypes(UserProfileType.Supplier)
+  @ApiOperation({
+    summary: 'Liga ou desliga a cobrança de cartão na maquininha do próprio estabelecimento.',
+    description:
+      'Com a modalidade ligada, pedido no cartão NÃO gera checkout nem split: o ' +
+      'dinheiro não passa pela plataforma. Como o frete e a gorjeta deixam de ser ' +
+      'retidos, o repasse ao entregador passa a ser responsabilidade do ' +
+      'estabelecimento — por isso ligar exige `acceptResponsibility: true`, e o ' +
+      'aceite fica registrado com data, autor e versão do termo. ' +
+      'Pix e boleto continuam pelo gateway: a maquininha é de cartão. ' +
+      'Pedidos já criados não mudam.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseRestaurantDto })
+  @ApiBadRequestResponse({ description: 'Aceite de responsabilidade ausente.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiNotFoundResponse({ description: 'Restaurante não encontrado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async updateMyCardMachine(
+    @CurrentUser() user: User,
+    @Body() payload: UpdateCardMachineDto,
+  ): Promise<ResponseRestaurantDto> {
+    return this.restaurantsService.updateMyCardMachine(user, payload);
   }
 
   @Post()

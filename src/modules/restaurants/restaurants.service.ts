@@ -1,5 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { FoodOrderStatusEnum, Prisma, ReviewTypeEnum, User } from '@prisma/client';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 import { CreateRestaurantDto } from './dto/create-restaurant.dto';
@@ -25,6 +25,10 @@ import {
   ResponseRestaurantDto,
   ResponseRestaurantPayoutDto,
 } from './dto/response-restaurant.dto';
+import { resolveCommissionRate } from '../food-orders/commission';
+import { CARD_MACHINE_TERMS_VERSION } from './card-machine';
+import { UpdateCardMachineDto } from './dto/update-card-machine.dto';
+import { RestaurantCardMachineTermsRequiredException } from './exceptions/restaurant-card-machine-terms-required.exception';
 import { RestaurantNotFoundException } from './exceptions/restaurant-not-found.exception';
 import { RestaurantAlreadyExistsException } from './exceptions/restaurant-already-exists.exception';
 import { RestaurantAccessDeniedException } from './exceptions/restaurant-access-denied.exception';
@@ -45,6 +49,8 @@ interface RestaurantRating {
 
 @Injectable()
 export class RestaurantsService {
+  private readonly logger = new Logger(RestaurantsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionGuard: SubscriptionGuardService,
@@ -72,6 +78,7 @@ export class RestaurantsService {
     userId: true,
     deliveryTimeMinMinutes: true,
     deliveryTimeMaxMinutes: true,
+    usesOwnCardMachine: true,
     createdAt: true,
     updatedAt: true,
     category: { select: { id: true, name: true, slug: true, iconUrl: true } },
@@ -88,6 +95,7 @@ export class RestaurantsService {
     userId: true,
     deliveryTimeMinMinutes: true,
     deliveryTimeMaxMinutes: true,
+    usesOwnCardMachine: true,
     createdAt: true,
     updatedAt: true,
     category: { select: { id: true, name: true, slug: true, iconUrl: true } },
@@ -214,6 +222,65 @@ export class RestaurantsService {
     return this.toResponseDto(restaurant, ratings.get(restaurant.id));
   }
 
+  /**
+   * Liga ou desliga a cobrança de cartão na maquininha do estabelecimento.
+   *
+   * Ligar exige aceite explícito e grava quem aceitou, quando e sobre qual
+   * versão do termo. Desligar limpa os três: religar depois exige aceitar de
+   * novo, porque o texto pode ter mudado no intervalo.
+   *
+   * Não mexe em pedido nenhum. Cada pedido carrega a própria marca
+   * (`settledOffPlatform`), gravada na criação, justamente para que ligar ou
+   * desligar hoje não reescreva a verdade de ontem.
+   */
+  async updateMyCardMachine(
+    user: User,
+    payload: UpdateCardMachineDto,
+  ): Promise<ResponseRestaurantDto> {
+    const restaurant = await this.prisma.restaurant.findUnique({
+      where: { userId: user.id },
+      select: { id: true, usesOwnCardMachine: true },
+    });
+
+    if (!restaurant) throw new RestaurantNotFoundException();
+
+    if (payload.usesOwnCardMachine && !payload.acceptResponsibility) {
+      throw new RestaurantCardMachineTermsRequiredException();
+    }
+
+    // Já está como se pede: não regrava o aceite, para a data continuar sendo a
+    // do aceite de verdade e não a do último toque na tela.
+    if (restaurant.usesOwnCardMachine === payload.usesOwnCardMachine) {
+      return this.findMine(user);
+    }
+
+    await this.prisma.restaurant.update({
+      where: { id: restaurant.id },
+      data: payload.usesOwnCardMachine
+        ? {
+            usesOwnCardMachine: true,
+            cardMachineAcceptedAt: new Date(),
+            cardMachineAcceptedById: user.id,
+            cardMachineTermsVersion: CARD_MACHINE_TERMS_VERSION,
+          }
+        : {
+            usesOwnCardMachine: false,
+            cardMachineAcceptedAt: null,
+            cardMachineAcceptedById: null,
+            cardMachineTermsVersion: null,
+          },
+    });
+
+    this.logger.log(
+      payload.usesOwnCardMachine
+        ? `Restaurante ${restaurant.id} passou a usar maquininha própria; responsabilidade ` +
+            `pelo repasse aceita pelo usuário ${user.id} (termo ${CARD_MACHINE_TERMS_VERSION}).`
+        : `Restaurante ${restaurant.id} deixou de usar maquininha própria.`,
+    );
+
+    return this.findMine(user);
+  }
+
   async findMyPayouts(
     user: User,
     query: QueryRestaurantPayoutDto = {},
@@ -239,9 +306,23 @@ export class RestaurantsService {
     const totalItemsValue = aggregate._sum.itemsValue ?? new Prisma.Decimal(0);
     const totalCommission = aggregate._sum.commissionAmount ?? new Prisma.Decimal(0);
 
+    // `deliveryCommissionRate`, não `commissionRate`: o segundo virou exclusivo
+    // do influenciador quando os dois domínios foram separados, e este
+    // relatório ficou para trás — mostrava ao dono do restaurante a taxa de
+    // indicação dele, quando ele era as duas coisas.
+    //
+    // Passa pelo mesmo `resolveCommissionRate` do cálculo do pedido, então o
+    // relatório mostra a taxa que de fato foi cobrada: quem está no modelo de
+    // comissão e não tem taxa própria vê os 20% do padrão, em vez do vazio de
+    // antes, que dava a entender que não pagava nada.
+    const rate = resolveCommissionRate({
+      billingType: user.billingType,
+      deliveryCommissionRate: user.deliveryCommissionRate,
+    });
+
     return {
       billingType: user.billingType ?? 'None',
-      commissionRate: user.commissionRate ? user.commissionRate.toFixed(2) : undefined,
+      commissionRate: rate !== null ? rate.toFixed(2) : undefined,
       totalOrders: aggregate._count._all,
       totalItemsValue: totalItemsValue.toFixed(2),
       totalCommission: totalCommission.toFixed(2),
@@ -675,6 +756,7 @@ export class RestaurantsService {
         addressId: true,
         deliveryTimeMinMinutes: true,
         deliveryTimeMaxMinutes: true,
+        usesOwnCardMachine: true,
       },
     });
     if (!restaurant) throw new RestaurantNotFoundException();
@@ -748,6 +830,7 @@ export class RestaurantsService {
         iconUrl: restaurant.category.iconUrl ?? undefined,
       },
       userId: restaurant.userId,
+      usesOwnCardMachine: restaurant.usesOwnCardMachine,
       deliveryTimeMinMinutes: restaurant.deliveryTimeMinMinutes ?? undefined,
       deliveryTimeMaxMinutes: restaurant.deliveryTimeMaxMinutes ?? undefined,
       address: restaurant.address

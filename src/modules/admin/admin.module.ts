@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { NotificationsModule } from '../notifications/notifications.module';
+
 import { PrismaService } from '@database/PrismaService';
 import { AdminDashboardController } from './admin-dashboard/admin-dashboard.controller';
 import { AdminDashboardService } from './admin-dashboard/admin-dashboard.service';
@@ -17,8 +19,11 @@ import { AdminCategoriesController } from './admin-categories/admin-categories.c
 import { AdminCategoriesService } from './admin-categories/admin-categories.service';
 import { AdminDeliveryFeesController } from './admin-delivery-fees/admin-delivery-fees.controller';
 import { AdminDeliveryFeesService } from './admin-delivery-fees/admin-delivery-fees.service';
+import { AdminDeliveryPayoutsController } from './admin-delivery-payouts/admin-delivery-payouts.controller';
+import { AdminDeliveryPayoutsService } from './admin-delivery-payouts/admin-delivery-payouts.service';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [
     AdminSettingsController,
     AdminUsersController,
@@ -28,6 +33,7 @@ import { AdminDeliveryFeesService } from './admin-delivery-fees/admin-delivery-f
     AdminInfluencersController,
     AdminCategoriesController,
     AdminDeliveryFeesController,
+    AdminDeliveryPayoutsController,
   ],
   providers: [
     PrismaService,
@@ -39,6 +45,7 @@ import { AdminDeliveryFeesService } from './admin-delivery-fees/admin-delivery-f
     AdminInfluencersService,
     AdminCategoriesService,
     AdminDeliveryFeesService,
+    AdminDeliveryPayoutsService,
   ],
 })
 export class AdminModule {}

@@ -10,6 +10,7 @@ const ENV_COMPLETO: Env = {
   TWILIO_AUTH_TOKEN: 'token-de-teste',
   TWILIO_WHATSAPP_FROM: 'whatsapp:+14155238886',
   TWILIO_WHATSAPP_CONTENT_SID: 'HX00000000000000000000000000000000',
+  TWILIO_WHATSAPP_OTP_CONTENT_SID: 'HX11111111111111111111111111111111',
 };
 
 function build(overrides: Env = {}): WhatsappService {
@@ -46,7 +47,7 @@ describe('WhatsappService (Twilio)', () => {
     expect(build({ TWILIO_WHATSAPP_FROM: undefined }).hasCredentials()).toBe(false);
   });
 
-  it('fica habilitado com as quatro variáveis presentes', () => {
+  it('fica habilitado com as variáveis de notificação presentes', () => {
     expect(build().hasCredentials()).toBe(true);
   });
 
@@ -116,6 +117,50 @@ describe('WhatsappService (Twilio)', () => {
 
     await service.sendMessage('34998701109', '   \n  ');
 
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('separa o template de OTP do de notificação', () => {
+    expect(build({ TWILIO_WHATSAPP_OTP_CONTENT_SID: undefined }).hasCredentials()).toBe(true);
+    expect(build({ TWILIO_WHATSAPP_OTP_CONTENT_SID: undefined }).hasOtpCredentials()).toBe(false);
+    expect(build({ TWILIO_WHATSAPP_CONTENT_SID: undefined }).hasOtpCredentials()).toBe(true);
+  });
+
+  it('manda só o código na variável 1 do template de OTP', async () => {
+    const service = build();
+    const create = capturarEnvio(service);
+
+    await service.sendVerificationCode('(34) 99870-1109', '123456');
+
+    expect(create.mock.calls[0][0]).toMatchObject({
+      to: 'whatsapp:+5534998701109',
+      contentSid: ENV_COMPLETO.TWILIO_WHATSAPP_OTP_CONTENT_SID,
+    });
+    expect(JSON.parse(create.mock.calls[0][0].contentVariables)).toEqual({ '1': '123456' });
+  });
+
+  it('propaga a falha no código de verificação: o SMS precisa saber que deve assumir', async () => {
+    const service = build();
+    const create = capturarEnvio(service);
+
+    create.mockRejectedValue(Object.assign(new Error('63016'), { code: 63016 }));
+
+    await expect(service.sendVerificationCode('34998701109', '123456')).rejects.toThrow();
+  });
+
+  it('recusa o código de verificação sem o template de OTP, em vez de usar o de notificação', async () => {
+    const service = build({ TWILIO_WHATSAPP_OTP_CONTENT_SID: undefined });
+    const create = capturarEnvio(service);
+
+    await expect(service.sendVerificationCode('34998701109', '123456')).rejects.toThrow();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('recusa o código de verificação quando o telefone não é normalizável', async () => {
+    const service = build();
+    const create = capturarEnvio(service);
+
+    await expect(service.sendVerificationCode('123', '123456')).rejects.toThrow();
     expect(create).not.toHaveBeenCalled();
   });
 

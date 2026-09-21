@@ -1,5 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { User, UserProfileType } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import HandleUpdateUser from '@utils/HandleUpdateUser';
@@ -14,6 +14,8 @@ import { UpdateBillingTypeDto } from './dto/update-billing-type.dto';
 
 @Injectable()
 export class ProfileService {
+  private readonly logger = new Logger(ProfileService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async findMine(user: User): Promise<ResponseProfileDto> {
@@ -209,23 +211,48 @@ export class ProfileService {
     };
   }
 
+  /**
+   * Troca o modelo de cobrança do fornecedor.
+   *
+   * O campo decide, a cada pedido de delivery, se há comissão — e decide, no
+   * `SubscriptionGuardService`, se a assinatura é exigida. Trocá-lo é ato
+   * comercial, não preferência de perfil, e até aqui acontecia em silêncio:
+   * nenhum registro de quem trocou, quando, nem de quê para quê.
+   *
+   * O log não substitui trilha de auditoria em banco — substitui o nada que
+   * existia. A trilha persistida depende de definição funcional sobre quais
+   * transições são permitidas, e essa definição ainda não existe.
+   */
   async updateMyBillingType(
     user: User,
     payload: UpdateBillingTypeDto,
   ): Promise<ResponseProfileDto> {
     const currentUser = await this.prisma.user.findUnique({
       where: { id: user.id },
-      select: { id: true },
+      select: { id: true, billingType: true },
     });
 
     if (!currentUser) {
       throw new ProfileNotFoundException();
     }
 
+    const novo = payload.billingType ?? null;
+
+    // Sem mudança não há o que gravar nem o que registrar. Evita poluir o log
+    // com o PATCH que o front dispara ao salvar a tela inteira sem alterar nada.
+    if (currentUser.billingType === novo) {
+      return this.findMine(user);
+    }
+
     await this.prisma.user.update({
       where: { id: user.id },
-      data: { billingType: payload.billingType ?? null },
+      data: { billingType: novo },
     });
+
+    this.logger.log(
+      `Modelo de cobrança alterado pelo usuário ${user.id}: ` +
+        `${currentUser.billingType ?? 'null'} -> ${novo ?? 'null'}.`,
+    );
 
     return this.findMine(user);
   }

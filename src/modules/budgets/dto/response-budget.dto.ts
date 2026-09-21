@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ExtraRequestStatus } from '@prisma/client';
 import { BudgetStatusEnum } from '../enums/budget-status.enum';
 import { BudgetTimeUnitEnum } from '../enums/budget-time-unit.enum';
@@ -84,6 +84,15 @@ export class ResponseBudgetListItemDto {
   })
   responseValue?: string;
 
+  @ApiPropertyOptional({ description: 'Quando o cliente aceitou a proposta.' })
+  acceptedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Quando o cliente recusou a proposta.' })
+  rejectedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Motivo informado na recusa, quando houver.' })
+  rejectReason?: string;
+
   @ApiProperty({
     description: 'Status do acréscimo solicitado no orçamento, quando houver.',
     required: false,
@@ -163,6 +172,15 @@ export class ResponseBudgetDto {
     example: '350.00',
   })
   responseValue?: string;
+
+  @ApiPropertyOptional({ description: 'Quando o cliente aceitou a proposta.' })
+  acceptedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Quando o cliente recusou a proposta.' })
+  rejectedAt?: Date;
+
+  @ApiPropertyOptional({ description: 'Motivo informado na recusa, quando houver.' })
+  rejectReason?: string;
 
   @ApiProperty({
     description: 'Valor adicional solicitado no orçamento, quando houver.',

@@ -220,6 +220,38 @@ separadas**, guardados em campos diferentes no banco. Um não invalida o outro.
 No front, trate como fluxos independentes — não reaproveite a mesma tela nem o
 mesmo estado.
 
+### Por onde o código chega: WhatsApp primeiro, SMS no reenvio
+
+**Nenhum contrato mudou** — mesmas rotas, mesmos campos, mesmas respostas. O
+que mudou é o canal, e isso afeta só o **texto da tela**.
+
+| Momento | Canal |
+|---|---|
+| Cadastro (`register`) | WhatsApp; cai para SMS se o WhatsApp recusar na hora |
+| Reenvio (`resend-verification`) | **sempre SMS** |
+| `forgot` com `channel: "sms"`, 1ª vez | WhatsApp; cai para SMS se recusar na hora |
+| `forgot` repetido dentro das 4h | **sempre SMS** |
+
+O motivo do reenvio ser SMS: a API do Twilio **aceita** a mensagem de WhatsApp
+para qualquer número e só descobre depois, de forma assíncrona, que o
+destinatário não está na plataforma. Não existe como checar antes. Então o
+primeiro envio é uma aposta, e o reenvio é o resgate de quem não tem WhatsApp —
+o SMS alcança 100% dos números.
+
+**O que isso pede do front:**
+
+- Onde a tela diz "enviamos um SMS", passe a dizer **"enviamos um código por
+  WhatsApp ou SMS"**. O front não sabe qual dos dois saiu, e a API não informa —
+  de propósito, para não travar o contrato no canal
+- O botão de reenvio ganha peso: ele é o caminho de quem não tem WhatsApp.
+  Valem os mesmos 60s de contador, mas o texto pode ser **"não recebi, enviar
+  por SMS"** em vez de "reenviar"
+- Na tela de `forgot`, a segunda tentativa seguida também sai por SMS
+  automaticamente. Não precisa de campo novo nem de opção para o usuário
+
+Enquanto o template de OTP não estiver aprovado no Twilio, **tudo continua
+saindo por SMS**, exatamente como hoje. A mudança é invisível até lá.
+
 ---
 
 ## 6. Login ✅
@@ -810,6 +842,262 @@ Para essas, a tela do admin precisa **subir a imagem** em
 `POST /v1/upload/one-file` e mandar o `iconUrl` e o `iconKey` recebidos na
 criação da categoria. É o único ponto em que o `iconUrl` do back é de fato
 necessário — e é responsabilidade da tela de admin, não das telas de vitrine.
+
+---
+
+## 8.5 Carteira do entregador e repasse ✅
+
+O frete e a gorjeta são retidos pela plataforma no split e viram crédito do
+entregador quando ele finaliza a entrega. Até agora esse crédito era só um
+número na tela: nada no sistema o transformava em dinheiro. Agora existe o
+repasse, e ele muda duas telas.
+
+### Tela de ganhos do entregador
+
+`GET /v1/deliveries/me/earnings` ganhou **dois campos**, no mesmo formato dos
+que já existiam (`{ amount, deliveries }`):
+
+| Campo | O que é |
+|---|---|
+| `available` | já ganho e **ainda não repassado** — é o que a plataforma deve agora |
+| `paid` | já repassado, dinheiro fora da plataforma |
+
+`available + paid = total`. Os recortes de tempo (`day`, `week`, `month`,
+`total`) **não mudaram**: continuam somando tudo, pago ou não, porque são
+faturamento e não saldo.
+
+Na tela, o destaque passa a ser o `available` — é o número que o entregador quer
+ver. O `total` vira histórico.
+
+⚠️ **Pedido em dinheiro não gera repasse.** O entregador recebe frete e gorjeta
+em mãos, na porta, e a plataforma não retém nada. Esses valores **não** entram
+em `available` nem em `total`. Se a tela hoje promete "ganhos do dia" somando
+entregas em dinheiro, o número vai mudar — e o novo está certo.
+
+### Tela de repasses do admin
+
+Três rotas novas, todas exigindo papel de admin **e** permissão `Financial`:
+
+```
+GET  /v1/admin-delivery-payouts/pending
+POST /v1/admin-delivery-payouts
+GET  /v1/admin-delivery-payouts?courierId=42
+```
+
+O `pending` devolve, por entregador: nome, telefone, valor devido, quantas
+entregas compõem, a data da mais antiga e os **dados bancários** — é com eles
+que o admin faz o Pix. Entregador sem conta cadastrada vem sem `bankAccount`:
+não há para onde enviar, e a linha deve aparecer marcada na tela.
+
+O `POST` registra um repasse **já pago por fora**. Ele liquida o saldo inteiro
+daquele entregador — não existe repasse parcial.
+
+**Mande sempre o `expectedAmount`** com o valor que a tela mostrava. Se uma
+entrega for concluída entre o carregamento da tela e o envio do formulário, o
+saldo sobe; sem esse campo, o repasse daria baixa em dinheiro que não foi pago.
+Com ele, a resposta é `409` e a tela recarrega.
+
+| Código | Quando | O que fazer |
+|---|---|---|
+| `201` | repasse registrado | atualizar a lista |
+| `409` | sem saldo em aberto | recarregar; alguém já repassou |
+| `409` | saldo divergente | recarregar e mostrar o valor novo (vem na mensagem) |
+| `403` | admin sem permissão `Financial` | esconder a tela desse admin |
+
+### Chave Pix no cadastro bancário
+
+`POST` e `PATCH /v1/bank-accounts/me` aceitam **dois campos novos, opcionais**:
+
+| Campo | Valores |
+|---|---|
+| `pixKeyType` | `Cpf` · `Cnpj` · `Email` · `Phone` · `Random` |
+| `pixKey` | a chave, com ou sem máscara |
+
+Os dois **andam juntos**: mandar um sem o outro devolve `400`. Mandar os dois
+vazios apaga o Pix cadastrado. Omitir os dois num `PATCH` não mexe no que já
+está lá.
+
+Pode mandar com máscara — o servidor normaliza antes de gravar, e a resposta já
+vem normalizada:
+
+| Enviado | Gravado |
+|---|---|
+| `123.456.789-00` | `12345678900` |
+| `(34) 99870-1109` | `+5534998701109` |
+| `Maria@Email.COM` | `maria@email.com` |
+
+⚠️ A validação é de **formato**, não de existência: só o banco sabe se a chave
+está registrada de verdade. `400` aqui significa "isso não parece um CPF/e-mail/
+telefone", não "essa chave não existe".
+
+Na tela do entregador, vale deixar claro que a chave é por onde ele recebe — é
+o campo que decide se o repasse sai ou fica esperando.
+
+---
+
+## 8.6 Maquininha própria do estabelecimento ✅
+
+O estabelecimento pode declarar que cobra cartão na **maquininha dele**, na
+entrega. Isso muda o fluxo de pagamento inteiro daquele pedido.
+
+### A rota
+
+```
+PATCH /v1/restaurants/me/card-machine
+{ "usesOwnCardMachine": true, "acceptResponsibility": true }
+```
+
+**Ligar exige `acceptResponsibility: true`** — sem isso, `400`. Desligar não
+exige nada. A resposta é o restaurante, agora com `usesOwnCardMachine`.
+
+A tela de ligar precisa mostrar o termo antes do aceite, porque o back grava
+**quem aceitou, quando e sobre qual versão do texto**. Desligar limpa esse
+registro: religar depois pede o aceite de novo.
+
+### O que muda no pedido
+
+| Meio de pagamento | Com maquininha ligada |
+|---|---|
+| Crédito e débito | **não geram checkout** — pago na maquininha, na entrega |
+| Pix e boleto | seguem pelo gateway, como sempre |
+| Dinheiro | segue em mãos, como sempre |
+
+A maquininha é **de cartão**. Pix continua passando pela plataforma.
+
+### O que a tela do cliente precisa fazer
+
+Num restaurante com maquininha, escolher crédito ou débito **não leva ao
+checkout online**. Se o app chamar `POST /v1/food-orders/:id/pay` nesse pedido,
+recebe `400` com a mensagem explicando. Trate como trata o pedido em dinheiro:
+leve direto para o acompanhamento, e avise que o pagamento é na entrega.
+
+A confirmação de recebimento usa a rota que já existe, a mesma do dinheiro:
+
+```
+PATCH /v1/food-orders/:id/confirm-cash-payment
+```
+
+Ela agora aceita qualquer pedido liquidado fora da plataforma, não só dinheiro.
+Quem confirma continua sendo o entregador ou o restaurante.
+
+### O que muda para o entregador
+
+**Nada aparece para ele na hora**, mas o dinheiro vem de outro lugar: como a
+plataforma não reteve o frete nem a gorjeta, **quem paga o entregador é o
+estabelecimento**. Esses pedidos não entram em `available` nos ganhos dele.
+
+Vale deixar isso visível no histórico de entregas — senão o entregador vê uma
+entrega concluída que não somou nada no saldo e pensa que é bug.
+
+### Um aviso importante para o cadastro
+
+Ligar a maquininha **não muda pedidos já criados**. Cada pedido carrega a
+própria marca, decidida no momento em que foi feito. Um pedido criado com
+checkout online continua tendo checkout online mesmo se o restaurante ligar a
+maquininha depois.
+
+---
+
+## 8.7 Estorno: um status novo de pagamento ✅
+
+`PaymentStatusEnum` ganhou **`Refunded`**. Onde a tela hoje trata
+`Pending | Paid | Cancelled`, passa a existir um quarto valor.
+
+| Status | Significa |
+|---|---|
+| `Pending` | aguardando |
+| `Paid` | pago |
+| `Cancelled` | **nunca entrou** — Pix vencido, cartão recusado |
+| `Refunded` | **entrou e voltou** — estorno ou contestação no cartão |
+
+A distinção importa: no cancelado não há o que reverter, no estornado há
+dinheiro que já foi creditado a alguém.
+
+Aparece em `foodOrder.paymentStatus` e no status do pagamento. **Uma tela que
+faça `if (status === 'Paid') ... else ...` vai tratar estorno como "aguardando",
+o que é errado.** Vale revisar os `switch` e os ternários de status.
+
+Na tela do restaurante, o pedido estornado precisa aparecer como tal — ele já
+produziu e entregou, e o dinheiro voltou. É caso de suporte, não de fluxo
+normal.
+
+### Na tela de repasse do admin
+
+`GET /v1/admin-delivery-payouts/pending` ganhou dois campos:
+
+| Campo | O que é |
+|---|---|
+| `refundedDeliveries` | quantas entregas do saldo vieram de pedidos estornados |
+| `refundedAmount` | quanto do saldo vem daí, em reais |
+
+Zero na esmagadora maioria dos casos. Maior que zero **não bloqueia o repasse** —
+o valor continua somado em `amount`. É informação para o admin decidir, porque
+o backend não reverte lançamento sozinho: o entregador fez a entrega, e se ele
+fica sem receber é decisão de negócio, não de código.
+
+Na tela, vale destacar a linha quando `refundedDeliveries > 0`.
+
+---
+
+## 8.8 Orçamento: aceite, recusa e serviço sem preço ✅
+
+### Dois estados novos
+
+`BudgetStatusEnum` ganhou **`Accepted`** e **`Rejected`**, e os dois são
+**terminais**: depois deles o orçamento não aceita mais alteração.
+
+| Status | Significa |
+|---|---|
+| `Pending` | aguardando o profissional |
+| `Responded` | proposta na mesa |
+| `WaitingInformation` | o profissional pediu mais dados |
+| `Accepted` | **novo** — cliente aceitou, e o trabalho nasceu |
+| `Rejected` | **novo** — cliente recusou o preço |
+| `Cancelled` | desistência do pedido |
+
+⚠️ **`Cancelled` e `Rejected` não são a mesma coisa.** Cancelar é desistir do
+pedido; recusar é não aceitar o preço proposto. Se a tela hoje usa `Cancelled`
+para as duas, vale separar.
+
+Antes, orçamento aprovado ficava eternamente em `Responded` — a única forma de
+saber que fora aceito era procurar se existia um trabalho apontando para ele.
+Agora `PATCH /v1/budgets/:id/approve` move o status junto, na mesma transação.
+
+### A rota de recusa
+
+```
+PATCH /v1/budgets/:id/reject
+{ "rejectReason": "Achei o prazo longo demais." }   // opcional
+```
+
+Só o cliente que solicitou, e só em `Responded`.
+
+| Código | Quando |
+|---|---|
+| `200` | recusado |
+| `400` | ainda não respondido, ou já recusado |
+| `403` | quem chamou não é quem solicitou |
+| `409` | já aceito, já virou trabalho |
+
+A resposta do orçamento ganhou `acceptedAt`, `rejectedAt` e `rejectReason`.
+
+### Serviço sem preço fixo
+
+`Service.price` virou **opcional**, no cadastro e na resposta.
+
+- `POST /v1/services` sem `price` → serviço 100% sob orçamento
+- `PATCH` com `price: null` → apaga o preço de um serviço que já tinha
+- `PATCH` sem o campo → não mexe no que está lá
+
+**Na resposta, `price` agora pode vir ausente.** Tela que faz
+`service.price.toFixed(2)` vai quebrar. Onde não houver preço, o lugar dele é
+"Sob orçamento" — e onde houver, vale tratar como referência ("a partir de"),
+porque **o valor que de fato é cobrado é o do orçamento respondido**, não o do
+cadastro.
+
+Isso vale também para o admin: `platformValueReceived` vem ausente quando o
+serviço não tem preço, porque não há como estimar receita de um valor que só
+existe depois da negociação.
 
 ---
 

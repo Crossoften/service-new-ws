@@ -11,6 +11,21 @@ import { SubscriptionStatusEnum } from '../plans/enums/subscription-status.enum'
 import { SubscriptionIntervalEnum } from '../plans/enums/subscription-interval.enum';
 import { NotificationsService } from '../notifications/notifications.service';
 
+/**
+ * Estados do Mercado Pago em que o dinheiro voltou ao cliente depois de ter
+ * sido aprovado. `refunded` é devolução; `charged_back` é contestação no
+ * cartão. Os dois caíam no vazio antes desta fase.
+ */
+const REVERSAL_STATUSES = ['refunded', 'charged_back'];
+
+/**
+ * Sinaliza que outra notificação do mesmo pagamento chegou primeiro.
+ *
+ * Existe para desfazer a transação sem virar erro para fora: webhook
+ * duplicado é rotina do Mercado Pago, não falha.
+ */
+class PaymentAlreadyConfirmedError extends Error {}
+
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
@@ -68,15 +83,39 @@ export class WebhooksService {
       return;
     }
 
-    if (localPayment.status === PaymentStatusEnum.Paid) {
+    // Atalho, não garantia: o pagamento pode virar `Paid` entre esta leitura e
+    // a transação. Quem de fato impede o processamento em dobro é o `claim`
+    // dentro de cada confirmação, que trava a linha no banco.
+    if (
+      localPayment.status === PaymentStatusEnum.Paid &&
+      !REVERSAL_STATUSES.includes(mpPayment.status)
+    ) {
       return;
     }
 
     if (mpPayment.status === 'approved') {
       await this.confirmPayment(localPayment, mpPayment);
-    } else if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
-      await this.cancelPayment(localPayment);
+      return;
     }
+
+    if (mpPayment.status === 'rejected' || mpPayment.status === 'cancelled') {
+      await this.cancelPayment(localPayment);
+      return;
+    }
+
+    if (REVERSAL_STATUSES.includes(mpPayment.status)) {
+      await this.refundPayment(localPayment, mpPayment);
+      return;
+    }
+
+    // `in_process` e `in_mediation` são estados de trânsito: o pagamento ainda
+    // pode virar aprovado ou recusado, e mexer no pedido agora seria adiantar
+    // um desfecho que não existe. O que faltava era o registro — antes a
+    // notificação sumia sem deixar rastro de que havia chegado.
+    this.logger.log(
+      `Pagamento ${mpPayment.id} em estado não terminal (${mpPayment.status}); ` +
+        'nenhuma ação tomada, aguardando notificação seguinte.',
+    );
   }
 
   private async confirmPayment(
@@ -88,22 +127,108 @@ export class WebhooksService {
       mpPayment.payment_method_id,
     );
 
-    switch (localPayment.referenceType) {
-      case PaymentReferenceTypeEnum.CommercialTransaction:
-        await this.confirmCommercialTransactionPayment(localPayment, mpPayment, method);
-        break;
-      case PaymentReferenceTypeEnum.Work:
-        await this.confirmWorkPayment(localPayment, mpPayment, method);
-        break;
-      case PaymentReferenceTypeEnum.Subscription:
-        await this.confirmSubscriptionPayment(localPayment, mpPayment, method);
-        break;
-      case PaymentReferenceTypeEnum.FoodOrder:
-        await this.confirmFoodOrderPayment(localPayment, mpPayment, method);
-        break;
-      default:
-        this.logger.warn(`referenceType não suportado no webhook: ${localPayment.referenceType}`);
+    try {
+      switch (localPayment.referenceType) {
+        case PaymentReferenceTypeEnum.CommercialTransaction:
+          await this.confirmCommercialTransactionPayment(localPayment, mpPayment, method);
+          break;
+        case PaymentReferenceTypeEnum.Work:
+          await this.confirmWorkPayment(localPayment, mpPayment, method);
+          break;
+        case PaymentReferenceTypeEnum.Subscription:
+          await this.confirmSubscriptionPayment(localPayment, mpPayment, method);
+          break;
+        case PaymentReferenceTypeEnum.FoodOrder:
+          await this.confirmFoodOrderPayment(localPayment, mpPayment, method);
+          break;
+        default:
+          this.logger.warn(`referenceType não suportado no webhook: ${localPayment.referenceType}`);
+      }
+    } catch (error) {
+      // Outra notificação do mesmo pagamento chegou primeiro e ganhou a
+      // corrida. Não é erro: responder 500 faria o Mercado Pago reenviar a
+      // notificação indefinidamente por algo que já está feito.
+      if (error instanceof PaymentAlreadyConfirmedError) {
+        this.logger.debug(
+          `Pagamento ${localPayment.id} já havia sido confirmado por outra notificação.`,
+        );
+        return;
+      }
+
+      throw error;
     }
+  }
+
+  /**
+   * Marca o pagamento como pago, e só deixa passar quem chegar primeiro.
+   *
+   * O `updateMany` com a condição no WHERE é o que torna a confirmação
+   * idempotente de verdade: o banco trava a linha, a segunda transação espera,
+   * e ao seguir encontra o status já em `Paid` — alcançando zero linhas. Antes
+   * a checagem era uma leitura fora da transação, então duas notificações
+   * simultâneas passavam as duas, e o que salvava era o índice único de
+   * `mpPaymentId` estourando no fim: o razão ficava íntegro, mas o Mercado Pago
+   * recebia 500 e reenviava.
+   */
+  private async claimPayment(
+    tx: Prisma.TransactionClient,
+    localPayment: Payment,
+    mpPayment: Record<string, any>,
+    method: ReturnType<MercadoPagoService['mapPaymentMethod']>,
+    paidAt: Date,
+  ): Promise<void> {
+    const { count } = await tx.payment.updateMany({
+      where: { id: localPayment.id, status: { not: PaymentStatusEnum.Paid } },
+      data: { status: PaymentStatusEnum.Paid, method, mpPaymentId: String(mpPayment.id), paidAt },
+    });
+
+    if (count === 0) throw new PaymentAlreadyConfirmedError();
+  }
+
+  /**
+   * Pagamento aprovado que depois voltou ao cliente.
+   *
+   * Registra e alerta; **não mexe em dinheiro de ninguém**. Reverter os
+   * lançamentos decidiria, por conta própria, se o entregador que fez a
+   * entrega e o restaurante que produziu o pedido ficam sem receber — e essa
+   * regra não existe. O que dá para fazer sem inventar é não deixar o estorno
+   * passar despercebido: o pedido deixa de constar como pago, o alerta sobe
+   * alto, e os repasses afetados aparecem sinalizados para o admin antes de
+   * ele pagar.
+   */
+  private async refundPayment(
+    localPayment: Payment,
+    mpPayment: Record<string, any>,
+  ): Promise<void> {
+    const { count } = await this.prisma.payment.updateMany({
+      where: { id: localPayment.id, status: { not: PaymentStatusEnum.Refunded } },
+      data: { status: PaymentStatusEnum.Refunded },
+    });
+
+    if (count === 0) {
+      this.logger.debug(`Estorno do pagamento ${localPayment.id} já havia sido registrado.`);
+      return;
+    }
+
+    if (localPayment.referenceType === PaymentReferenceTypeEnum.FoodOrder) {
+      await this.prisma.foodOrder.update({
+        where: { id: localPayment.referenceId },
+        data: { paymentStatus: PaymentStatusEnum.Refunded },
+      });
+    }
+
+    this.logger.error(
+      `Pagamento ${localPayment.id} (${localPayment.referenceType} ` +
+        `#${localPayment.referenceId}) foi ${mpPayment.status} no Mercado Pago, ` +
+        `no valor de R$ ${localPayment.amount.toFixed(2)}. ` +
+        'Os lançamentos NÃO foram revertidos automaticamente; verificar repasses.',
+    );
+
+    void this.notificationsService.notifyUser(
+      localPayment.receiverId,
+      `Atenção: o pagamento de R$ ${localPayment.amount.toFixed(2)} que você recebeu foi ` +
+        'devolvido ao cliente. Entre em contato com o suporte.',
+    );
   }
 
   private async cancelPayment(localPayment: Payment): Promise<void> {
@@ -180,10 +305,7 @@ export class WebhooksService {
     await this.prisma.$transaction(async (tx) => {
       const paidAt = new Date();
 
-      await tx.payment.update({
-        where: { id: localPayment.id },
-        data: { status: PaymentStatusEnum.Paid, method, mpPaymentId: String(mpPayment.id), paidAt },
-      });
+      await this.claimPayment(tx, localPayment, mpPayment, method, paidAt);
 
       await tx.commercialTransaction.update({
         where: { id: localPayment.referenceId },
@@ -243,10 +365,7 @@ export class WebhooksService {
     await this.prisma.$transaction(async (tx) => {
       const paidAt = new Date();
 
-      await tx.payment.update({
-        where: { id: localPayment.id },
-        data: { status: PaymentStatusEnum.Paid, method, mpPaymentId: String(mpPayment.id), paidAt },
-      });
+      await this.claimPayment(tx, localPayment, mpPayment, method, paidAt);
 
       await tx.financialTransaction.createMany({
         data: [
@@ -323,10 +442,7 @@ export class WebhooksService {
     await this.prisma.$transaction(async (tx) => {
       const paidAt = new Date();
 
-      await tx.payment.update({
-        where: { id: localPayment.id },
-        data: { status: PaymentStatusEnum.Paid, method, mpPaymentId: String(mpPayment.id), paidAt },
-      });
+      await this.claimPayment(tx, localPayment, mpPayment, method, paidAt);
 
       await tx.foodOrder.update({
         where: { id: foodOrder.id },
@@ -427,10 +543,7 @@ export class WebhooksService {
         periodEnd.setMonth(periodEnd.getMonth() + subscription.bonusMonths);
       }
 
-      await tx.payment.update({
-        where: { id: localPayment.id },
-        data: { status: PaymentStatusEnum.Paid, method, mpPaymentId: String(mpPayment.id), paidAt },
-      });
+      await this.claimPayment(tx, localPayment, mpPayment, method, paidAt);
 
       await tx.subscription.update({
         where: { id: subscription.id },

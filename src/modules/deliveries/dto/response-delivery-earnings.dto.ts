@@ -33,4 +33,18 @@ export class ResponseDeliveryEarningsDto {
     description: 'Acumulado desde o cadastro.',
   })
   total: ResponseDeliveryEarningsPeriodDto;
+
+  @ApiProperty({
+    type: ResponseDeliveryEarningsPeriodDto,
+    description:
+      'Já ganho e ainda não repassado. É o que a plataforma deve ao entregador ' +
+      'neste momento — some com `paid` e dá `total`.',
+  })
+  available: ResponseDeliveryEarningsPeriodDto;
+
+  @ApiProperty({
+    type: ResponseDeliveryEarningsPeriodDto,
+    description: 'Já repassado, com o dinheiro fora da plataforma.',
+  })
+  paid: ResponseDeliveryEarningsPeriodDto;
 }

@@ -114,7 +114,11 @@ describe('WebhooksService — quem recebe o quê no pedido de delivery', () => {
   async function confirmar(pagamento: Payment = PAGAMENTO_DO_PEDIDO) {
     const createMany = jest.fn();
     const tx = {
-      payment: { update: jest.fn() },
+      // `updateMany` é o claim que tornou a confirmação idempotente: ele
+      // retorna quantas linhas alcançou, e zero significa que outra
+      // notificação chegou primeiro. Aqui sempre alcança, porque o que este
+      // arquivo testa é o razão, não a corrida.
+      payment: { update: jest.fn(), updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
       foodOrder: { update: jest.fn() },
       financialTransaction: { createMany },
     };

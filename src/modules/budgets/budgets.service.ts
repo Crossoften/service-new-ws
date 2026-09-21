@@ -19,6 +19,8 @@ import { BudgetScopeEnum } from './enums/budget-scope.enum';
 import { BudgetStatusEnum } from './enums/budget-status.enum';
 import { BudgetTimeUnitEnum } from './enums/budget-time-unit.enum';
 import { BudgetAccessDeniedException } from './exceptions/budget-access-denied.exception';
+import { RejectBudgetDto } from './dto/reject-budget.dto';
+import { BudgetLockedAfterApprovalException } from './exceptions/budget-locked-after-approval.exception';
 import { BudgetAlreadyApprovedException } from './exceptions/budget-already-approved.exception';
 import { BudgetApprovalNotAllowedException } from './exceptions/budget-approval-not-allowed.exception';
 import { BudgetCreateFailedException } from './exceptions/budget-create-failed.exception';
@@ -28,6 +30,12 @@ import { BudgetProviderReplyNotAllowedException } from './exceptions/budget-prov
 import { BudgetUpdateFailedException } from './exceptions/budget-update-failed.exception';
 import { ServiceNotFoundException } from '../services/exceptions/service-not-found.exception';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
+
+/**
+ * Estados de onde o orçamento não volta. Depois do aceite o valor já vive no
+ * trabalho; depois da recusa, reabrir seria contraproposta, que não tem regra.
+ */
+const TERMINAL_STATUSES = [BudgetStatusEnum.Accepted, BudgetStatusEnum.Rejected];
 
 @Injectable()
 export class BudgetsService {
@@ -42,6 +50,9 @@ export class BudgetsService {
     status: true,
     responseDescription: true,
     responseValue: true,
+    acceptedAt: true,
+    rejectedAt: true,
+    rejectReason: true,
     extraRequestValue: true,
     extraRequestDescription: true,
     extraRequestStatus: true,
@@ -118,6 +129,9 @@ export class BudgetsService {
     description: true,
     status: true,
     responseValue: true,
+    acceptedAt: true,
+    rejectedAt: true,
+    rejectReason: true,
     extraRequestStatus: true,
     responseTimeQuantity: true,
     responseTimeUnit: true,
@@ -255,6 +269,9 @@ export class BudgetsService {
           status: budget.status as BudgetStatusEnum,
           responseDescription: budget.responseDescription,
           responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+          acceptedAt: budget.acceptedAt ?? undefined,
+          rejectedAt: budget.rejectedAt ?? undefined,
+          rejectReason: budget.rejectReason ?? undefined,
           extraRequestValue: budget.extraRequestValue
             ? budget.extraRequestValue.toFixed(2)
             : undefined,
@@ -344,6 +361,9 @@ export class BudgetsService {
         description: budget.description,
         status: budget.status as BudgetStatusEnum,
         responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+        acceptedAt: budget.acceptedAt ?? undefined,
+        rejectedAt: budget.rejectedAt ?? undefined,
+        rejectReason: budget.rejectReason ?? undefined,
         extraRequestStatus: budget.extraRequestStatus || undefined,
         responseTimeQuantity: budget.responseTimeQuantity,
         responseTimeUnit: budget.responseTimeUnit as BudgetTimeUnitEnum,
@@ -387,6 +407,9 @@ export class BudgetsService {
       status: budget.status as BudgetStatusEnum,
       responseDescription: budget.responseDescription,
       responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+      acceptedAt: budget.acceptedAt ?? undefined,
+      rejectedAt: budget.rejectedAt ?? undefined,
+      rejectReason: budget.rejectReason ?? undefined,
       extraRequestValue: budget.extraRequestValue ? budget.extraRequestValue.toFixed(2) : undefined,
       extraRequestDescription: budget.extraRequestDescription || undefined,
       extraRequestStatus: budget.extraRequestStatus || undefined,
@@ -432,10 +455,30 @@ export class BudgetsService {
   async update(user: User, id: number, payload: UpdateBudgetDto): Promise<ResponseBudgetDto> {
     const budget = await this.prisma.budget.findUnique({
       where: { id },
-      select: { id: true, requesterId: true, providerId: true, status: true },
+      select: {
+        id: true,
+        requesterId: true,
+        providerId: true,
+        status: true,
+        // O trabalho é a prova de que o orçamento já foi aceito: `approve()`
+        // cria um por orçamento e recusa criar o segundo.
+        work: { select: { id: true } },
+      },
     });
 
     if (!budget) throw new BudgetNotFoundException();
+
+    // Depois do aceite o valor já vive no `Work` e pode já ter sido cobrado.
+    // Vale para todos, inclusive admin: não existe caminho que reconcilie o
+    // orçamento, o trabalho e o pagamento se os três divergirem.
+    //
+    // A recusa entra na mesma trava. Reabrir um orçamento recusado para o
+    // prestador oferecer outro preço é contraproposta, e não há regra definida
+    // para ela — deixar a edição solta faria a contraproposta existir por
+    // acidente, apagando o "não" que o cliente deu.
+    if (budget.work || TERMINAL_STATUSES.includes(budget.status as BudgetStatusEnum)) {
+      throw new BudgetLockedAfterApprovalException();
+    }
 
     const isAdmin = user.role === Role.Admin || user.role === Role.Master;
     const isRequester = budget.requesterId === user.id;
@@ -462,6 +505,13 @@ export class BudgetsService {
       throw new BudgetAccessDeniedException();
     }
 
+    // `Cancelled` é o único estado sem rota própria — desistir de um orçamento
+    // se faz por aqui. Qualquer outro valor enviado é ignorado, não recusado:
+    // recusar quebraria o front que hoje manda `Responded` junto da resposta,
+    // e nesse caso a derivação chega ao mesmo estado.
+    const statusSolicitado =
+      payload.status === BudgetStatusEnum.Cancelled ? BudgetStatusEnum.Cancelled : undefined;
+
     if (payload.serviceId) {
       const service = await this.prisma.service.findUnique({
         where: { id: payload.serviceId },
@@ -482,8 +532,14 @@ export class BudgetsService {
                 : null
               : undefined,
           serviceId: payload.serviceId,
+          // Só o cancelamento vem do cliente. Os demais estados são derivados
+          // do que a requisição faz: aceitar `status` livre deixava qualquer
+          // uma das partes forjar o andamento da negociação — marcar como
+          // `Responded` sem ter respondido, ou voltar para `Pending` depois de
+          // receber a proposta. `WaitingInformation` tem rota própria
+          // (`request-more-information`) e continua saindo só de lá.
           status:
-            payload.status ??
+            statusSolicitado ??
             (isUpdatingResponse
               ? BudgetStatusEnum.Responded
               : isRequester &&
@@ -627,6 +683,9 @@ export class BudgetsService {
         id: true,
         requesterId: true,
         responseValue: true,
+        acceptedAt: true,
+        rejectedAt: true,
+        rejectReason: true,
         extraRequestValue: true,
         extraRequestStatus: true,
       },
@@ -672,6 +731,9 @@ export class BudgetsService {
         status: true,
         description: true,
         responseValue: true,
+        acceptedAt: true,
+        rejectedAt: true,
+        rejectReason: true,
         serviceId: true,
         requesterId: true,
         providerId: true,
@@ -732,6 +794,15 @@ export class BudgetsService {
             : undefined,
         },
         select: this.workSelect,
+      });
+
+      // O aceite vira estado do orçamento, e não só a existência de um
+      // trabalho apontando para ele. Até aqui, orçamento aprovado ficava
+      // eternamente em `Responded`, e descobrir que fora aceito exigia
+      // procurar o `Work` — tanto no back quanto na tela.
+      await tx.budget.update({
+        where: { id: budget.id },
+        data: { status: BudgetStatusEnum.Accepted, acceptedAt: new Date() },
       });
 
       await tx.chatRoom.create({
@@ -811,6 +882,50 @@ export class BudgetsService {
         chat,
       },
     };
+  }
+
+  /**
+   * O cliente recusa a proposta.
+   *
+   * Antes não havia caminho: ou o orçamento virava `Cancelled` — que é
+   * desistência do pedido, coisa diferente de recusar um preço — ou era
+   * apagado do banco, levando junto o histórico da negociação.
+   *
+   * Só de `Responded`: recusar o que ainda não foi respondido não quer dizer
+   * nada, e recusar o que já foi aceito exigiria desfazer um trabalho.
+   */
+  async reject(user: User, id: number, payload: RejectBudgetDto): Promise<ResponseBudgetDto> {
+    const budget = await this.prisma.budget.findUnique({
+      where: { id },
+      select: { id: true, requesterId: true, status: true, work: { select: { id: true } } },
+    });
+
+    if (!budget) throw new BudgetNotFoundException();
+
+    const isAdmin = user.role === Role.Admin || user.role === Role.Master;
+
+    // Só quem pediu recusa. O prestador que não quer mais o trabalho desiste
+    // por outro caminho — recusar a própria proposta não faz sentido.
+    if (budget.requesterId !== user.id && !isAdmin) {
+      throw new BudgetApprovalNotAllowedException();
+    }
+
+    if (budget.work) throw new BudgetLockedAfterApprovalException();
+
+    if (budget.status !== BudgetStatusEnum.Responded) {
+      throw new BudgetNotRespondedException();
+    }
+
+    await this.prisma.budget.update({
+      where: { id: budget.id },
+      data: {
+        status: BudgetStatusEnum.Rejected,
+        rejectedAt: new Date(),
+        rejectReason: payload.rejectReason?.trim() || null,
+      },
+    });
+
+    return this.findById(user, id);
   }
 
   async delete(user: User, id: number): Promise<ImessageEntity> {

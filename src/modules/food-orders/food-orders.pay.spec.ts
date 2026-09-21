@@ -18,6 +18,7 @@ const PEDIDO_BASE = {
   id: 1,
   status: FoodOrderStatusEnum.Received,
   paymentMethod: PaymentMethodEnum.Pix,
+  settledOffPlatform: false,
   paymentStatus: PaymentStatusEnum.Pending,
   totalValue: new Prisma.Decimal('58.00'),
   itemsValue: new Prisma.Decimal('50.00'),
@@ -91,7 +92,11 @@ describe('FoodOrdersService.pay', () => {
   });
 
   it('recusa pedido em dinheiro: liquida na entrega, não gera checkout', async () => {
-    const { service } = build({ ...PEDIDO_BASE, paymentMethod: PaymentMethodEnum.Cash });
+    const { service } = build({
+      ...PEDIDO_BASE,
+      paymentMethod: PaymentMethodEnum.Cash,
+      settledOffPlatform: true,
+    });
 
     await expect(service.pay(CLIENTE, 1, {})).rejects.toBeInstanceOf(
       FoodOrderCheckoutNotAvailableException,

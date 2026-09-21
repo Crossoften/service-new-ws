@@ -3,10 +3,11 @@ import { NoAuthService } from './no-auth.service';
 import { NoAuthController } from './no-auth.controller';
 import { PrismaService } from '@database/PrismaService';
 import { MailService } from '../mail/mail.service';
-import { SmsService } from '../sms/sms.service';
+import { VerificationCodeModule } from '../verification-code/verification-code.module';
 
 @Module({
+  imports: [VerificationCodeModule],
   controllers: [NoAuthController],
-  providers: [NoAuthService, PrismaService, MailService, SmsService],
+  providers: [NoAuthService, PrismaService, MailService],
 })
 export class NoAuthModule {}

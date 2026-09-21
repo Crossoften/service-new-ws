@@ -35,6 +35,7 @@ import { RespondBudgetExtraDto } from './dto/respond-budget-extra.dto';
 import { ResponseFindAllBudgetDto } from './dto/response-find-all-budget.dto';
 import { ResponseBudgetDto } from './dto/response-budget.dto';
 import { UpdateBudgetDto } from './dto/update-budget.dto';
+import { RejectBudgetDto } from './dto/reject-budget.dto';
 import { CreateWorkResponseDto } from '../works/dto/create-work-response.dto';
 
 @ApiTags('Orçamentos')
@@ -182,6 +183,30 @@ export class BudgetsController {
     @Param('id', ParseIntPipe) id: number,
   ): Promise<CreateWorkResponseDto> {
     return this.budgetsService.approve(user, id);
+  }
+
+  @Patch(':id/reject')
+  @ApiOperation({
+    summary: 'Rota para o cliente recusar a proposta do profissional.',
+    description:
+      'Só funciona em orçamento com status `Responded`. Marca como `Rejected`, que é ' +
+      'estado terminal: o orçamento não aceita mais alteração depois disso. ' +
+      'Recusar é diferente de cancelar — cancelar é desistir do pedido, recusar é ' +
+      'não aceitar o preço proposto.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseBudgetDto })
+  @ApiBadRequestResponse({ description: 'Orçamento ainda não respondido.' })
+  @ApiConflictResponse({ description: 'Orçamento já aceito ou já recusado.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Só quem solicitou pode recusar.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async reject(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() payload: RejectBudgetDto,
+  ): Promise<ResponseBudgetDto> {
+    return this.budgetsService.reject(user, id, payload);
   }
 
   @Delete(':id')

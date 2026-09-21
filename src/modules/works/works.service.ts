@@ -891,15 +891,21 @@ export class WorksService {
       throw new WorkPaymentOnlyAfterFinishException();
     }
 
-    const existingPayment = await this.prisma.payment.findFirst({
+    // Só pagamento vivo bloqueia. Antes a busca não filtrava por status, então
+    // um checkout recusado — que o webhook marca como `Cancelled` — trancava o
+    // trabalho para sempre: o cliente não conseguia gerar outro e não havia
+    // rota nenhuma para destravar. O `food-orders.pay()` já fazia certo, e as
+    // duas rotas divergiam sem motivo.
+    const emAberto = await this.prisma.payment.findFirst({
       where: {
         referenceType: PaymentReferenceTypeEnum.Work,
         referenceId: work.id,
+        status: { in: [PaymentStatusEnum.Pending, PaymentStatusEnum.Paid] },
       },
       select: { id: true },
     });
 
-    if (existingPayment) {
+    if (emAberto) {
       throw new WorkPaymentAlreadyRegisteredException();
     }
 

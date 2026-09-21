@@ -1,5 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsString, MaxLength } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PixKeyTypeEnum } from '@prisma/client';
+import { IsEnum, IsNotEmpty, IsOptional, IsString, MaxLength } from 'class-validator';
 import { BankAccountTypeEnum } from '../enums/bank-account-type.enum';
 
 export class CreateBankAccountDto {
@@ -51,4 +52,27 @@ export class CreateBankAccountDto {
   @IsNotEmpty({ message: 'O CPF é obrigatório.' })
   @MaxLength(14, { message: 'O CPF deve ter no máximo 14 caracteres.' })
   cpf: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Tipo da chave Pix. Vai junto com `pixKey`: ou os dois, ou nenhum. ' +
+      'É por essa chave que o repasse ao entregador é pago.',
+    enum: PixKeyTypeEnum,
+    enumName: 'PixKeyTypeEnum',
+    example: PixKeyTypeEnum.Phone,
+  })
+  @IsOptional()
+  @IsEnum(PixKeyTypeEnum, { message: 'O tipo da chave Pix informado é inválido.' })
+  pixKeyType?: PixKeyTypeEnum;
+
+  @ApiPropertyOptional({
+    description: 'Chave Pix. Pode ser enviada com máscara — o servidor normaliza antes de gravar.',
+    example: '(34) 99870-1109',
+    maxLength: 191,
+    type: String,
+  })
+  @IsOptional()
+  @IsString({ message: 'A chave Pix deve ser um texto.' })
+  @MaxLength(191, { message: 'A chave Pix deve ter no máximo 191 caracteres.' })
+  pixKey?: string;
 }

@@ -13,6 +13,8 @@ import { CreateFoodOrderDto } from './dto/create-food-order.dto';
 import { DeliveryAddressDto } from './dto/delivery-address.dto';
 import { RespondFoodOrderDto } from './dto/respond-food-order.dto';
 import { CancelFoodOrderDto } from './dto/cancel-food-order.dto';
+import { isSettledOffPlatform } from '../restaurants/card-machine';
+import { calculateCommission, resolveCommissionRate } from './commission';
 import { QueryFoodOrderDto } from './dto/query-food-order.dto';
 import {
   CreateFoodOrderResponseDto,
@@ -41,7 +43,6 @@ import { SubscriptionGuardService } from '../subscription-guard/subscription-gua
 import { CouponsService } from '../coupons/coupons.service';
 
 const DEFAULT_DELIVERY_FEE = 8;
-const DEFAULT_COMMISSION_RATE = 20;
 
 @Injectable()
 export class FoodOrdersService {
@@ -131,16 +132,28 @@ export class FoodOrdersService {
         userId: true,
         name: true,
         address: { select: { latitude: true, longitude: true } },
+        usesOwnCardMachine: true,
         user: { select: { mpUserId: true, mpAccessToken: true } },
       },
     });
     if (!restaurant || !restaurant.isActive) throw new FoodOrderRestaurantNotFoundException();
     if (!restaurant.isOpen) throw new RestaurantClosedException();
 
+    // Decidido uma vez, na criação, e gravado no pedido: é daqui que saem as
+    // três consequências — se há checkout com split, se a confirmação é manual
+    // e se o entregador é creditado pelo frete. Deduzir do restaurante na hora
+    // de ler faria um pedido antigo mudar de natureza quando o estabelecimento
+    // ligasse ou desligasse a maquininha.
+    const settledOffPlatform = isSettledOffPlatform(
+      payload.paymentMethod,
+      restaurant.usesOwnCardMachine,
+    );
+
     // A exigência de conta vinculada vale só para o que passa pelo gateway.
-    // Pedido em dinheiro é liquidado na entrega, em mãos — bloqueá-lo por falta
-    // de vínculo derrubaria venda que nunca dependeu do Mercado Pago.
-    if (payload.paymentMethod !== PaymentMethodEnum.Cash) {
+    // Dinheiro é liquidado em mãos, e cartão na maquininha do estabelecimento
+    // também — bloquear por falta de vínculo derrubaria venda que nunca
+    // dependeu do Mercado Pago.
+    if (!settledOffPlatform) {
       this.mercadoPagoService.verifySellerLinked(restaurant.user);
     }
 
@@ -217,15 +230,19 @@ export class FoodOrdersService {
 
     const owner = await this.prisma.user.findUnique({
       where: { id: restaurant.userId },
-      select: { billingType: true, commissionRate: true },
+      // `deliveryCommissionRate`, não `commissionRate`: o segundo é a comissão
+      // do influenciador sobre indicações, e usá-lo aqui fazia quem era as duas
+      // coisas ter a taxa de indicação cobrada nos próprios pedidos.
+      select: { billingType: true, deliveryCommissionRate: true },
     });
 
     let platformFeeRate: Prisma.Decimal | undefined;
     let commissionAmount: Prisma.Decimal | undefined;
-    if (owner?.billingType === 'Commission') {
-      const rate = owner.commissionRate ? owner.commissionRate.toNumber() : DEFAULT_COMMISSION_RATE;
+    const rate = resolveCommissionRate(owner);
+
+    if (rate !== null) {
       platformFeeRate = new Prisma.Decimal(rate);
-      commissionAmount = new Prisma.Decimal((itemsValue.toNumber() * (rate / 100)).toFixed(2));
+      commissionAmount = calculateCommission(itemsValue, rate);
     }
 
     // O cupom entra depois da comissão porque é dela que o desconto sai: a
@@ -264,6 +281,7 @@ export class FoodOrdersService {
           platformFeeRate,
           commissionAmount,
           paymentMethod: payload.paymentMethod,
+          settledOffPlatform,
           scheduledFor,
           notes: payload.notes?.trim() || null,
           restaurantId: restaurant.id,
@@ -512,6 +530,7 @@ export class FoodOrdersService {
         status: true,
         paymentMethod: true,
         paymentStatus: true,
+        settledOffPlatform: true,
         totalValue: true,
         itemsValue: true,
         deliveryFee: true,
@@ -534,10 +553,17 @@ export class FoodOrdersService {
     // Só o cliente paga. O restaurante não gera cobrança em nome de quem pediu.
     if (foodOrder.customerId !== user.id) throw new FoodOrderAccessDeniedException();
 
-    if (foodOrder.paymentMethod === PaymentMethodEnum.Cash) {
+    // Vale para dinheiro e para o cartão cobrado na maquininha do próprio
+    // estabelecimento: nos dois casos o dinheiro não passa pela plataforma, e
+    // gerar checkout aqui criaria uma segunda cobrança do mesmo pedido.
+    if (foodOrder.settledOffPlatform) {
       throw new FoodOrderCheckoutNotAvailableException(
-        'Pedidos em dinheiro são liquidados na entrega e não geram checkout. ' +
-          'A confirmação é feita pelo entregador ou pelo restaurante.',
+        foodOrder.paymentMethod === PaymentMethodEnum.Cash
+          ? 'Pedidos em dinheiro são liquidados na entrega e não geram checkout. ' +
+            'A confirmação é feita pelo entregador ou pelo restaurante.'
+          : 'Este estabelecimento cobra no cartão pela maquininha dele, na entrega. ' +
+            'O pedido não gera checkout online, e a confirmação é feita pelo ' +
+            'entregador ou pelo restaurante.',
       );
     }
 
@@ -644,6 +670,7 @@ export class FoodOrdersService {
         status: true,
         paymentMethod: true,
         paymentStatus: true,
+        settledOffPlatform: true,
         customerId: true,
         restaurant: { select: { userId: true } },
         deliveryAssignment: { select: { courierId: true } },
@@ -659,9 +686,14 @@ export class FoodOrdersService {
 
     if (!isCourier && !isRestaurantOwner) throw new FoodOrderAccessDeniedException();
 
-    if (foodOrder.paymentMethod !== PaymentMethodEnum.Cash) {
+    // Confirmação manual é para o que a plataforma não vê entrar: dinheiro em
+    // mãos e cartão na maquininha do estabelecimento. O que passa pelo gateway
+    // continua sendo quitado pelo webhook, e confirmar à mão abriria caminho
+    // para marcar como pago um pedido que ninguém pagou.
+    if (!foodOrder.settledOffPlatform) {
       throw new FoodOrderPaymentNotConfirmableException(
-        'Só pedidos pagos em dinheiro precisam de confirmação manual. ' +
+        'Só pedidos liquidados fora da plataforma precisam de confirmação manual: ' +
+          'dinheiro, ou cartão na maquininha do próprio estabelecimento. ' +
           'Os demais meios são quitados pelo provedor de pagamento.',
       );
     }

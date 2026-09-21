@@ -1,10 +1,11 @@
 import { PrismaService } from '@database/PrismaService';
-import { forwardRef, Inject, Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import {
   DeliveryAssignmentStatusEnum,
   FinancialTransactionCategoryEnum,
   FinancialTransactionTypeEnum,
   FoodOrderStatusEnum,
+  PaymentMethodEnum,
   PaymentReferenceTypeEnum,
   Prisma,
   User,
@@ -23,6 +24,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class DeliveriesService {
+  private readonly logger = new Logger(DeliveriesService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     @Inject(forwardRef(() => DeliveriesGateway))
@@ -232,12 +235,32 @@ export class DeliveriesService {
 
     const foodOrder = await this.prisma.foodOrder.findUnique({
       where: { id: delivery.foodOrderId },
-      select: { id: true, deliveryFee: true, tip: true, customerId: true },
+      select: {
+        id: true,
+        deliveryFee: true,
+        tip: true,
+        customerId: true,
+        paymentMethod: true,
+        settledOffPlatform: true,
+      },
     });
 
     const now = new Date();
 
-    await this.prisma.$transaction([
+    // Pedido liquidado fora da plataforma não gera repasse.
+    //
+    // O repasse existe porque a plataforma reteve frete e gorjeta no split e
+    // deve esses valores ao entregador. Quando o pedido é pago em dinheiro, ou
+    // no cartão pela maquininha do próprio estabelecimento, nada disso
+    // aconteceu: a plataforma não viu esse dinheiro entrar. Creditar mesmo
+    // assim criava passivo de dinheiro que nunca chegou — e o entregador
+    // receberia duas vezes assim que o repasse passasse a ser pago de verdade.
+    //
+    // No caso da maquininha, quem deve ao entregador é o estabelecimento, que
+    // aceitou essa responsabilidade ao ligar a modalidade.
+    const plataformaRecebeu = !foodOrder.settledOffPlatform;
+
+    const operacoes: Prisma.PrismaPromise<unknown>[] = [
       this.prisma.deliveryAssignment.update({
         where: { id },
         data: { status: DeliveryAssignmentStatusEnum.Delivered, deliveredAt: now },
@@ -246,23 +269,38 @@ export class DeliveriesService {
         where: { id: delivery.foodOrderId },
         data: { status: FoodOrderStatusEnum.Delivered, deliveredAt: now },
       }),
-      this.prisma.financialTransaction.create({
-        data: {
-          type: FinancialTransactionTypeEnum.Credit,
-          category: FinancialTransactionCategoryEnum.DeliveryPayout,
-          // Frete mais gorjeta: os dois foram retidos pela plataforma no split
-          // e são repassados juntos. A gorjeta não sofre comissão.
-          amount: foodOrder.deliveryFee.plus(foodOrder.tip),
-          description: foodOrder.tip.greaterThan(0)
-            ? `Repasse pela entrega do pedido #${foodOrder.id}, com gorjeta de R$ ${foodOrder.tip.toFixed(2)}.`
-            : `Repasse pela entrega do pedido #${foodOrder.id}.`,
-          availableAt: now,
-          referenceType: PaymentReferenceTypeEnum.FoodOrder,
-          referenceId: foodOrder.id,
-          userId: user.id,
-        },
-      }),
-    ]);
+    ];
+
+    if (plataformaRecebeu) {
+      operacoes.push(
+        this.prisma.financialTransaction.create({
+          data: {
+            type: FinancialTransactionTypeEnum.Credit,
+            category: FinancialTransactionCategoryEnum.DeliveryPayout,
+            // Frete mais gorjeta: os dois foram retidos pela plataforma no
+            // split e são repassados juntos. A gorjeta não sofre comissão.
+            amount: foodOrder.deliveryFee.plus(foodOrder.tip),
+            description: foodOrder.tip.greaterThan(0)
+              ? `Repasse pela entrega do pedido #${foodOrder.id}, com gorjeta de R$ ${foodOrder.tip.toFixed(2)}.`
+              : `Repasse pela entrega do pedido #${foodOrder.id}.`,
+            availableAt: now,
+            referenceType: PaymentReferenceTypeEnum.FoodOrder,
+            referenceId: foodOrder.id,
+            userId: user.id,
+          },
+        }),
+      );
+    } else {
+      this.logger.log(
+        foodOrder.paymentMethod === PaymentMethodEnum.Cash
+          ? `Pedido #${foodOrder.id} foi pago em dinheiro; o entregador recebeu frete e ` +
+              'gorjeta em mãos e não há repasse a creditar.'
+          : `Pedido #${foodOrder.id} foi cobrado na maquininha do estabelecimento; ` +
+              'o repasse ao entregador é responsabilidade dele.',
+      );
+    }
+
+    await this.prisma.$transaction(operacoes);
 
     this.deliveriesGateway.emitStatusChange(id, DeliveryAssignmentStatusEnum.Delivered);
 
@@ -295,19 +333,26 @@ export class DeliveriesService {
 
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const [day, week, month, total] = await Promise.all([
+    const [day, week, month, total, available, paid] = await Promise.all([
       this.aggregatePayouts(user.id, startOfDay),
       this.aggregatePayouts(user.id, startOfWeek),
       this.aggregatePayouts(user.id, startOfMonth),
       this.aggregatePayouts(user.id),
+      // "A receber" e "já recebido" não são recortes de tempo, e sim de
+      // liquidação: o que separa os dois é o vínculo com um lote de repasse.
+      // Os quatro primeiros continuam somando tudo, pago ou não — é o
+      // faturamento do entregador, que não muda quando o dinheiro sai.
+      this.aggregatePayouts(user.id, undefined, { settled: false }),
+      this.aggregatePayouts(user.id, undefined, { settled: true }),
     ]);
 
-    return { day, week, month, total };
+    return { day, week, month, total, available, paid };
   }
 
   private async aggregatePayouts(
     userId: number,
     since?: Date,
+    options?: { settled?: boolean },
   ): Promise<{ amount: string; deliveries: number }> {
     const result = await this.prisma.financialTransaction.aggregate({
       where: {
@@ -316,6 +361,11 @@ export class DeliveriesService {
         category: FinancialTransactionCategoryEnum.DeliveryPayout,
         status: PaymentStatusEnum.Paid,
         ...(since ? { createdAt: { gte: since } } : {}),
+        ...(options?.settled === undefined
+          ? {}
+          : options.settled
+            ? { payoutId: { not: null } }
+            : { payoutId: null }),
       },
       _sum: { amount: true },
       _count: { _all: true },

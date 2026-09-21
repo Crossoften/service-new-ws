@@ -1,5 +1,15 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsString, IsOptional, IsEmail, MaxLength, IsDateString } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsEmail,
+  MaxLength,
+  IsDateString,
+  IsNumber,
+  Min,
+  Max,
+} from 'class-validator';
+import { Type } from 'class-transformer';
 
 export class UpdateUserDto {
   @ApiPropertyOptional({
@@ -66,4 +76,20 @@ export class UpdateUserDto {
   @IsString()
   @MaxLength(1500)
   fileKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Comissão do delivery sobre os itens de cada pedido, em percentual. ' +
+      'Vale só para quem opera no modelo de comissão. Nulo usa o padrão de 20%. ' +
+      'Não confundir com a comissão do influenciador, que tem rota própria.',
+    example: 15,
+    minimum: 0,
+    maximum: 100,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 }, { message: 'A comissão deve ser um número válido.' })
+  @Min(0)
+  @Max(100)
+  deliveryCommissionRate?: number | null;
 }
