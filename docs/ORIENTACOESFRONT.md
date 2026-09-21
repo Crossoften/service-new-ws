@@ -1,11 +1,15 @@
-# Orientações para o front — autenticação por telefone
+# Orientações para o front
 
-> Documento de apoio para ajustar o front depois que o back-end estiver fechado.
+> O que mudou no back-end e o que o front precisa fazer com cada mudança.
+>
+> Começou cobrindo só a autenticação por telefone e hoje cobre também delivery,
+> pagamento, repasse ao entregador, cupons, push e orçamento.
 >
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-08-26 (Fase C entregue) |
+> | **Atualizado em** | 2026-09-22 (Fases 0, 5, 6 e 8 da auditoria entregues) |
+> | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
 > | **Base da API local** | `http://localhost:8000/v1` |
 > | **Swagger** | `http://localhost:8000/docs` |
 | **Contrato OpenAPI** | `docs/openapi.json` — regerado com `npm run swagger:export` |
@@ -63,11 +67,16 @@ Cada item está marcado com o estado real no back-end:
 
 | Marca | Significa |
 |---|---|
-| ✅ | **Já está no ar.** Pode ajustar o front e testar |
+| ✅ | **Validado contra a API rodando**, com banco real |
+| 🟡 | **Entregue e com teste unitário**, mas ainda não exercitado contra banco e HTTP |
 
-Nesta revisão **tudo está ✅** — não há mais nada esperando entrega do back-end.
-Cada comportamento descrito aqui foi testado contra a API rodando com banco
-real, não deduzido do código.
+A diferença é honesta e importa: o que está 🟡 tem o contrato descrito a partir
+do código, e não de uma chamada de verdade. Pode codar contra, mas trate o
+primeiro teste integrado como parte do trabalho — e me avise se algo divergir
+do que está escrito aqui.
+
+**Seções 3 a 8.4 estão ✅.** As seções 8.5 em diante são 🟡: foram entregues em
+uma sequência em que o ambiente não tinha MySQL disponível.
 
 ---
 
@@ -220,7 +229,7 @@ separadas**, guardados em campos diferentes no banco. Um não invalida o outro.
 No front, trate como fluxos independentes — não reaproveite a mesma tela nem o
 mesmo estado.
 
-### Por onde o código chega: WhatsApp primeiro, SMS no reenvio
+### Por onde o código chega: WhatsApp primeiro, SMS no reenvio 🟡
 
 **Nenhum contrato mudou** — mesmas rotas, mesmos campos, mesmas respostas. O
 que mudou é o canal, e isso afeta só o **texto da tela**.
@@ -845,7 +854,7 @@ necessário — e é responsabilidade da tela de admin, não das telas de vitrin
 
 ---
 
-## 8.5 Carteira do entregador e repasse ✅
+## 8.5 Carteira do entregador e repasse 🟡
 
 O frete e a gorjeta são retidos pela plataforma no split e viram crédito do
 entregador quando ele finaliza a entrega. Até agora esse crédito era só um
@@ -935,7 +944,7 @@ o campo que decide se o repasse sai ou fica esperando.
 
 ---
 
-## 8.6 Maquininha própria do estabelecimento ✅
+## 8.6 Maquininha própria do estabelecimento 🟡
 
 O estabelecimento pode declarar que cobra cartão na **maquininha dele**, na
 entrega. Isso muda o fluxo de pagamento inteiro daquele pedido.
@@ -998,7 +1007,7 @@ maquininha depois.
 
 ---
 
-## 8.7 Estorno: um status novo de pagamento ✅
+## 8.7 Estorno: um status novo de pagamento 🟡
 
 `PaymentStatusEnum` ganhou **`Refunded`**. Onde a tela hoje trata
 `Pending | Paid | Cancelled`, passa a existir um quarto valor.
@@ -1039,7 +1048,7 @@ Na tela, vale destacar a linha quando `refundedDeliveries > 0`.
 
 ---
 
-## 8.8 Orçamento: aceite, recusa e serviço sem preço ✅
+## 8.8 Orçamento: aceite, recusa e serviço sem preço 🟡
 
 ### Dois estados novos
 
@@ -1101,6 +1110,119 @@ existe depois da negociação.
 
 ---
 
+## 8.9 Sacola: agendamento, gorjeta e cupom 🟡
+
+Três campos novos, **todos opcionais**, em `POST /v1/food-orders`. Omitindo os
+três, o pedido funciona exatamente como antes.
+
+```jsonc
+{
+  "restaurantId": 1,
+  "items": [ /* ... */ ],
+  "paymentMethod": "Pix",
+
+  "scheduledFor": "2026-09-30T20:00:00.000Z",  // opcional
+  "tip": 5,                                     // opcional
+  "couponCode": "BEMVINDO10"                    // opcional
+}
+```
+
+### Agendamento
+
+`scheduledFor` em ISO 8601, **no futuro**. Omitido, o pedido é para agora.
+
+**Não muda o status do pedido.** Quem move o pedido pela cozinha continua sendo
+o restaurante; o campo serve para ele separar o que é para já do que é para
+depois. Na tela do restaurante, vale destacar os agendados numa faixa separada.
+
+### Gorjeta
+
+`tip` em reais, de 0 a 1000. Entra no total cobrado e vai **inteira** para o
+entregador — a plataforma não cobra comissão sobre ela.
+
+Na sacola, vale oferecer valores sugeridos e um campo livre. O total exibido
+precisa somar a gorjeta, senão o cliente leva um susto no checkout.
+
+### Cupom
+
+Dois passos, e o segundo é o que vale.
+
+**1. Pré-visualizar** — para a sacola mostrar o desconto antes de fechar:
+
+```
+POST /v1/coupons/validate
+{ "code": "BEMVINDO10", "restaurantId": 1, "itemsValue": 100 }
+```
+
+```jsonc
+{ "code": "BEMVINDO10", "type": "Percent", "discount": "10.00",
+  "description": "10% de desconto na primeira compra" }
+```
+
+**2. Aplicar** — mandando `couponCode` na criação do pedido.
+
+⚠️ **O desconto da pré-visualização não é aceito como entrada.** O back
+recalcula tudo a partir dos preços reais do cardápio quando o pedido é criado.
+Se o valor divergir do que a tela mostrou, o que vale é o do pedido — é assim de
+propósito, para a sacola não conseguir negociar o próprio desconto.
+
+Cupom inválido responde `400` com a razão em `message`, tanto no `validate`
+quanto na criação. Mostre a mensagem da API: ela já diz se é código inexistente,
+fora da validade, abaixo do valor mínimo, ou de outro restaurante.
+
+**Tipos de cupom:** percentual, valor fixo e frete grátis. No frete grátis o
+entregador continua recebendo normalmente — quem custeia é a plataforma.
+
+### Quem cria cupom
+
+Só admin, em `/v1/admin-coupons` (`POST`, `GET`, `GET /:id`, `PATCH /:id`,
+`DELETE /:id`). Não existe rota de cupom para restaurante nem para cliente além
+do `validate`.
+
+---
+
+## 8.10 Notificações push (PWA) 🟡
+
+O back já envia push. **O que falta é tudo do lado do navegador** — este é o
+único item do documento em que o trabalho é majoritariamente do front.
+
+### As três rotas
+
+```
+GET    /v1/push/public-key      (pública, sem token)
+POST   /v1/push/subscriptions
+DELETE /v1/push/subscriptions
+```
+
+### O fluxo
+
+1. Registrar um **service worker** (o projeto já tem `ngsw-config.json`)
+2. `GET /v1/push/public-key` → devolve `{ "publicKey": "..." }`
+3. Pedir permissão ao usuário **num gesto dele**, nunca no load da página
+4. `pushManager.subscribe()` com a chave, e mandar o resultado em
+   `POST /v1/push/subscriptions`:
+
+```jsonc
+{ "endpoint": "https://fcm.googleapis.com/fcm/send/abc123",
+  "keys": { "p256dh": "...", "auth": "..." } }
+```
+
+5. **No logout, `DELETE /v1/push/subscriptions`** com o mesmo `endpoint` — senão
+   o aparelho continua recebendo notificação de uma conta que saiu
+
+### Dois detalhes que evitam retrabalho
+
+- **`publicKey` pode vir `null`.** Significa que as chaves VAPID ainda não foram
+  configuradas no servidor (está na lista do DevOps). Nesse caso, não peça
+  permissão ao usuário: gastar o "sim" dele para depois não enviar nada queima
+  a permissão, que o navegador não pergunta de novo
+- **O `POST` é idempotente por `endpoint`.** Reenviar a mesma inscrição não
+  duplica, então não precisa controlar se já inscreveu
+
+O back remove a inscrição sozinho quando o navegador responde que ela expirou.
+
+---
+
 ## 9. O que não muda
 
 - A base `/v1` e as rotas existentes
@@ -1113,64 +1235,114 @@ existe depois da negociação.
 
 ## 10. Ordem sugerida de ajuste
 
+### Já validado contra a API ✅ — pode subir com confiança
+
 1. **Telefone e máscara** (seção 3) — base para todo o resto
-2. **Login aceitando telefone** (seção 6) — já dá para testar hoje ✅
-3. **Recuperação de senha** (seção 7) — contrato já mudou, o front atual está
-   desatualizado ✅
-4. **Cadastro sem e-mail** (seção 4) ✅
-5. **Telas de verificação** (seção 5) ✅
+2. **Login aceitando telefone** (seção 6)
+3. **Recuperação de senha** (seção 7)
+4. **Cadastro sem e-mail** (seção 4)
+5. **Telas de verificação** (seção 5) — **tem que ir junto com o 4**: sem ela
+   ninguém conclui um cadastro novo, porque a conta nasce `Pending` e o login
+   recusa
+6. **Meios de pagamento, frete, confirmação em dinheiro, avaliação e exclusão
+   de item** (seção 8.1)
+7. **Botão de liberar fornecedor no admin** (seção 8.2) — destrava testar
+   qualquer tela de fornecedor
+8. **Tratamento do `409` de fornecedor vencido** (seção 8.3) — o texto já vem
+   pronto da API; é o ajuste mais barato da lista
+9. **Pagamento online do pedido** (seção 8.3)
+10. **Vínculo com o Mercado Pago** (seção 8.2)
+11. **Coordenadas nas telas de endereço** (seção 8.4) — **maior efeito da
+    lista**: sem ele o frete não varia e o mapa não tem destino
+12. **Rastreamento no mapa** (seção 8.4) — depende do 11
+13. **Tempo de entrega e período no repasse** (seção 8.4)
 
-6. **Meios de pagamento e frete** (seção 8.1) ✅
-7. **Confirmação em dinheiro, avaliação e exclusão de item** (seção 8.1) ✅
-8. **Botão de liberar fornecedor no admin** (seção 8.2) ✅ — é o que destrava
-   testar qualquer tela de fornecedor hoje, então vale subir antes do resto do
-   delivery
-9. **Tratamento do `409` de fornecedor vencido** (seção 8.3) ✅ — são seis rotas
-   de criação e o texto já vem pronto da API; é o ajuste mais barato da lista e
-   evita a tela mostrar "acesso negado" para um cliente que não errou nada
-10. **Pagamento online do pedido** (seção 8.3) ✅ — a rota existe e funciona,
-    mas só dá para validar de ponta a ponta quando as credenciais do Mercado
-    Pago do cliente chegarem. Até lá, teste em dinheiro
-11. **Vínculo com o Mercado Pago** (seção 8.2) ✅ — as três rotas estão no ar e
-    documentadas; pode codar sem esperar as credenciais, só não dá para
-    concluir o OAuth
-12. **Coordenadas nas telas de endereço** (seção 8.4) ✅ — **é o item de maior
-    efeito da lista**: sem ele o frete não varia e o mapa não tem destino. Vale
-    antes de qualquer tela de mapa
-13. **Rastreamento no mapa** (seção 8.4) ✅ — o back já está pronto; é consumir
-    o WebSocket e desenhar. Depende do item 12 para ter o ponto de chegada
-14. **Tempo de entrega e período no repasse** (seção 8.4) ✅ — os dois são
-    pequenos e independentes do resto
+### Entregue, ainda não exercitado contra banco 🟡
 
-**Tudo já está no ar.** Não há mais nada esperando entrega do back-end.
+Ordenado por quanto quebra se ficar de fora.
 
-> **Ordem importa no item 5.** Enquanto o front não tiver a tela de verificação,
-> ninguém consegue concluir um cadastro novo: a conta nasce `Pending` e o login
-> recusa. Se for publicar o front em partes, o item 5 tem que ir junto com o 4.
+14. **Preço de serviço pode vir ausente** (seção 8.8) — **é o único item que
+    quebra tela que hoje funciona**: `service.price.toFixed(2)` estoura no
+    primeiro serviço sob orçamento. Faça antes dos outros
+15. **`Refunded` nos status de pagamento** (seção 8.7) — tela que faz
+    `if (status === 'Paid') … else` passa a tratar estorno como "aguardando"
+16. **`Cancelled` ≠ `Rejected` no orçamento** (seção 8.8) — se a tela usa
+    `Cancelled` para "cliente recusou", precisa separar
+17. **Aceite e recusa de orçamento** (seção 8.8) — a rota de recusa é nova
+18. **Sacola: gorjeta e cupom** (seção 8.9) — os dois são visíveis para o
+    cliente e mexem no total exibido
+19. **Maquininha própria** (seção 8.6) — cadastro do restaurante mais o desvio
+    do checkout no cliente
+20. **Carteira do entregador** (seção 8.5) — `available` vira o número em
+    destaque; o pedido em dinheiro sai da conta
+21. **Chave Pix no cadastro bancário** (seção 8.5)
+22. **Tela de repasses do admin** (seção 8.5) — é tela nova inteira
+23. **Agendamento de pedido** (seção 8.9)
+24. **Push / PWA** (seção 8.10) — depende das chaves VAPID, que estão com o
+    DevOps. Dá para construir antes; só não dá para testar o envio
+
+> **Nada nesta lista espera entrega do back-end.** O que os itens 14 a 24
+> esperam é ambiente com banco para validar ponta a ponta.
 
 ---
 
 ## 11. Pendências que precisam de decisão sua
 
+### Decisões de produto, sem resposta até agora
+
+- **Estorno: quem absorve?** O entregador entregou, o restaurante produziu, e o
+  dinheiro voltou ao cliente. Hoje o back registra, alerta e sinaliza no
+  repasse, mas **não reverte nada** — é decisão comercial, não de código
+- **Maquininha e comissão.** O estabelecimento que cobra na maquininha própria
+  ainda paga comissão à plataforma? Se sim, como se cobra dinheiro que nunca
+  passou por ela? Hoje o pedido grava a comissão, mas não há como retê-la
+- **Validade do orçamento.** Não existe prazo: um orçamento respondido fica
+  aceitável para sempre, com o preço de meses atrás
+- **Contraproposta.** O cliente não propõe valor, e o prestador não revisa
+  depois da recusa. Reabrir um `Rejected` exigiria decidir se o "não" do
+  cliente pode ser desfeito
+- **Repasse parcial.** O registro de repasse liquida o saldo inteiro do
+  entregador; pagar só uma parte exigiria escolher quais entregas entram
+- **Faixas de frete reais.** Com a faixa única semeada, uma entrega de 50 km
+  custa o mesmo que uma de 5 km. É configuração, não erro de cálculo — e vale
+  resolver antes de qualquer cliente real fazer pedido
 - **Conta `Pending` no login.** Implementado como `401` genérico, com o link de
   reenvio como saída (seção 6). Se preferir distinguir, me avise
 - **Tempo de bloqueio do botão de reenvio.** Sugeri 60s; quem define é você
-- **Faixas de frete reais.** Com as faixas de exemplo, medimos uma entrega de
-  50 km custando **menos** que uma de 5 km: a faixa percentual (20% dos itens)
-  não tem valor mínimo, então pedido pequeno e distante sai quase de graça. Não
-  é erro de cálculo, é a configuração. Precisa de um piso na faixa percentual ou
-  de faixas fixas até um limite maior — decisão de negócio, e vale resolver
-  antes de qualquer cliente real fazer pedido
-- **Sinalizar fornecedor vencido antes de fechar.** Hoje o `409` (seção 8.3) só
-  aparece no momento de criar o pedido — não existe campo dizendo, na listagem
-  ou no detalhe, que aquele fornecedor está indisponível. Se a tela precisar
-  avisar antes, é rota (ou campo) novo; me peça
-- **Cotação de frete antes de fechar o pedido.** Hoje o valor só aparece na
-  resposta da criação. Se a tela precisa mostrar antes, é uma rota nova — peça
-- **Tempo de entrega do restaurante.** Ficou de fora da Fase C por não ter sido
-  pedido. Os carimbos de tempo já são gravados, então dá para fazer depois sem
-  perder histórico
-- **Usuários antigos sem telefone.** As contas que já existem foram preservadas
-  como `Active` e continuam entrando por e-mail. Elas não têm telefone, então
-  não conseguem usar recuperação por SMS. Se o cliente quiser migrar essa base,
-  é fluxo novo — tela de "cadastre seu telefone" e uma rota para isso
+
+### Coisas que a tela pode precisar e hoje não existem
+
+- **Sinalizar fornecedor vencido antes de fechar.** O `409` da seção 8.3 só
+  aparece ao criar o pedido; não há campo na listagem dizendo que o fornecedor
+  está indisponível. Se a tela precisa avisar antes, é rota ou campo novo
+- **Cotação de frete antes de fechar o pedido.** O valor só aparece na resposta
+  da criação. Mostrar antes exige rota nova
+- **Ordenação e filtro por preço** agora precisam decidir onde fica o serviço
+  sem valor (seção 8.8)
+
+### Base de dados existente
+
+- **Usuários antigos sem telefone.** Continuam entrando por e-mail, mas não têm
+  recuperação por SMS. Migrar essa base é fluxo novo — tela de "cadastre seu
+  telefone" e uma rota para isso
+- **Endereços sem coordenadas.** Nenhum dos já cadastrados tem, então todos
+  caem na faixa inicial de frete até serem geocodificados
+- **Restaurantes sem tempo de entrega.** Os campos existem e estão vazios
+
+---
+
+## 12. Do lado da infraestrutura
+
+Coisas que não são código e que o front sente quando faltam. Estão com o time
+de DevOps.
+
+| Falta | O que o front vê |
+|---|---|
+| Chaves VAPID | `publicKey` vem `null`; não peça permissão de push |
+| Content Template do WhatsApp | notificações não chegam por WhatsApp; push e SMS seguem |
+| Template de OTP (Authentication) | código de verificação sai por SMS, como antes |
+| Credenciais do Mercado Pago | pagamento online não fecha; teste em dinheiro |
+| Escopo `money_transfer` | não afeta o front — o repasse é registrado à mão pelo admin |
+
+Nenhuma delas bloqueia construir tela. Todas bloqueiam testar o caminho feliz
+completo.
