@@ -864,6 +864,9 @@ export class BudgetsService {
         budget: work.budget,
         serviceId: work.serviceId,
         service: work.service,
+        // Trabalho nascido de orçamento nunca é reparo em garantia — o reparo
+        // nasce em `respondWarranty`, sem passar por aqui.
+        isWarranty: false,
         requesterId: work.requesterId,
         requester: work.requester,
         providerId: work.providerId,

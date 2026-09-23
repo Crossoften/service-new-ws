@@ -1,98 +1,100 @@
-<!-- Cole em docs/STATUSBACKEND.md, na seção 3, depois da Fase V. -->
+### BE-W1 + BE-W7 — Execução da garantia e contador no perfil · ✅ entregue
 
-### Fase W — Notificações push (BE-Q13) · ✅ entregue
+**Patch:** `W1-garantia-e-contador.patch` · 19 arquivos · +866 / −29
+**Base:** `066906c` (`ajustes-gerais`) — primeira fatia gerada direto da branch real
 
-Último item do documento de demandas do front.
+---
 
-#### A decisão que deu forma ao patch
+#### O problema
 
-O aviso ao usuário era enviado só por WhatsApp, em **dezenove pontos espalhados
-por seis serviços**. Acrescentar push ali significaria repetir a mesma mensagem
-dezenove vezes — e o próximo canal, de novo.
+`respondWarranty` só gravava o status. **`Approved` e `Rejected` rodavam
+exatamente o mesmo `update`**: nada era reaberto, nada era criado, ninguém era
+avisado. O cliente aprovava uma garantia e ficava sem rastreio nenhum do
+conserto que lhe foi prometido.
 
-Então entrou um `NotificationsService`: os serviços de negócio passam a falar com
-ele, e ele decide os canais. A assinatura é **idêntica** à que o
-`WhatsappService` já expunha, de propósito: a migração dos dezenove pontos foi a
-troca do identificador, verificada pelo compilador.
+#### BE-W1 — o reparo vira um Work próprio
 
-#### Patch W1 — 26 arquivos
+Decisão Q-A, opção B: um `Work` vinculado ao original, não uma reabertura.
 
-*`PushSubscription`*, uma por navegador — celular e desktop são inscrições
-distintas, cada uma com as próprias chaves de cifragem. `endpoint` é único
-porque é a identidade dela: reinscrever o mesmo navegador **atualiza**, não
-duplica. `ON DELETE CASCADE` no usuário, porque inscrição sem dono não serve
-para nada e não deve impedir a remoção da conta. Migration
-`20260920140000_push_subscriptions`.
+Reabrir o trabalho original seria mais barato de escrever e pior de operar — o
+histórico do atendimento ficaria sobrescrito, e o cliente perderia a distinção
+entre o serviço e o conserto dele. Como `Work`, o reparo reaproveita
+`start` / `confirm-arrival` / `finish` / `cancel` **sem endpoint novo**.
 
-*Três rotas:*
+| Coluna | Para quê |
+|---|---|
+| `parentWorkId` | trabalho original; preenchido ⇒ é reparo |
+| `isWarranty` | redundante de propósito: badge e travas filtram sem carregar a relação |
+| `budgetId` | passa a **opcional** — reparo não nasce de orçamento |
 
-```
-GET    /v1/push/public-key     (pública)
-POST   /v1/push/subscriptions
-DELETE /v1/push/subscriptions
-```
+O reparo nasce com `serviceValue = 0`, herda `service`/`requester`/`provider`,
+carrega os anexos do acionamento como anexos do cliente (são a evidência do
+defeito, e é no reparo que o fornecedor vai olhar para eles) e ganha **chat
+próprio** (Q-F).
 
-A chave pública é pública por natureza — é ela que vai no
-`applicationServerKey` do `pushManager.subscribe`. A privada nunca sai do
-servidor.
+**Três travas**, todas com exceção explicando a razão:
 
-*Inscrição morta é apagada sozinha.* Quando o provedor responde `404` ou `410`,
-aquele navegador não existe mais: o usuário revogou a permissão, limpou os dados
-ou desinstalou. Mantê-la faria o servidor tentar entregar para sempre, a cada
-evento. Falha passageira (`503`) **não** apaga nada — há teste para os dois
-casos, e distingui-los é a diferença entre limpar lixo e perder o inscrito de um
-usuário por causa de uma instabilidade.
+| Ação | Por quê recusa |
+|---|---|
+| `pay` em reparo | Q-E, sem custo. Checkout de R$ 0,00 não existe no Mercado Pago — sem a trava, o erro apareceria lá na frente como falha do gateway |
+| `request-extra` em reparo | reintroduziria a cobrança pela porta dos fundos: `request-extra` está liberado em quase todo status |
+| `request-warranty` num reparo | Q-G. A garantia cobre o serviço original |
 
-*Degrada igual ao SMS e ao WhatsApp.* Sem as três variáveis VAPID, o serviço só
-registra um `warn` no boot, a rota de chave pública devolve `null` e nada é
-enviado. A tela deve **omitir a oferta de notificações** nesse caso, não tratar
-como erro. Nenhuma operação de negócio falha.
+A idempotência que já existia (`warrantyRequestStatus === Pending`) passa a
+valer para algo concreto: sem ela, dois toques no botão criariam **dois
+reparos** para o mesmo acionamento.
 
-*Nunca propaga erro.* Cada canal trata os próprios erros, e o
-`NotificationsService` ainda põe um `catch` por canal: WhatsApp fora do ar não
-impede o push, push fora do ar não impede o WhatsApp, e os dois fora não
-derrubam o pedido que disparou o aviso. São cinco testes só para isso.
+#### BE-W7 — o contador
 
-*Dependência nova:* `web-push` (+ `@types/web-push`). **Rode `npm install`
-depois de aplicar** — o `package-lock.json` ficou fora do patch de propósito,
-porque ele conflita a cada divergência de árvore.
+Saía zero porque não havia de onde tirar. Sai de duas fontes que já existiam: o
+`warrantyRequestStatus` dos trabalhos originais e os Works de garantia.
 
-**Validação.** `npx jest`: 21 suítes, **179 testes passando** (17 novos). Build e
-lint limpos. Cadeia `V1 → W1` verificada sobre `e19ac4b`, byte a byte, com
-conferência explícita de que não sobrou nenhuma referência a `whatsappService`
-nos serviços migrados.
+Exposto em `GET /profile/me` (`warranties`) e `GET /services/:id`
+(`providerWarranties`). Seis números; o de destaque é
+**`warrantiesCompleted` / `warrantiesTotal`**.
 
-**⚠️ Não validado contra banco nem HTTP**, pelo mesmo motivo da Fase V: este
-container não tem MySQL nem docker. **A migration nunca foi executada e nenhuma
-notificação real foi enviada.** Antes de confiar:
+**Q-H, e a escolha importa:** "atendida" é o **reparo concluído**, não o
+acionamento aprovado. Para quem lê o perfil, atendida significa problema
+resolvido; aprovada só indica intenção. Tem teste fixando isso — cinco
+aprovações com três reparos terminados exibem **3**.
 
-```bash
-npm install
-npx prisma migrate deploy && npx prisma generate
-npm run build && npx jest
-node -e "console.log(require('web-push').generateVAPIDKeys())"   # gere o par
-```
+Dois cuidados no cálculo:
+- acionamento só conta no trabalho original (`isWarranty: false` no filtro).
+  Hoje o Q-G já impede acionar um reparo, mas o filtro mantém o número correto
+  se a regra for afrouxada depois;
+- reparo `Cancelled` não entra nem em concluídos nem em aberto.
 
-Depois, com as chaves no `.env`: inscrever um navegador, disparar uma mudança de
-status de pedido e conferir se a notificação chega.
+Vive em módulo próprio (`WarrantyStatsModule`, só `PrismaService`) para que
+perfil e serviços leiam o contador sem arrastar o módulo de trabalhos junto —
+e sem risco de ciclo de importação.
 
-**Depois de aplicar:** `npm run swagger:generate`.
+#### Validação
 
-#### O que falta, e é do front
+- `nest build` → 0 · `eslint` → limpo · `prisma validate` → válido
+- `jest` → **39 suítes / 305 testes** (eram 37/288; +2 suítes, +17 testes)
+- Patch aplica limpo em `066906c`, com identidade byte a byte em 19 arquivos
+- Scan de segredos → limpo
+- ⚠️ **Não validado contra banco nem HTTP** — o contêiner não tem MySQL
 
-O back está pronto; a outra metade é PWA e não tem como eu fazer:
+#### Contrato do front
 
-1. **Service worker** com `self.addEventListener('push', ...)` lendo o JSON
-   (`{ title, body, url, tag }`) e chamando `showNotification`
-2. **Pedir permissão** ao usuário no momento certo — depois do primeiro pedido,
-   não na abertura do app
-3. **Inscrever** com `pushManager.subscribe({ userVisibleOnly: true,
-   applicationServerKey })` e mandar o resultado para `POST /v1/push/subscriptions`
-4. **Desinscrever** ao sair da conta, senão o próximo usuário daquele navegador
-   recebe as notificações do anterior
+| Onde | Mudança |
+|---|---|
+| todo `Work` | `isWarranty`, `parentWorkId` |
+| `Work` detalhe | `warrantyWorks: [{ id, status }]` |
+| `Work.budgetId` | **pode vir ausente** |
+| `GET /profile/me` | `warranties` |
+| `GET /services/:id` | `providerWarranties` |
+| `pay` / `request-extra` / `request-warranty` | `400` no reparo |
 
-**Resíduo.** Toda notificação vai com o título `Service`. O
-`NotificationsService` aceita título próprio, mas os dezenove pontos de chamada
-ainda não o passam — "Pedido #12" seria melhor que "Service" na tela de bloqueio.
-É um ajuste por ponto de chamada, e deixei para quando a tela existir e mostrar o
-que fica bom.
+⚠️ Tela que lê `work.budgetId` sem checar quebra no primeiro reparo. Seção 8.11
+do `ORIENTACOESFRONT`.
+
+#### Fora de escopo, de propósito
+
+- **BE-W2 (notificação)** — Q-D decidiu adiar. `respondWarranty` continua sem
+  disparar nada, ao contrário de start/finish/cancel
+- **Contador na listagem de serviços** — só no detalhe. Um `groupBy` por página
+  para um número que a vitrine não exibe não se paga. Se a listagem precisar, é
+  consulta em lote (`statsForMany` já existe), não N consultas
+- **BE-W5 (mediação da recusa)** — Q-B: recusa é final, só listar no admin

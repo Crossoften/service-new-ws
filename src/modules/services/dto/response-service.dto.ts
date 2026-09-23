@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { ResponseWarrantyStatsDto } from '../../works/dto/response-warranty-stats.dto';
 import { ServiceTypeEnum } from '../enums/service-type.enum';
 import { ResponseServiceCategoryDto } from './response-service-category.dto';
 
@@ -215,4 +216,10 @@ export class ResponseServiceDto {
     example: '2026-03-14T10:00:00.000Z',
   })
   updatedAt: Date;
+  @ApiProperty({
+    description:
+      'Contador de garantias do prestador deste serviço. Só no detalhe; a listagem não traz.',
+    type: ResponseWarrantyStatsDto,
+  })
+  providerWarranties: ResponseWarrantyStatsDto;
 }

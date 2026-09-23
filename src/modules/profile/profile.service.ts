@@ -1,4 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
+import { WarrantyStatsService } from '../works/warranty-stats.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { User, UserProfileType } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
@@ -16,7 +17,10 @@ import { UpdateBillingTypeDto } from './dto/update-billing-type.dto';
 export class ProfileService {
   private readonly logger = new Logger(ProfileService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly warrantyStats: WarrantyStatsService,
+  ) {}
 
   async findMine(user: User): Promise<ResponseProfileDto> {
     const profile = await this.prisma.user.findUnique({
@@ -88,6 +92,9 @@ export class ProfileService {
       birthDate: profile.birthDate || undefined,
       commissionRate: profile.commissionRate !== null ? Number(profile.commissionRate) : undefined,
       billingType: profile.billingType ?? undefined,
+      // O fornecedor vê o próprio histórico de garantias; para o cliente, o
+      // mesmo agregado sai em `GET /services/:id`.
+      warranties: await this.warrantyStats.statsFor(profile.id),
       createdAt: profile.createdAt,
       updatedAt: profile.updatedAt,
       socialMedias: profile.socialMedias.map((socialMedia) => ({

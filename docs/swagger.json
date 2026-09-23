@@ -1,6 +1,381 @@
 {
   "openapi": "3.0.0",
   "paths": {
+    "/push/public-key": {
+      "get": {
+        "description": "Pública por natureza: é ela que vai no `applicationServerKey` do `pushManager.subscribe`. A chave privada nunca sai do servidor.\n\nDevolve `null` quando o Web Push não está configurado no ambiente — nesse caso a tela deve omitir a oferta de notificações, não tratar como erro.",
+        "operationId": "PushController_getPublicKey",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsePushPublicKeyDto"
+                }
+              }
+            }
+          }
+        },
+        "summary": "Chave pública VAPID, para o navegador se inscrever.",
+        "tags": [
+          "Notificações push"
+        ]
+      }
+    },
+    "/push/subscriptions": {
+      "post": {
+        "description": "Idempotente por `endpoint`: reinscrever o mesmo navegador atualiza as chaves em vez de criar uma segunda inscrição. Um usuário pode ter várias — celular e desktop são inscrições distintas.",
+        "operationId": "PushController_subscribe",
+        "parameters": [
+          {
+            "name": "user-agent",
+            "required": true,
+            "in": "header",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SavePushSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inscrição registrada."
+          },
+          "400": {
+            "description": "Endpoint ou chaves ausentes."
+          },
+          "401": {
+            "description": "Token inválido."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Registra a inscrição de push deste navegador.",
+        "tags": [
+          "Notificações push"
+        ]
+      },
+      "delete": {
+        "description": "Idempotente: remover uma inscrição que já não existe não é erro. O navegador pode tê-la perdido antes de avisar o servidor.",
+        "operationId": "PushController_unsubscribe",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemovePushSubscriptionDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inscrição removida."
+          },
+          "401": {
+            "description": "Token inválido."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Remove a inscrição deste navegador.",
+        "tags": [
+          "Notificações push"
+        ]
+      }
+    },
+    "/coupons/validate": {
+      "post": {
+        "description": "PRÉ-VISUALIZAÇÃO para a tela da sacola: o valor definitivo é recalculado na criação do pedido, a partir dos preços reais do cardápio. Mandar um `itemsValue` maior aqui não aumenta desconto nenhum — só faz a tela mostrar um número que o pedido depois corrige.\n\nResponde 400 com a razão em `message` quando o cupom não vale: expirado, esgotado, de outro restaurante, abaixo do mínimo, ou grande demais para o pedido.",
+        "operationId": "CouponsController_validate",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseValidateCouponDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "O cupom não vale para este pedido; veja `message`."
+          },
+          "401": {
+            "description": "Token inválido."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Confere se um cupom vale para a sacola atual e devolve o desconto.",
+        "tags": [
+          "Cupons"
+        ]
+      }
+    },
+    "/admin-coupons": {
+      "post": {
+        "description": "O desconto é custeado pela PLATAFORMA: o restaurante recebe os itens integrais e o entregador recebe frete e gorjeta normalmente. Por isso o desconto de um pedido nunca passa da comissão dele — use `minOrderValue` e `maxDiscountValue` para manter o cupom dentro desse limite, senão ele será recusado nos pedidos menores.",
+        "operationId": "AdminCouponsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseCouponDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Código repetido, ou tipo e valor incoerentes."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Cria um cupom de desconto.",
+        "tags": [
+          "Cupons - Portal Gerencial"
+        ]
+      },
+      "get": {
+        "operationId": "AdminCouponsController_findAll",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResponseCouponDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Lista os cupons, com a contagem de resgates.",
+        "tags": [
+          "Cupons - Portal Gerencial"
+        ]
+      }
+    },
+    "/admin-coupons/{id}": {
+      "get": {
+        "operationId": "AdminCouponsController_findById",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseCouponDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Cupom não encontrado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Detalha um cupom.",
+        "tags": [
+          "Cupons - Portal Gerencial"
+        ]
+      },
+      "patch": {
+        "description": "A coerência entre tipo e valor é conferida sobre como o cupom FICARÁ, não só sobre o que veio no corpo — mandar só o tipo não deixa um percentual sem percentual.",
+        "operationId": "AdminCouponsController_update",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCouponDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseCouponDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Tipo e valor incoerentes, ou vigência invertida."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Cupom não encontrado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Edita um cupom.",
+        "tags": [
+          "Cupons - Portal Gerencial"
+        ]
+      },
+      "delete": {
+        "description": "Desativa, não apaga: cupom já resgatado tem pedidos apontando para ele, e remover a linha quebraria o histórico de quem usou o desconto.",
+        "operationId": "AdminCouponsController_deactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseCouponDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Cupom não encontrado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Desativa um cupom.",
+        "tags": [
+          "Cupons - Portal Gerencial"
+        ]
+      }
+    },
     "/login": {
       "post": {
         "operationId": "AuthController_login",
@@ -3620,6 +3995,145 @@
         ]
       }
     },
+    "/admin-delivery-payouts/pending": {
+      "get": {
+        "description": "Soma os créditos de frete e gorjeta que ainda não foram repassados, com os dados bancários do entregador para o pagamento. Entregador sem conta cadastrada aparece sem `bankAccount`: não há para onde enviar.",
+        "operationId": "AdminDeliveryPayoutsController_findPending",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResponsePendingPayoutDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Lista quanto a plataforma deve a cada entregador.",
+        "tags": [
+          "Repasses aos entregadores - Portal Gerencial"
+        ]
+      }
+    },
+    "/admin-delivery-payouts": {
+      "post": {
+        "description": "O pagamento acontece fora do sistema — o admin faz o Pix e registra aqui. Liquida TODO o saldo em aberto do entregador e grava a saída no razão. Envie `expectedAmount` com o valor que a tela mostrava: se o saldo tiver mudado nesse intervalo, nada é liquidado e a resposta é 409.",
+        "operationId": "AdminDeliveryPayoutsController_create",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDeliveryPayoutDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseDeliveryPayoutDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Requisição inválida."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "409": {
+            "description": "Sem saldo em aberto, saldo divergente, ou repasse concorrente."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Registra um repasse já pago ao entregador.",
+        "tags": [
+          "Repasses aos entregadores - Portal Gerencial"
+        ]
+      },
+      "get": {
+        "operationId": "AdminDeliveryPayoutsController_findAll",
+        "parameters": [
+          {
+            "name": "courierId",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ResponseDeliveryPayoutDto"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Histórico de repasses pagos.",
+        "tags": [
+          "Repasses aos entregadores - Portal Gerencial"
+        ]
+      }
+    },
     "/accommodations": {
       "post": {
         "operationId": "AccommodationsController_create",
@@ -4869,6 +5383,68 @@
         ]
       }
     },
+    "/budgets/{id}/reject": {
+      "patch": {
+        "description": "Só funciona em orçamento com status `Responded`. Marca como `Rejected`, que é estado terminal: o orçamento não aceita mais alteração depois disso. Recusar é diferente de cancelar — cancelar é desistir do pedido, recusar é não aceitar o preço proposto.",
+        "operationId": "BudgetsController_reject",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RejectBudgetDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseBudgetDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Orçamento ainda não respondido."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Só quem solicitou pode recusar."
+          },
+          "409": {
+            "description": "Orçamento já aceito ou já recusado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Rota para o cliente recusar a proposta do profissional.",
+        "tags": [
+          "Orçamentos"
+        ]
+      }
+    },
     "/plans": {
       "post": {
         "operationId": "PlansController_create",
@@ -6111,6 +6687,7 @@
     },
     "/profile/me/billing-type": {
       "patch": {
+        "description": "Restrito ao perfil Supplier. O modelo de cobrança define se o fornecedor opera por assinatura ou por comissão por pedido, e é lido a cada pedido de delivery para decidir se há comissão.",
         "operationId": "ProfileController_updateMyBillingType",
         "parameters": [],
         "requestBody": {
@@ -6152,7 +6729,7 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Rota para atualizar o modelo de cobrança do usuário autenticado.",
+        "summary": "Rota para atualizar o modelo de cobrança do fornecedor autenticado.",
         "tags": [
           "Perfil"
         ]
@@ -10713,6 +11290,59 @@
         ]
       }
     },
+    "/restaurants/me/card-machine": {
+      "patch": {
+        "description": "Com a modalidade ligada, pedido no cartão NÃO gera checkout nem split: o dinheiro não passa pela plataforma. Como o frete e a gorjeta deixam de ser retidos, o repasse ao entregador passa a ser responsabilidade do estabelecimento — por isso ligar exige `acceptResponsibility: true`, e o aceite fica registrado com data, autor e versão do termo. Pix e boleto continuam pelo gateway: a maquininha é de cartão. Pedidos já criados não mudam.",
+        "operationId": "RestaurantsController_updateMyCardMachine",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCardMachineDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseRestaurantDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Aceite de responsabilidade ausente."
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Restaurante não encontrado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Liga ou desliga a cobrança de cartão na maquininha do próprio estabelecimento.",
+        "tags": [
+          "Restaurantes"
+        ]
+      }
+    },
     "/restaurants": {
       "post": {
         "operationId": "RestaurantsController_create",
@@ -12210,6 +12840,330 @@
       }
     },
     "schemas": {
+      "ResponsePushPublicKeyDto": {
+        "type": "object",
+        "properties": {
+          "publicKey": {
+            "type": "string",
+            "description": "Chave pública VAPID, para o `applicationServerKey` do `pushManager.subscribe`. Nula quando o servidor não tem Web Push configurado — nesse caso a tela deve omitir a oferta de notificações em vez de falhar.",
+            "nullable": true
+          }
+        },
+        "required": [
+          "publicKey"
+        ]
+      },
+      "PushSubscriptionKeysDto": {
+        "type": "object",
+        "properties": {
+          "p256dh": {
+            "type": "string",
+            "description": "Chave pública da inscrição, devolvida pelo navegador."
+          },
+          "auth": {
+            "type": "string",
+            "description": "Segredo de autenticação da inscrição."
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ]
+      },
+      "SavePushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Endereço da inscrição, devolvido pelo navegador. Identifica o aparelho.",
+            "example": "https://fcm.googleapis.com/fcm/send/abc123"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeysDto"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ]
+      },
+      "RemovePushSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "endpoint": {
+            "type": "string",
+            "description": "Endereço da inscrição a remover."
+          }
+        },
+        "required": [
+          "endpoint"
+        ]
+      },
+      "ValidateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código do cupom.",
+            "example": "BEMVINDO10"
+          },
+          "restaurantId": {
+            "type": "number",
+            "description": "Restaurante do pedido.",
+            "example": 1
+          },
+          "itemsValue": {
+            "type": "number",
+            "description": "Soma dos itens da sacola, em reais, sem frete nem gorjeta.",
+            "example": 100
+          }
+        },
+        "required": [
+          "code",
+          "restaurantId",
+          "itemsValue"
+        ]
+      },
+      "ResponseValidateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código normalizado do cupom.",
+            "example": "BEMVINDO10"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Percent",
+              "Fixed",
+              "FreeShipping"
+            ],
+            "example": "Percent"
+          },
+          "discount": {
+            "type": "string",
+            "description": "Desconto que o cupom concederia. É uma PRÉ-VISUALIZAÇÃO: o valor definitivo é recalculado na criação do pedido a partir dos preços reais do cardápio.",
+            "example": "10.00"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descrição do cupom, para exibir na sacola.",
+            "example": "10% de desconto na primeira compra"
+          }
+        },
+        "required": [
+          "code",
+          "type",
+          "discount"
+        ]
+      },
+      "CreateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código que o cliente digita. Gravado em maiúsculas e comparado assim — `bemvindo10` e `BEMVINDO10` são o mesmo cupom.",
+            "example": "BEMVINDO10"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descrição exibida na sacola."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Percent",
+              "Fixed",
+              "FreeShipping"
+            ],
+            "description": "`Percent` e `Fixed` descontam dos itens; `FreeShipping` zera o frete para o cliente, e o entregador recebe normalmente."
+          },
+          "value": {
+            "type": "number",
+            "description": "Percentual (0–100) em `Percent`, valor em reais em `Fixed`. Ignorado em `FreeShipping`, onde o desconto é o próprio frete.",
+            "example": 10
+          },
+          "maxDiscountValue": {
+            "type": "number",
+            "description": "Teto do desconto, em reais. Vale para cupom percentual.",
+            "example": 15
+          },
+          "minOrderValue": {
+            "type": "number",
+            "description": "Valor mínimo dos itens para o cupom valer. É o controle que mantém o desconto dentro da comissão do pedido — sem ele, cupom grande recusa em pedido pequeno.",
+            "example": 50
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Início da vigência, ISO 8601."
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Fim da vigência, ISO 8601."
+          },
+          "maxUses": {
+            "type": "number",
+            "description": "Limite total de usos. Ausente = sem limite."
+          },
+          "maxUsesPerCustomer": {
+            "type": "number",
+            "description": "Limite de usos por cliente. Ausente = sem limite."
+          },
+          "restaurantId": {
+            "type": "number",
+            "description": "Restringe o cupom a um restaurante. Ausente, vale em todos."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Cupom ativo. Padrão: true."
+          }
+        },
+        "required": [
+          "code",
+          "type"
+        ]
+      },
+      "ResponseCouponDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "BEMVINDO10"
+          },
+          "description": {
+            "type": "string",
+            "example": "10% na primeira compra"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Percent",
+              "Fixed",
+              "FreeShipping"
+            ]
+          },
+          "value": {
+            "type": "string",
+            "example": "10.00"
+          },
+          "maxDiscountValue": {
+            "type": "string",
+            "example": "15.00"
+          },
+          "minOrderValue": {
+            "type": "string",
+            "example": "50.00"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "maxUses": {
+            "type": "number",
+            "example": 100
+          },
+          "maxUsesPerCustomer": {
+            "type": "number",
+            "example": 1
+          },
+          "restaurantId": {
+            "type": "number",
+            "example": 1
+          },
+          "isActive": {
+            "type": "boolean",
+            "example": true
+          },
+          "timesUsed": {
+            "type": "number",
+            "description": "Quantas vezes o cupom já foi resgatado.",
+            "example": 7
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "type",
+          "isActive",
+          "timesUsed",
+          "createdAt"
+        ]
+      },
+      "UpdateCouponDto": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "Código que o cliente digita. Gravado em maiúsculas e comparado assim — `bemvindo10` e `BEMVINDO10` são o mesmo cupom.",
+            "example": "BEMVINDO10"
+          },
+          "description": {
+            "type": "string",
+            "description": "Descrição exibida na sacola."
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "Percent",
+              "Fixed",
+              "FreeShipping"
+            ],
+            "description": "`Percent` e `Fixed` descontam dos itens; `FreeShipping` zera o frete para o cliente, e o entregador recebe normalmente."
+          },
+          "value": {
+            "type": "number",
+            "description": "Percentual (0–100) em `Percent`, valor em reais em `Fixed`. Ignorado em `FreeShipping`, onde o desconto é o próprio frete.",
+            "example": 10
+          },
+          "maxDiscountValue": {
+            "type": "number",
+            "description": "Teto do desconto, em reais. Vale para cupom percentual.",
+            "example": 15
+          },
+          "minOrderValue": {
+            "type": "number",
+            "description": "Valor mínimo dos itens para o cupom valer. É o controle que mantém o desconto dentro da comissão do pedido — sem ele, cupom grande recusa em pedido pequeno.",
+            "example": 50
+          },
+          "startsAt": {
+            "type": "string",
+            "description": "Início da vigência, ISO 8601."
+          },
+          "endsAt": {
+            "type": "string",
+            "description": "Fim da vigência, ISO 8601."
+          },
+          "maxUses": {
+            "type": "number",
+            "description": "Limite total de usos. Ausente = sem limite."
+          },
+          "maxUsesPerCustomer": {
+            "type": "number",
+            "description": "Limite de usos por cliente. Ausente = sem limite."
+          },
+          "restaurantId": {
+            "type": "number",
+            "description": "Restringe o cupom a um restaurante. Ausente, vale em todos."
+          },
+          "isActive": {
+            "type": "boolean",
+            "description": "Cupom ativo. Padrão: true."
+          }
+        }
+      },
       "LoginUserDto": {
         "type": "object",
         "properties": {
@@ -13651,6 +14605,13 @@
           "fileKey": {
             "type": "string",
             "description": "Chave da imagem de perfil no storage (ex: AWS S3)"
+          },
+          "deliveryCommissionRate": {
+            "type": "number",
+            "description": "Comissão do delivery sobre os itens de cada pedido, em percentual. Vale só para quem opera no modelo de comissão. Nulo usa o padrão de 20%. Não confundir com a comissão do influenciador, que tem rota própria.",
+            "example": 15,
+            "minimum": 0,
+            "maximum": 100
           }
         }
       },
@@ -14945,6 +15906,233 @@
           "value"
         ]
       },
+      "PixKeyTypeEnum": {
+        "type": "string",
+        "enum": [
+          "Cpf",
+          "Cnpj",
+          "Email",
+          "Phone",
+          "Random"
+        ]
+      },
+      "ResponsePayoutBankAccountDto": {
+        "type": "object",
+        "properties": {
+          "bankName": {
+            "type": "string",
+            "example": "Nubank"
+          },
+          "accountType": {
+            "type": "string",
+            "example": "Checking"
+          },
+          "agency": {
+            "type": "string",
+            "example": "0001"
+          },
+          "account": {
+            "type": "string",
+            "example": "12345678-9"
+          },
+          "cpf": {
+            "type": "string",
+            "example": "123.456.789-00"
+          },
+          "pixKey": {
+            "type": "string",
+            "description": "Chave Pix, já normalizada. É por ela que o repasse é pago.",
+            "example": "+5534998701109"
+          },
+          "pixKeyType": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PixKeyTypeEnum"
+              }
+            ]
+          }
+        },
+        "required": [
+          "bankName",
+          "accountType",
+          "agency",
+          "account",
+          "cpf"
+        ]
+      },
+      "ResponsePendingPayoutDto": {
+        "type": "object",
+        "properties": {
+          "courierId": {
+            "type": "number",
+            "description": "Entregador.",
+            "example": 42
+          },
+          "courierName": {
+            "type": "string",
+            "example": "Maria Souza"
+          },
+          "courierPhone": {
+            "type": "string",
+            "example": "+5534998701109"
+          },
+          "amount": {
+            "type": "string",
+            "description": "Total devido, em reais.",
+            "example": "120.50"
+          },
+          "deliveries": {
+            "type": "number",
+            "description": "Entregas que compõem o saldo.",
+            "example": 12
+          },
+          "oldestAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Data da entrega mais antiga ainda não repassada."
+          },
+          "refundedDeliveries": {
+            "type": "number",
+            "description": "Quantas dessas entregas pertencem a pedidos cujo pagamento foi estornado ou contestado depois de aprovado. Zero na grande maioria dos casos. Maior que zero significa que parte do saldo veio de dinheiro que voltou ao cliente — a plataforma não reverte nada sozinha, a decisão é do admin.",
+            "example": 0
+          },
+          "refundedAmount": {
+            "type": "string",
+            "description": "Quanto do saldo vem de pedidos estornados, em reais.",
+            "example": "0.00"
+          },
+          "bankAccount": {
+            "description": "Dados bancários cadastrados pelo entregador. Ausente quando ele ainda não cadastrou — nesse caso não há para onde enviar e o repasse fica esperando.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponsePayoutBankAccountDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "courierId",
+          "courierName",
+          "amount",
+          "deliveries",
+          "oldestAt",
+          "refundedDeliveries",
+          "refundedAmount"
+        ]
+      },
+      "DeliveryPayoutMethodEnum": {
+        "type": "string",
+        "enum": [
+          "Pix",
+          "BankTransfer",
+          "Cash",
+          "Other"
+        ],
+        "description": "Por onde o dinheiro saiu."
+      },
+      "CreateDeliveryPayoutDto": {
+        "type": "object",
+        "properties": {
+          "courierId": {
+            "type": "number",
+            "description": "Entregador que recebeu o repasse.",
+            "example": 42
+          },
+          "method": {
+            "description": "Por onde o dinheiro saiu.",
+            "example": "Pix",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryPayoutMethodEnum"
+              }
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "description": "Comprovante: end-to-end do Pix, número da TED.",
+            "maxLength": 191,
+            "example": "E1234567820260921T1830"
+          },
+          "notes": {
+            "type": "string",
+            "description": "Observação livre.",
+            "maxLength": 255
+          },
+          "expectedAmount": {
+            "type": "number",
+            "description": "Saldo que a tela mostrava ao admin. Quando informado, o repasse só é registrado se o saldo em aberto ainda for exatamente esse — protege contra uma entrega concluída entre carregar a tela e enviar o formulário. Recomendado sempre.",
+            "example": 120.5
+          }
+        },
+        "required": [
+          "courierId",
+          "method"
+        ]
+      },
+      "ResponseDeliveryPayoutDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 7
+          },
+          "courierId": {
+            "type": "number",
+            "example": 42
+          },
+          "courierName": {
+            "type": "string",
+            "example": "Maria Souza"
+          },
+          "amount": {
+            "type": "string",
+            "example": "120.50"
+          },
+          "method": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DeliveryPayoutMethodEnum"
+              }
+            ]
+          },
+          "reference": {
+            "type": "string",
+            "example": "E1234567820260921T1830"
+          },
+          "notes": {
+            "type": "string"
+          },
+          "transactionsCount": {
+            "type": "number",
+            "description": "Quantos créditos este lote quitou.",
+            "example": 12
+          },
+          "paidAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdById": {
+            "type": "number",
+            "description": "Admin que registrou.",
+            "example": 1
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "courierId",
+          "courierName",
+          "amount",
+          "method",
+          "transactionsCount",
+          "paidAt",
+          "createdById",
+          "createdAt"
+        ]
+      },
       "CreateAccommodationDto": {
         "type": "object",
         "properties": {
@@ -15570,7 +16758,9 @@
           "Pending",
           "Responded",
           "WaitingInformation",
-          "Cancelled"
+          "Cancelled",
+          "Accepted",
+          "Rejected"
         ],
         "description": "Status atual do orçamento."
       },
@@ -15834,6 +17024,21 @@
             "type": "string",
             "description": "CPF vinculado à conta bancária.",
             "example": "12345678901"
+          },
+          "pixKeyType": {
+            "description": "Tipo da chave Pix. Vai junto com `pixKey`: ou os dois, ou nenhum. É por essa chave que o repasse ao entregador é pago.",
+            "example": "Phone",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PixKeyTypeEnum"
+              }
+            ]
+          },
+          "pixKey": {
+            "type": "string",
+            "description": "Chave Pix. Pode ser enviada com máscara — o servidor normaliza antes de gravar.",
+            "example": "(34) 99870-1109",
+            "maxLength": 191
           }
         },
         "required": [
@@ -15880,6 +17085,19 @@
             "type": "string",
             "description": "CPF vinculado à conta bancária.",
             "example": "12345678901"
+          },
+          "pixKeyType": {
+            "description": "Tipo da chave Pix cadastrada.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PixKeyTypeEnum"
+              }
+            ]
+          },
+          "pixKey": {
+            "type": "string",
+            "description": "Chave Pix, já normalizada pelo servidor.",
+            "example": "+5534998701109"
           },
           "userId": {
             "type": "number",
@@ -15962,6 +17180,21 @@
             "type": "string",
             "description": "CPF vinculado à conta bancária.",
             "example": "12345678901"
+          },
+          "pixKeyType": {
+            "description": "Tipo da chave Pix. Vai junto com `pixKey`: ou os dois, ou nenhum. É por essa chave que o repasse ao entregador é pago.",
+            "example": "Phone",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/PixKeyTypeEnum"
+              }
+            ]
+          },
+          "pixKey": {
+            "type": "string",
+            "description": "Chave Pix. Pode ser enviada com máscara — o servidor normaliza antes de gravar.",
+            "example": "(34) 99870-1109",
+            "maxLength": 191
           }
         }
       },
@@ -16229,6 +17462,20 @@
             "nullable": true,
             "example": "350.00"
           },
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Quando o cliente aceitou a proposta."
+          },
+          "rejectedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Quando o cliente recusou a proposta."
+          },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo informado na recusa, quando houver."
+          },
           "extraRequestValue": {
             "type": "string",
             "description": "Valor adicional solicitado no orçamento, quando houver.",
@@ -16422,6 +17669,20 @@
             "description": "Valor respondido do orçamento.",
             "nullable": true,
             "example": "350.00"
+          },
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Quando o cliente aceitou a proposta."
+          },
+          "rejectedAt": {
+            "format": "date-time",
+            "type": "string",
+            "description": "Quando o cliente recusou a proposta."
+          },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo informado na recusa, quando houver."
           },
           "extraRequestStatus": {
             "description": "Status do acréscimo solicitado no orçamento, quando houver.",
@@ -16779,7 +18040,8 @@
         "enum": [
           "Pending",
           "Paid",
-          "Cancelled"
+          "Cancelled",
+          "Refunded"
         ],
         "description": "Status do pagamento."
       },
@@ -17129,6 +18391,16 @@
           "work"
         ]
       },
+      "RejectBudgetDto": {
+        "type": "object",
+        "properties": {
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa, opcional. Serve ao prestador: sem ele a recusa chega como um \"não\" sem contexto.",
+            "example": "Achei o prazo longo demais para o que preciso."
+          }
+        }
+      },
       "CreatePlanDto": {
         "type": "object",
         "properties": {
@@ -17451,7 +18723,8 @@
             "enum": [
               "Pending",
               "Paid",
-              "Cancelled"
+              "Cancelled",
+              "Refunded"
             ],
             "example": "Paid"
           },
@@ -18748,7 +20021,7 @@
           },
           "price": {
             "type": "number",
-            "description": "Valor monetário do serviço.",
+            "description": "Valor de referência do serviço. **Opcional**: o preço que vale é o que o profissional informa ao responder a solicitação de orçamento. Use para vitrine (\"a partir de\"), ou omita quando tudo for sob orçamento. Envie `null` numa atualização para apagar o preço de um serviço que já tinha.",
             "example": 150
           },
           "description": {
@@ -18780,7 +20053,6 @@
         "required": [
           "name",
           "type",
-          "price",
           "categoryId"
         ]
       },
@@ -19205,7 +20477,7 @@
           },
           "price": {
             "type": "number",
-            "description": "Valor monetário do serviço.",
+            "description": "Valor de referência do serviço. **Opcional**: o preço que vale é o que o profissional informa ao responder a solicitação de orçamento. Use para vitrine (\"a partir de\"), ou omita quando tudo for sob orçamento. Envie `null` numa atualização para apagar o preço de um serviço que já tinha.",
             "example": 150
           },
           "description": {
@@ -20994,7 +22266,8 @@
             "enum": [
               "Pending",
               "Paid",
-              "Cancelled"
+              "Cancelled",
+              "Refunded"
             ]
           },
           "amount": {
@@ -22602,7 +23875,7 @@
               }
             ]
           },
-          "deliveryTimeMinMinutes": {
+          "usesOwnCardMachine": {
             "type": "number",
             "description": "Tempo mínimo estimado de entrega, em minutos. Ausente = não informado.",
             "example": 30
@@ -22689,6 +23962,24 @@
           "totalCommission",
           "netAmount",
           "period"
+        ]
+      },
+      "UpdateCardMachineDto": {
+        "type": "object",
+        "properties": {
+          "usesOwnCardMachine": {
+            "type": "boolean",
+            "description": "Liga ou desliga a cobrança de cartão na maquininha do próprio estabelecimento. Ligar exige `acceptResponsibility: true`.",
+            "example": true
+          },
+          "acceptResponsibility": {
+            "type": "boolean",
+            "description": "Aceite do termo de responsabilidade. Obrigatório para LIGAR a modalidade; ignorado ao desligar. Ao aceitar, o estabelecimento assume que o pagamento no cartão não passa pela plataforma e que o repasse do frete e da gorjeta ao entregador é responsabilidade dele.",
+            "example": true
+          }
+        },
+        "required": [
+          "usesOwnCardMachine"
         ]
       },
       "RestaurantAddressDto": {
@@ -23230,6 +24521,11 @@
             "example": 5,
             "minimum": 0,
             "maximum": 1000
+          },
+          "couponCode": {
+            "type": "string",
+            "description": "Código do cupom. O desconto é recalculado aqui a partir dos preços reais do cardápio — o valor da pré-visualização não é aceito como entrada. Cupom inválido para este pedido responde 400 com a razão em `message`.",
+            "example": "BEMVINDO10"
           }
         },
         "required": [
@@ -23415,6 +24711,11 @@
             "description": "Gorjeta ao entregador. `0.00` quando não houve.",
             "example": "5.00"
           },
+          "discount": {
+            "type": "string",
+            "description": "Desconto do cupom. `0.00` quando não houve. Custeado pela plataforma: o restaurante recebe os itens integrais e o entregador recebe frete e gorjeta normalmente.",
+            "example": "10.00"
+          },
           "totalValue": {
             "type": "string"
           },
@@ -23439,7 +24740,8 @@
             "enum": [
               "Pending",
               "Paid",
-              "Cancelled"
+              "Cancelled",
+              "Refunded"
             ],
             "description": "Situação do pagamento. Pedidos em dinheiro nascem Pending e só passam a Paid quando quem entrega confirma o recebimento."
           },
@@ -23515,6 +24817,7 @@
           "itemsValue",
           "deliveryFee",
           "tip",
+          "discount",
           "totalValue",
           "paymentMethod",
           "paymentStatus",
@@ -23872,13 +25175,31 @@
                 "$ref": "#/components/schemas/ResponseDeliveryEarningsPeriodDto"
               }
             ]
+          },
+          "available": {
+            "description": "Já ganho e ainda não repassado. É o que a plataforma deve ao entregador neste momento — some com `paid` e dá `total`.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseDeliveryEarningsPeriodDto"
+              }
+            ]
+          },
+          "paid": {
+            "description": "Já repassado, com o dinheiro fora da plataforma.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseDeliveryEarningsPeriodDto"
+              }
+            ]
           }
         },
         "required": [
           "day",
           "week",
           "month",
-          "total"
+          "total",
+          "available",
+          "paid"
         ]
       },
       "UpdateDeliveryLocationDto": {

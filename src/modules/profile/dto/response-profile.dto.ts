@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ResponseWarrantyStatsDto } from '../../works/dto/response-warranty-stats.dto';
 import { BillingTypeEnum, Role, SocialNetworkEnum, Status, UserProfileType } from '@prisma/client';
 import { ResponseAddressDto } from './response-address-dto';
 
@@ -198,4 +199,9 @@ export class ResponseProfileDto {
     example: BillingTypeEnum.Subscription,
   })
   billingType?: BillingTypeEnum;
+  @ApiProperty({
+    description: 'Contador de garantias do fornecedor. Zerado para quem nunca recebeu acionamento.',
+    type: ResponseWarrantyStatsDto,
+  })
+  warranties: ResponseWarrantyStatsDto;
 }

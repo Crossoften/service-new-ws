@@ -576,7 +576,26 @@ model Work {
   extraRespondedAt            DateTime?
   serviceValue                Decimal?               @db.Decimal(10, 2)
   totalValue                  Decimal?               @db.Decimal(10, 2)
-  budgetId                    Int                    @unique
+
+  /// Trabalho original, quando este é um reparo em garantia.
+  ///
+  /// Preenchido ⇒ é reparo. Nasce em `respondWarranty(Approved)`, com ciclo
+  /// próprio: o fornecedor roda `start` → `finish` como em qualquer trabalho.
+  /// Reabrir o trabalho original seria mais barato de escrever e pior de
+  /// operar — o histórico do atendimento original ficaria sobrescrito, e o
+  /// cliente perderia a distinção entre o serviço e o conserto dele.
+  parentWorkId                Int?
+
+  /// Redundante com `parentWorkId != null`, e existe assim de propósito: o
+  /// front badgea "Garantia" e as travas de cobrança filtram por este campo
+  /// sem precisar carregar a relação.
+  isWarranty                  Boolean                @default(false)
+
+  /// Opcional desde a execução da garantia: o reparo não nasce de orçamento.
+  /// Em MySQL o índice único aceita vários NULL, então a unicidade continua
+  /// valendo para quem tem orçamento.
+  budgetId                    Int?                   @unique
+
   serviceId                   Int
   requesterId                 Int
   providerId                  Int
@@ -584,16 +603,20 @@ model Work {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  budget    Budget     @relation(fields: [budgetId], references: [id])
-  service   Service    @relation(fields: [serviceId], references: [id])
-  requester User       @relation("WorkRequester", fields: [requesterId], references: [id])
-  provider  User       @relation("WorkProvider", fields: [providerId], references: [id])
-  files     WorkFile[]
+  budget        Budget?    @relation(fields: [budgetId], references: [id])
+  parentWork    Work?      @relation("WorkWarranty", fields: [parentWorkId], references: [id])
+  warrantyWorks Work[]     @relation("WorkWarranty")
+  service       Service    @relation(fields: [serviceId], references: [id])
+  requester     User       @relation("WorkRequester", fields: [requesterId], references: [id])
+  provider      User       @relation("WorkProvider", fields: [providerId], references: [id])
+  files         WorkFile[]
 
   @@index([serviceId])
   @@index([requesterId])
   @@index([providerId])
   @@index([status])
+  @@index([parentWorkId])
+  @@index([providerId, isWarranty, status])
   @@map("works")
 }
 

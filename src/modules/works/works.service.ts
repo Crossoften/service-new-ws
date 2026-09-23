@@ -40,6 +40,8 @@ import { WorkBudgetAlreadyHasWorkException } from './exceptions/work-budget-alre
 import { WorkBudgetNotFoundException } from './exceptions/work-budget-not-found.exception';
 import { WorkBudgetNotRespondedException } from './exceptions/work-budget-not-responded.exception';
 import { WorkCreateFailedException } from './exceptions/work-create-failed.exception';
+import { WorkWarrantyNotChargeableException } from './exceptions/work-warranty-not-chargeable.exception';
+import { WorkWarrantyNotNestableException } from './exceptions/work-warranty-not-nestable.exception';
 import { WorkNotFoundException } from './exceptions/work-not-found.exception';
 import { WorkPaymentAlreadyRegisteredException } from './exceptions/work-payment-already-registered.exception';
 import { WorkPaymentNotAllowedException } from './exceptions/work-payment-not-allowed.exception';
@@ -81,6 +83,11 @@ export class WorksService {
     serviceValue: true,
     totalValue: true,
     budgetId: true,
+    parentWorkId: true,
+    isWarranty: true,
+    // Do trabalho original para os reparos: é o que permite ao front navegar
+    // do atendimento para o conserto sem uma rota nova.
+    warrantyWorks: { select: { id: true, status: true } },
     serviceId: true,
     requesterId: true,
     providerId: true,
@@ -143,6 +150,8 @@ export class WorksService {
     extraRequestStatus: true,
     serviceValue: true,
     totalValue: true,
+    parentWorkId: true,
+    isWarranty: true,
     createdAt: true,
     budget: {
       select: {
@@ -338,8 +347,13 @@ export class WorksService {
           chat: chatRoom ? { id: chatRoom.id } : undefined,
           serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
           totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
-          budgetId: work.budgetId,
-          budget: work.budget,
+          budgetId: work.budgetId ?? undefined,
+          parentWorkId: work.parentWorkId ?? undefined,
+          isWarranty: work.isWarranty,
+          warrantyWorks: work.warrantyWorks?.length
+            ? work.warrantyWorks.map((w) => ({ id: w.id, status: w.status as WorkStatusEnum }))
+            : undefined,
+          budget: work.budget ?? undefined,
           serviceId: work.serviceId,
           service: work.service,
           requesterId: work.requesterId,
@@ -454,7 +468,9 @@ export class WorksService {
         chat: chatMap.get(work.id),
         serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
         totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
-        budget: work.budget,
+        budget: work.budget ?? undefined,
+        parentWorkId: work.parentWorkId ?? undefined,
+        isWarranty: work.isWarranty,
         service: work.service,
         requester: {
           id: work.requester.id,
@@ -559,8 +575,13 @@ export class WorksService {
         work.warrantyExpiresAt.getTime() >= Date.now(),
       serviceValue: work.serviceValue ? work.serviceValue.toFixed(2) : undefined,
       totalValue: work.totalValue ? work.totalValue.toFixed(2) : undefined,
-      budgetId: work.budgetId,
-      budget: work.budget,
+      budgetId: work.budgetId ?? undefined,
+      budget: work.budget ?? undefined,
+      parentWorkId: work.parentWorkId ?? undefined,
+      isWarranty: work.isWarranty,
+      warrantyWorks: work.warrantyWorks?.length
+        ? work.warrantyWorks.map((w) => ({ id: w.id, status: w.status as WorkStatusEnum }))
+        : undefined,
       serviceId: work.serviceId,
       service: work.service,
       requesterId: work.requesterId,
@@ -871,6 +892,7 @@ export class WorksService {
         totalValue: true,
         serviceValue: true,
         serviceId: true,
+        isWarranty: true,
         provider: { select: { id: true, mpUserId: true, mpAccessToken: true } },
       },
     });
@@ -878,6 +900,11 @@ export class WorksService {
     if (!work) {
       throw new WorkNotFoundException();
     }
+
+    // Q-E: garantia é sem custo. O reparo nasce com valor zero, e um checkout
+    // de R$ 0,00 não existe no Mercado Pago — sem esta trava o erro apareceria
+    // lá na frente, como falha do gateway, em vez de aqui com a razão.
+    if (work.isWarranty) throw new WorkWarrantyNotChargeableException('pagamento');
 
     // O pagamento passa pelo Mercado Pago, então o prestador precisa ter conta
     // vinculada — é para ela que a parte dele vai, direto.
@@ -964,6 +991,7 @@ export class WorksService {
         id: true,
         requesterId: true,
         status: true,
+        isWarranty: true,
         warrantyExpiresAt: true,
         warrantyRequestStatus: true,
       },
@@ -978,6 +1006,9 @@ export class WorksService {
     if (work.requesterId !== user.id && !isAdmin) {
       throw new WorkAccessDeniedException();
     }
+
+    // Q-G: a garantia cobre o serviço original, não o conserto dele.
+    if (work.isWarranty) throw new WorkWarrantyNotNestableException();
 
     if (
       work.status !== WorkStatusEnum.Finished ||
@@ -1023,7 +1054,14 @@ export class WorksService {
       select: {
         id: true,
         providerId: true,
+        requesterId: true,
+        serviceId: true,
         warrantyRequestStatus: true,
+        warrantyRequestDescription: true,
+        files: {
+          where: { type: WorkFileTypeEnum.WarrantyRequest },
+          select: { fileName: true, fileUrl: true, fileKey: true },
+        },
       },
     });
 
@@ -1037,6 +1075,9 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
+    // A exigência de `Pending` é o que torna a resposta idempotente: sem ela,
+    // dois cliques no botão do app criariam dois Works de garantia para o
+    // mesmo acionamento.
     if (
       work.warrantyRequestStatus !== WarrantyRequestStatus.Pending ||
       (payload.status !== WarrantyRequestStatus.Approved &&
@@ -1045,18 +1086,83 @@ export class WorksService {
       throw new WorkUpdateFailedException();
     }
 
-    await this.prisma.work.update({
-      where: { id },
-      data: {
-        warrantyRequestStatus: payload.status,
-        warrantyResponseDescription:
-          payload.description !== undefined
-            ? payload.description
-              ? payload.description.trim()
-              : null
-            : null,
-        warrantyRespondedAt: new Date(),
-      } as Prisma.WorkUncheckedUpdateInput,
+    const respostaDoFornecedor = {
+      warrantyRequestStatus: payload.status,
+      warrantyResponseDescription:
+        payload.description !== undefined
+          ? payload.description
+            ? payload.description.trim()
+            : null
+          : null,
+      warrantyRespondedAt: new Date(),
+    };
+
+    // Recusa mantém o comportamento de antes: registra e para. É final por
+    // decisão de produto (Q-B) — sem contestação, só fica consultável no admin.
+    if (payload.status === WarrantyRequestStatus.Rejected) {
+      await this.prisma.work.update({
+        where: { id },
+        data: respostaDoFornecedor as Prisma.WorkUncheckedUpdateInput,
+      });
+
+      return this.findById(user, id);
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.work.update({
+        where: { id },
+        data: respostaDoFornecedor as Prisma.WorkUncheckedUpdateInput,
+      });
+
+      const reparo = await tx.work.create({
+        data: {
+          status: WorkStatusEnum.Pending,
+          details: `Reparo em garantia do trabalho #${work.id}${
+            work.warrantyRequestDescription ? ` — ${work.warrantyRequestDescription}` : ''
+          }`,
+          parentWorkId: work.id,
+          isWarranty: true,
+          // Sem orçamento: o reparo não nasce de negociação, nasce de uma
+          // garantia já concedida.
+          budgetId: null,
+          serviceId: work.serviceId,
+          requesterId: work.requesterId,
+          providerId: work.providerId,
+          // Q-E: sem custo. Os dois zerados travam a cobrança em `pay`.
+          serviceValue: new Prisma.Decimal(0),
+          totalValue: new Prisma.Decimal(0),
+          // Os anexos do acionamento seguem para o reparo: são a evidência do
+          // defeito, e é no reparo que o fornecedor vai olhar para eles.
+          files: work.files.length
+            ? {
+                create: work.files.map((file) => ({
+                  fileName: file.fileName,
+                  fileUrl: file.fileUrl,
+                  fileKey: file.fileKey,
+                  type: WorkFileTypeEnum.Requester,
+                })),
+              }
+            : undefined,
+        },
+        select: { id: true },
+      });
+
+      // Q-F: chat próprio. Manter a conversa do reparo separada da do
+      // atendimento original evita poluir um histórico com o outro, e segue o
+      // padrão "cada Work tem seu chat" que `create` e `approve` já usam.
+      await tx.chatRoom.create({
+        data: {
+          contextType: ChatContextType.Work,
+          referenceId: reparo.id,
+          createdById: user.id,
+          participants: {
+            create: [
+              { userId: work.requesterId },
+              { userId: work.providerId, lastReadAt: new Date() },
+            ],
+          },
+        },
+      });
     });
 
     return this.findById(user, id);
@@ -1073,6 +1179,7 @@ export class WorksService {
         id: true,
         providerId: true,
         status: true,
+        isWarranty: true,
         extraRequestStatus: true,
       },
     });
@@ -1086,6 +1193,11 @@ export class WorksService {
     if (work.providerId !== user.id && !isAdmin) {
       throw new WorkAccessDeniedException();
     }
+
+    // Sem esta trava a cobrança voltaria pela porta dos fundos: o reparo é
+    // gratuito, mas o adicional é cobrável e `request-extra` está liberado em
+    // quase todo status.
+    if (work.isWarranty) throw new WorkWarrantyNotChargeableException('adicional');
 
     if (
       work.status === WorkStatusEnum.Cancelled ||

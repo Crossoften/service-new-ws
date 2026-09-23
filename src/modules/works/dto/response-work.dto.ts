@@ -1,9 +1,17 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ExtraRequestStatus, WarrantyRequestStatus } from '@prisma/client';
 import { PaymentMethodEnum } from '../enums/payment-method.enum';
 import { PaymentStatusEnum } from '../enums/payment-status.enum';
 import { WorkStatusEnum } from '../enums/work-status.enum';
 import { ResponseWorkFileDto } from './response-work-file.dto';
+
+export class ResponseWorkWarrantyItemDto {
+  @ApiProperty({ example: 87 })
+  id: number;
+
+  @ApiProperty({ enum: WorkStatusEnum, enumName: 'WorkStatusEnum' })
+  status: WorkStatusEnum;
+}
 
 export class ResponseWorkUserDto {
   @ApiProperty({
@@ -297,7 +305,28 @@ export class ResponseWorkListItemDto {
     description: 'Resumo do orçamento que originou o trabalho.',
     type: ResponseWorkBudgetDto,
   })
-  budget: ResponseWorkBudgetDto;
+  @ApiPropertyOptional({
+    description:
+      'Trabalho original, quando este é um reparo em garantia. Ausente no trabalho comum.',
+    example: 12,
+  })
+  parentWorkId?: number;
+
+  @ApiProperty({
+    description:
+      'Verdadeiro quando este trabalho é um reparo em garantia: ciclo próprio, sem custo, ' +
+      'sem pagamento e sem pedido de adicional.',
+    example: false,
+  })
+  isWarranty: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Reparos em garantia abertos a partir deste trabalho. Só o trabalho original tem.',
+    type: () => [ResponseWorkWarrantyItemDto],
+  })
+  warrantyWorks?: ResponseWorkWarrantyItemDto[];
+
+  budget?: ResponseWorkBudgetDto;
 
   @ApiProperty({
     description: 'Resumo do serviço vinculado ao trabalho.',
@@ -553,13 +582,34 @@ export class ResponseWorkDto {
   totalValue?: string;
 
   @ApiProperty({ description: 'Identificador do orçamento de origem.', example: 1, type: Number })
-  budgetId: number;
+  @ApiPropertyOptional({
+    description:
+      'Trabalho original, quando este é um reparo em garantia. Ausente no trabalho comum.',
+    example: 12,
+  })
+  parentWorkId?: number;
+
+  @ApiProperty({
+    description:
+      'Verdadeiro quando este trabalho é um reparo em garantia: ciclo próprio, sem custo, ' +
+      'sem pagamento e sem pedido de adicional.',
+    example: false,
+  })
+  isWarranty: boolean;
+
+  @ApiPropertyOptional({
+    description: 'Reparos em garantia abertos a partir deste trabalho. Só o trabalho original tem.',
+    type: () => [ResponseWorkWarrantyItemDto],
+  })
+  warrantyWorks?: ResponseWorkWarrantyItemDto[];
+
+  budgetId?: number;
 
   @ApiProperty({
     description: 'Resumo do orçamento que originou o trabalho.',
     type: ResponseWorkBudgetDto,
   })
-  budget: ResponseWorkBudgetDto;
+  budget?: ResponseWorkBudgetDto;
 
   @ApiProperty({
     description: 'Identificador do serviço vinculado ao trabalho.',

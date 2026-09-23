@@ -1223,6 +1223,75 @@ O back remove a inscrição sozinho quando o navegador responde que ela expirou.
 
 ---
 
+## 8.11 Garantia: o reparo vira trabalho próprio 🟡
+
+Atende **BE-W1** e **BE-W7**.
+
+### O que acontece ao aprovar uma garantia
+
+Antes, `PATCH /v1/works/:id/respond-warranty` com `Approved` só gravava o
+status — `Approved` e `Rejected` rodavam o mesmo update. Agora a aprovação
+**cria um trabalho de reparo** ligado ao original.
+
+O reparo é um `Work` normal: aparece em `GET /v1/works`, roda
+`start` → `confirm-arrival` → `finish` como qualquer outro, e tem chat próprio.
+**Nenhuma rota nova** — o front já sabe lidar com ele.
+
+### Dois campos novos em todo trabalho
+
+| Campo | O quê |
+|---|---|
+| `isWarranty` | `true` no reparo. Badge "Garantia" na lista e no detalhe |
+| `parentWorkId` | id do trabalho original. Ausente no trabalho comum |
+
+E no **trabalho original**, só no detalhe:
+
+| Campo | O quê |
+|---|---|
+| `warrantyWorks` | `[{ id, status }]` dos reparos abertos a partir dele |
+
+É o que liga as duas pontas na tela: do atendimento para o conserto e de volta.
+
+### Três coisas que o reparo recusa
+
+O reparo é **sem custo** (decisão Q-E), então:
+
+| Ação | Resposta |
+|---|---|
+| `POST /works/:id/pay` | `400` — reparo não gera pagamento |
+| `PATCH /works/:id/request-extra` | `400` — não aceita adicional |
+| `POST /works/:id/request-warranty` num reparo | `400` — não existe garantia de garantia (Q-G) |
+
+Na tela do reparo, esconda os botões de pagar e de pedir adicional. A mensagem
+da API já explica cada caso — mostre a mensagem.
+
+⚠️ **`budgetId` agora pode vir ausente.** O reparo não nasce de orçamento.
+Tela que faz `work.budgetId` sem checar vai quebrar no primeiro reparo.
+
+### O contador de garantias do prestador
+
+Saía zero porque não havia de onde tirar. Agora vem em dois lugares:
+
+- `GET /v1/profile/me` → campo `warranties` (o fornecedor vê o próprio)
+- `GET /v1/services/:id` → campo `providerWarranties` (o cliente vê no detalhe do prestador)
+
+```jsonc
+{ "warrantiesTotal": 7, "warrantiesApproved": 6, "warrantiesRejected": 1,
+  "warrantiesPending": 0, "warrantiesCompleted": 5, "warrantiesInProgress": 1 }
+```
+
+**O número de destaque é `warrantiesCompleted` / `warrantiesTotal`** — "5 de 7
+atendidas" (decisão Q-H). Atendida = **reparo concluído**, não acionamento
+aprovado: para quem lê o perfil, atendida significa problema resolvido.
+`warrantiesApproved` só indica intenção, e serve como detalhe secundário.
+
+> O contador **não vem na listagem** de serviços, só no detalhe. Carregar o
+> agregado por item de lista custaria um `groupBy` por página para um número
+> que a vitrine não exibe. Se a listagem precisar, me peça — é uma consulta em
+> lote, não N consultas.
+
+---
+
 ## 9. O que não muda
 
 - A base `/v1` e as rotas existentes

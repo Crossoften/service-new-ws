@@ -13,6 +13,7 @@ import { ResponseServiceCategoryDto } from './dto/response-service-category.dto'
 import { ResponseServiceDto } from './dto/response-service.dto';
 import { ServiceAccessDeniedException } from './exceptions/service-access-denied.exception';
 import { ServiceCategoryNotFoundException } from './exceptions/service-category-not-found.exception';
+import { WarrantyStatsService } from '../works/warranty-stats.service';
 import { ServiceNotFoundException } from './exceptions/service-not-found.exception';
 import { ServicePersistenceException } from './exceptions/service-persistence.exception';
 import { ServiceReviewNotAllowedException } from './exceptions/service-review-not-allowed.exception';
@@ -24,6 +25,7 @@ import { SubscriptionGuardService } from '../subscription-guard/subscription-gua
 @Injectable()
 export class ServicesService {
   constructor(
+    private readonly warrantyStats: WarrantyStatsService,
     private readonly prisma: PrismaService,
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
@@ -392,6 +394,11 @@ export class ServicesService {
         .filter((review) => review.type === 'Negative')
         .reduce((total) => total + 1, 0),
       completedWorks,
+      // Contador de garantias do prestador (BE-W7). Vai no detalhe, não na
+      // listagem: a tela que mostrava zero é a de detalhes do prestador, e
+      // carregar o agregado por item de lista custaria um groupBy por página
+      // para um número que a vitrine não exibe.
+      providerWarranties: await this.warrantyStats.statsFor(service.userId),
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
     };
@@ -457,6 +464,11 @@ export class ServicesService {
         .filter((review) => review.type === 'Negative')
         .reduce((total) => total + 1, 0),
       completedWorks,
+      // Contador de garantias do prestador (BE-W7). Vai no detalhe, não na
+      // listagem: a tela que mostrava zero é a de detalhes do prestador, e
+      // carregar o agregado por item de lista custaria um groupBy por página
+      // para um número que a vitrine não exibe.
+      providerWarranties: await this.warrantyStats.statsFor(service.userId),
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
     };
