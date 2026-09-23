@@ -1,0 +1,96 @@
+name: CI (service-new-ws)
+
+# Separado do deploy de propósito. O `main.yml` roda em runner self-hosted e
+# publica na VPS; este roda em runner do GitHub, num banco descartável, e não
+# toca em nada fora do próprio job. Juntar os dois faria um erro de teste poder
+# derrubar o deploy por engano — e um erro de deploy esconder um teste quebrado.
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+# Push novo na mesma branch cancela a execução anterior: o resultado dela já não
+# interessa, e runner parado é minuto pago à toa.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  qualidade:
+    name: Lint, build e testes
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        # 8.0 para bater com produção. O schema usa recursos de MySQL
+        # (ENUM por coluna, LongText), então testar em outro banco provaria
+        # outra coisa.
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: service_test
+        ports:
+          - 3306:3306
+        # Sem o health check o job começa antes do banco aceitar conexão, e a
+        # primeira migration falha com "connection refused" de forma
+        # intermitente — o tipo de falha que faz time desconfiar do CI.
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=15
+
+    env:
+      DATABASE_URL: mysql://root:root@127.0.0.1:3306/service_test
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 📦 Dependências
+        run: npm ci --legacy-peer-deps
+
+      - name: 🔧 Prisma Client
+        run: npx prisma generate
+
+      # ==========================================
+      # Rápido primeiro: o que não precisa de banco
+      # ==========================================
+      - name: 🧹 Lint
+        run: npx eslint "src/**/*.ts" "test/**/*.ts"
+
+      - name: 🏗️ Build
+        run: npm run build
+
+      - name: 🧪 Testes unitários
+        run: npm test
+
+      # ==========================================
+      # Banco: migrations, integridade e integração
+      # ==========================================
+      - name: 🗄️ Aplicar migrations
+        run: npx prisma migrate deploy
+
+      - name: 🔍 Schema x migrations
+        # Falha (exit 2) quando o schema.prisma e o banco produzido pelas
+        # migrations divergem. É o portão que teria pego, sozinhas, as duas
+        # divergências encontradas à mão em 23/09: o enum de
+        # `payments.referenceType` e a ação da FK de `works.budgetId`.
+        #
+        # Divergência aqui significa que `prisma migrate dev` vai gerar uma
+        # migration fantasma na máquina de quem for mexer no schema depois.
+        run: |
+          npx prisma migrate diff \
+            --from-schema-datasource prisma/schema.prisma \
+            --to-schema-datamodel prisma/schema.prisma \
+            --exit-code
+
+      - name: 🔗 Testes de integração
+        run: npm run test:int

@@ -21,7 +21,8 @@
     "seed": "ts-node ./prisma/seeds/index.ts",
     "swagger:generate": "ts-node -r tsconfig-paths/register scripts/generate-swagger.ts",
     "seed:test": "ts-node ./prisma/seeds/test.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:int": "jest --config ./test/integration/jest-int.json --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.577.0",

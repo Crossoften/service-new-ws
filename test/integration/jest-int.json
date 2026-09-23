@@ -1,0 +1,16 @@
+{
+  "moduleFileExtensions": ["js", "json", "ts"],
+  "rootDir": "../..",
+  "testEnvironment": "node",
+  "testRegex": ".*\\.int-spec\\.ts$",
+  "transform": { "^.+\\.(t|j)s$": "ts-jest" },
+  "moduleNameMapper": {
+    "^@database/(.*)$": "<rootDir>/src/database/$1",
+    "^@interfaces/(.*)$": "<rootDir>/src/interfaces/$1",
+    "^@utils/(.*)$": "<rootDir>/src/utils/$1",
+    "^src/(.*)$": "<rootDir>/src/$1"
+  },
+  "maxWorkers": 1,
+  "testTimeout": 30000,
+  "setupFilesAfterEnv": ["<rootDir>/test/integration/setup.ts"]
+}

@@ -70,6 +70,13 @@ Cada item está marcado com o estado real no back-end:
 | ✅ | **Validado contra a API rodando**, com banco real |
 | 🟡 | **Entregue e com teste unitário**, mas ainda não exercitado contra banco e HTTP |
 
+> **Atualização de 23/09:** o ambiente de back ganhou MySQL. As migrations de
+> todas as fases foram aplicadas e conferidas contra o schema, e as partes que
+> mexem em dinheiro — repasse, webhook e garantia — ganharam teste de
+> integração contra banco de verdade. As marcas 🟡 continuam nas seções que
+> ainda não passaram por HTTP ponta a ponta, mas o contrato descrito nelas
+> deixou de ser dedução de código.
+
 A diferença é honesta e importa: o que está 🟡 tem o contrato descrito a partir
 do código, e não de uma chamada de verdade. Pode codar contra, mas trate o
 primeiro teste integrado como parte do trabalho — e me avise se algo divergir
@@ -1289,6 +1296,55 @@ aprovado: para quem lê o perfil, atendida significa problema resolvido.
 > agregado por item de lista custaria um `groupBy` por página para um número
 > que a vitrine não exibe. Se a listagem precisar, me peça — é uma consulta em
 > lote, não N consultas.
+
+---
+
+## 8.12 Chat: conversa no orçamento e badge de não lidos 🟡
+
+Atende **BE-CHAT-1** e o complemento do **BE-Q5**.
+
+### Conversar antes de aprovar o orçamento
+
+O `ChatRoom` só nascia quando o orçamento virava trabalho. Durante toda a
+negociação — que é justamente quando cliente e prestador precisam acertar
+escopo e preço — não havia por onde conversar.
+
+Agora **a sala nasce com o orçamento**, e o `id` dela vem no próprio orçamento:
+
+```jsonc
+// GET /v1/budgets/:id  e  GET /v1/budgets
+{ "id": 9, "status": "Responded", "chat": { "id": 55 }, ... }
+```
+
+Com isso o botão de chat liga em `aprovar-orcamento` (cliente) e em
+`fazer-orcamento` / `orcamentos-fornecedor` (fornecedor), usando as rotas de
+mensagem que já existem.
+
+### Ao aprovar, é a mesma conversa
+
+Decisão Q-UX1. A sala **não é recriada**: ela é movida de contexto `Budget`
+para `Work`, mantendo o **mesmo `id`** e todo o histórico.
+
+Na prática, para o front: `budget.chat.id === work.chat.id`. Quem já estava com
+o chat aberto na tela de aprovação não troca de sala quando o trabalho nasce.
+
+> Orçamentos que já existiam no banco antes desta fase **não têm** sala de
+> orçamento — `chat` vem ausente neles. Ao aprovar, a sala é criada no trabalho
+> como sempre foi. Trate `chat` como opcional no orçamento.
+
+### Badge de não lidos
+
+```
+GET /v1/chats/unread-count   →   { "total": 3 }
+```
+
+Uma consulta barata, para o badge do menu, do hub e do botão de chat — que
+precisam do número em toda navegação. O inbox (`GET /v1/chats`) continua
+trazendo o `unreadCount` por conversa; use este para o total e aquele para a
+lista.
+
+Mensagens enviadas pelo próprio usuário nunca contam. Sala nunca aberta conta
+todas as mensagens da contraparte.
 
 ---
 

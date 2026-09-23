@@ -1044,6 +1044,31 @@ export class WorksService {
     return this.findById(user, id);
   }
 
+  /**
+   * Grava a resposta do fornecedor, e só deixa passar quem chegar primeiro.
+   *
+   * A condição vai no `WHERE` de propósito. A leitura anterior, fora da
+   * transação, não protege nada: duas respostas simultâneas passavam as duas
+   * pela checagem de `Pending` e criavam **dois reparos** para o mesmo
+   * acionamento — um teste de integração contra MySQL pegou isso, e nenhum
+   * unitário com duplo de Prisma pegaria.
+   *
+   * Aqui o banco trava a linha; a segunda transação espera, encontra o status
+   * já respondido e alcança zero linhas.
+   */
+  private async responderAcionamento(
+    tx: Prisma.TransactionClient,
+    id: number,
+    resposta: Record<string, unknown>,
+  ): Promise<void> {
+    const { count } = await tx.work.updateMany({
+      where: { id, warrantyRequestStatus: WarrantyRequestStatus.Pending },
+      data: resposta as Prisma.WorkUncheckedUpdateManyInput,
+    });
+
+    if (count === 0) throw new WorkUpdateFailedException();
+  }
+
   async respondWarranty(
     user: User,
     id: number,
@@ -1075,9 +1100,8 @@ export class WorksService {
       throw new WorkAccessDeniedException();
     }
 
-    // A exigência de `Pending` é o que torna a resposta idempotente: sem ela,
-    // dois cliques no botão do app criariam dois Works de garantia para o
-    // mesmo acionamento.
+    // Recusa cedo o que nem chega a ser uma resposta válida. A checagem de
+    // `Pending` que existia aqui NÃO basta — ver `responderAcionamento`.
     if (
       work.warrantyRequestStatus !== WarrantyRequestStatus.Pending ||
       (payload.status !== WarrantyRequestStatus.Approved &&
@@ -1100,19 +1124,15 @@ export class WorksService {
     // Recusa mantém o comportamento de antes: registra e para. É final por
     // decisão de produto (Q-B) — sem contestação, só fica consultável no admin.
     if (payload.status === WarrantyRequestStatus.Rejected) {
-      await this.prisma.work.update({
-        where: { id },
-        data: respostaDoFornecedor as Prisma.WorkUncheckedUpdateInput,
+      await this.prisma.$transaction(async (tx) => {
+        await this.responderAcionamento(tx, id, respostaDoFornecedor);
       });
 
       return this.findById(user, id);
     }
 
     await this.prisma.$transaction(async (tx) => {
-      await tx.work.update({
-        where: { id },
-        data: respostaDoFornecedor as Prisma.WorkUncheckedUpdateInput,
-      });
+      await this.responderAcionamento(tx, id, respostaDoFornecedor);
 
       const reparo = await tx.work.create({
         data: {

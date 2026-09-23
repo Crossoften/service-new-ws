@@ -26,25 +26,27 @@ const TRABALHO = {
 
 interface Cenario {
   service: WorksService;
-  atualizar: jest.Mock;
+  responder: jest.Mock;
   criarWork: jest.Mock;
   criarChat: jest.Mock;
 }
 
-function build(trabalho: Record<string, unknown> = {}): Cenario {
-  const atualizar = jest.fn().mockResolvedValue({});
+function build(trabalho: Record<string, unknown> = {}, linhasAfetadas = 1): Cenario {
+  // `updateMany` condicionado a `Pending` é o que torna a resposta idempotente
+  // de verdade: zero linhas significa que outra resposta chegou primeiro.
+  const responder = jest.fn().mockResolvedValue({ count: linhasAfetadas });
   const criarWork = jest.fn().mockResolvedValue({ id: 99 });
   const criarChat = jest.fn().mockResolvedValue({});
 
   const tx = {
-    work: { update: atualizar, create: criarWork },
+    work: { updateMany: responder, create: criarWork },
     chatRoom: { create: criarChat },
   };
 
   const prisma = {
     work: {
       findUnique: jest.fn().mockResolvedValue({ ...TRABALHO, ...trabalho }),
-      update: atualizar,
+      updateMany: responder,
     },
     $transaction: (cb: (t: typeof tx) => Promise<unknown>) => cb(tx),
   } as unknown as PrismaService;
@@ -59,7 +61,7 @@ function build(trabalho: Record<string, unknown> = {}): Cenario {
 
   jest.spyOn(service, 'findById').mockResolvedValue({ id: 10 } as never);
 
-  return { service, atualizar, criarWork, criarChat };
+  return { service, responder, criarWork, criarChat };
 }
 
 describe('respondWarranty — aprovação cria o reparo', () => {
@@ -188,5 +190,35 @@ describe('travas do reparo em garantia', () => {
     await expect(
       service.requestExtra(FORNECEDOR, 10, { value: 100, description: 'x' } as never),
     ).rejects.toBeInstanceOf(WorkWarrantyNotChargeableException);
+  });
+});
+
+describe('respondWarranty — corrida entre duas respostas', () => {
+  it('desfaz a transação quando outra resposta chegou primeiro', async () => {
+    // A guarda real é o `updateMany` condicionado: alcançar zero linhas
+    // significa que o acionamento já saiu de `Pending`. A leitura anterior,
+    // fora da transação, deixava as duas passarem — e criava dois reparos.
+    const { service, criarWork } = build({}, 0);
+
+    await expect(
+      service.respondWarranty(FORNECEDOR, 10, {
+        status: WarrantyRequestStatus.Approved,
+      } as never),
+    ).rejects.toBeInstanceOf(WorkUpdateFailedException);
+
+    expect(criarWork).not.toHaveBeenCalled();
+  });
+
+  it('condiciona a gravação ao status Pending', async () => {
+    const { service, responder } = build();
+
+    await service.respondWarranty(FORNECEDOR, 10, {
+      status: WarrantyRequestStatus.Approved,
+    } as never);
+
+    expect(responder.mock.calls[0][0].where).toEqual({
+      id: 10,
+      warrantyRequestStatus: WarrantyRequestStatus.Pending,
+    });
   });
 });

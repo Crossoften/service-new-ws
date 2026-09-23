@@ -68,3 +68,6 @@ INTEGRACAO-WEBAPP.md
 
 # Arquivos do fallback de upload em disco
 /uploads
+
+# Duplicatas que o macOS cria ao resolver conflito de nome
+* [0-9].*

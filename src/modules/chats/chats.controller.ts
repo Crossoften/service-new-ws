@@ -24,6 +24,7 @@ import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
 import { QueryChatsDto } from './dto/query-chats.dto';
 import { ResponseFindChatsDto } from './dto/response-find-chats.dto';
 import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
+import { ResponseUnreadCountDto } from './dto/response-unread-count.dto';
 import { ResponseChatDto } from './dto/response-chat.dto';
 import { ChatsGateway } from './chats.gateway';
 import { ChatsService } from './chats.service';
@@ -52,6 +53,24 @@ export class ChatsController {
     @Query() query: QueryChatsDto,
   ): Promise<ResponseFindChatsDto> {
     return this.chatsService.findMyChats(user, query);
+  }
+
+  @Get('unread-count')
+  // Declarada ANTES de `:id`: o Nest casa as rotas na ordem em que aparecem, e
+  // `@Get(':id')` engoliria "unread-count" — o `ParseIntPipe` devolveria 400
+  // para uma rota que existe.
+  @ApiOperation({
+    summary: 'Total de mensagens não lidas do usuário.',
+    description:
+      'Soma todas as conversas. Serve aos badges do menu e do hub, que precisam do ' +
+      'número em toda navegação — carregar o inbox inteiro só para exibir um inteiro ' +
+      'seria caro. Mensagens enviadas pelo próprio usuário nunca contam.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseUnreadCountDto })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  async countUnread(@CurrentUser() user: User): Promise<ResponseUnreadCountDto> {
+    return this.chatsService.countUnreadTotal(user);
   }
 
   @Get('context/:contextType/:referenceId')

@@ -224,6 +224,29 @@ export class BudgetsService {
     },
   });
 
+  /**
+   * Salas de chat dos orçamentos informados.
+   *
+   * `ChatRoom` não é relação de `Budget` — a ligação é pelo par
+   * (`contextType`, `referenceId`), que é o mesmo desenho usado por trabalho,
+   * negociação e pedido. Por isso a busca é separada, e em lote: uma consulta
+   * para a página inteira em vez de uma por orçamento.
+   */
+  private async chatRoomsFor(budgetIds: number[]): Promise<Map<number, { id: number }>> {
+    if (!budgetIds.length) return new Map();
+
+    const rooms = await this.prisma.chatRoom.findMany({
+      where: { contextType: ChatContextType.Budget, referenceId: { in: budgetIds } },
+      select: { id: true, referenceId: true },
+    });
+
+    return new Map(rooms.map((room) => [room.referenceId, { id: room.id }]));
+  }
+
+  private async chatRoomFor(budgetId: number): Promise<{ id: number } | undefined> {
+    return (await this.chatRoomsFor([budgetId])).get(budgetId);
+  }
+
   async create(user: User, payload: CreateBudgetDto): Promise<CreateBudgetResponseDto> {
     const service = await this.prisma.service.findUnique({
       where: { id: payload.serviceId },
@@ -240,25 +263,44 @@ export class BudgetsService {
     await this.subscriptionGuard.assertProviderCanSell(service.userId);
 
     try {
-      const budget = await this.prisma.budget.create({
-        data: {
-          description: payload.description ? payload.description.trim() : null,
-          serviceId: service.id,
-          requesterId: user.id,
-          providerId: service.userId,
-          files:
-            payload.files && payload.files.length > 0
-              ? {
-                  create: payload.files.map((file) => ({
-                    fileName: file.fileName,
-                    fileUrl: file.fileUrl,
-                    fileKey: file.fileKey,
-                    type: BudgetFileTypeEnum.Request,
-                  })),
-                }
-              : undefined,
-        },
-        select: this.budgetSelect,
+      const budget = await this.prisma.$transaction(async (tx) => {
+        const criado = await tx.budget.create({
+          data: {
+            description: payload.description ? payload.description.trim() : null,
+            serviceId: service.id,
+            requesterId: user.id,
+            providerId: service.userId,
+            files:
+              payload.files && payload.files.length > 0
+                ? {
+                    create: payload.files.map((file) => ({
+                      fileName: file.fileName,
+                      fileUrl: file.fileUrl,
+                      fileKey: file.fileKey,
+                      type: BudgetFileTypeEnum.Request,
+                    })),
+                  }
+                : undefined,
+          },
+          select: this.budgetSelect,
+        });
+
+        // A conversa nasce com o orçamento, e não só quando ele é aprovado.
+        // Antes, o `ChatRoom` só aparecia no `approve`: durante toda a fase de
+        // negociação — que é justamente quando cliente e prestador precisam se
+        // falar para acertar escopo e preço — não havia por onde conversar.
+        await tx.chatRoom.create({
+          data: {
+            contextType: ChatContextType.Budget,
+            referenceId: criado.id,
+            createdById: user.id,
+            participants: {
+              create: [{ userId: user.id, lastReadAt: new Date() }, { userId: service.userId }],
+            },
+          },
+        });
+
+        return criado;
       });
 
       return {
@@ -269,6 +311,7 @@ export class BudgetsService {
           status: budget.status as BudgetStatusEnum,
           responseDescription: budget.responseDescription,
           responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+          chat: await this.chatRoomFor(budget.id),
           acceptedAt: budget.acceptedAt ?? undefined,
           rejectedAt: budget.rejectedAt ?? undefined,
           rejectReason: budget.rejectReason ?? undefined,
@@ -355,9 +398,12 @@ export class BudgetsService {
       this.prisma.budget.count({ where }),
     ]);
 
+    const chatsPorOrcamento = await this.chatRoomsFor(budgets.map((budget) => budget.id));
+
     return {
       budgets: budgets.map((budget) => ({
         id: budget.id,
+        chat: chatsPorOrcamento.get(budget.id),
         description: budget.description,
         status: budget.status as BudgetStatusEnum,
         responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
@@ -407,6 +453,7 @@ export class BudgetsService {
       status: budget.status as BudgetStatusEnum,
       responseDescription: budget.responseDescription,
       responseValue: budget.responseValue ? budget.responseValue.toFixed(2) : undefined,
+      chat: await this.chatRoomFor(budget.id),
       acceptedAt: budget.acceptedAt ?? undefined,
       rejectedAt: budget.rejectedAt ?? undefined,
       rejectReason: budget.rejectReason ?? undefined,
@@ -805,24 +852,51 @@ export class BudgetsService {
         data: { status: BudgetStatusEnum.Accepted, acceptedAt: new Date() },
       });
 
-      await tx.chatRoom.create({
-        data: {
-          contextType: ChatContextType.Work,
-          referenceId: createdWork.id,
-          createdById: user.id,
-          participants: {
-            create: [
-              {
-                userId: budget.requesterId,
-                lastReadAt: new Date(),
-              },
-              {
-                userId: budget.providerId,
-              },
-            ],
+      // Q-UX1: a conversa do orçamento CONTINUA no trabalho.
+      //
+      // Move a sala em vez de criar uma nova: o `id` permanece o mesmo, o
+      // histórico da negociação segue junto, e o front que já abriu o chat na
+      // tela de aprovação não precisa trocar de sala ao virar trabalho. Copiar
+      // as mensagens para uma sala nova daria o mesmo resultado visível e
+      // duplicaria dados por nada.
+      const salaDoOrcamento = await tx.chatRoom.findUnique({
+        where: {
+          contextType_referenceId: {
+            contextType: ChatContextType.Budget,
+            referenceId: budget.id,
           },
         },
+        select: { id: true },
       });
+
+      if (salaDoOrcamento) {
+        await tx.chatRoom.update({
+          where: { id: salaDoOrcamento.id },
+          data: { contextType: ChatContextType.Work, referenceId: createdWork.id },
+        });
+      } else {
+        // Orçamento anterior a esta fase não tem sala própria — os que já
+        // existiam no banco quando o chat de orçamento passou a existir. Para
+        // eles o comportamento antigo continua valendo: a sala nasce aqui.
+        await tx.chatRoom.create({
+          data: {
+            contextType: ChatContextType.Work,
+            referenceId: createdWork.id,
+            createdById: user.id,
+            participants: {
+              create: [
+                {
+                  userId: budget.requesterId,
+                  lastReadAt: new Date(),
+                },
+                {
+                  userId: budget.providerId,
+                },
+              ],
+            },
+          },
+        });
+      }
 
       return createdWork;
     });

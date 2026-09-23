@@ -5,6 +5,11 @@ import { BudgetTimeUnitEnum } from '../enums/budget-time-unit.enum';
 import { ResponseBudgetFileDto } from './response-budget-file.dto';
 import { ResponseBudgetInformationDto } from './response-budget-information.dto';
 
+export class ResponseBudgetChatDto {
+  @ApiProperty({ description: 'Id da sala de chat.', example: 12 })
+  id: number;
+}
+
 export class ResponseBudgetUserDto {
   @ApiProperty({ description: 'Identificador do usuário.', example: 10 })
   id: number;
@@ -85,6 +90,15 @@ export class ResponseBudgetListItemDto {
   responseValue?: string;
 
   @ApiPropertyOptional({ description: 'Quando o cliente aceitou a proposta.' })
+  @ApiPropertyOptional({
+    description:
+      'Conversa do orçamento. Nasce junto com ele, para cliente e prestador acertarem ' +
+      'escopo e preço antes do aceite. Ao aprovar, a MESMA sala segue no trabalho — ' +
+      'o histórico não se perde e o `id` continua válido.',
+    type: () => ResponseBudgetChatDto,
+  })
+  chat?: ResponseBudgetChatDto;
+
   acceptedAt?: Date;
 
   @ApiPropertyOptional({ description: 'Quando o cliente recusou a proposta.' })
@@ -174,6 +188,15 @@ export class ResponseBudgetDto {
   responseValue?: string;
 
   @ApiPropertyOptional({ description: 'Quando o cliente aceitou a proposta.' })
+  @ApiPropertyOptional({
+    description:
+      'Conversa do orçamento. Nasce junto com ele, para cliente e prestador acertarem ' +
+      'escopo e preço antes do aceite. Ao aprovar, a MESMA sala segue no trabalho — ' +
+      'o histórico não se perde e o `id` continua válido.',
+    type: () => ResponseBudgetChatDto,
+  })
+  chat?: ResponseBudgetChatDto;
+
   acceptedAt?: Date;
 
   @ApiPropertyOptional({ description: 'Quando o cliente recusou a proposta.' })

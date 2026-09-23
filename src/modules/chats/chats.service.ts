@@ -11,6 +11,7 @@ import { QueryChatMessagesDto } from './dto/query-chat-messages.dto';
 import { ResponseFindChatMessagesDto } from './dto/response-chat-messages.dto';
 import { ResponseChatDto, ResponseChatMessageDto } from './dto/response-chat.dto';
 import { QueryChatsDto } from './dto/query-chats.dto';
+import { ResponseUnreadCountDto } from './dto/response-unread-count.dto';
 import { ResponseFindChatsDto } from './dto/response-find-chats.dto';
 
 @Injectable()
@@ -192,6 +193,40 @@ export class ChatsService {
    * Cada sala tem seu próprio `lastReadAt`, então o corte temporal muda de sala
    * para sala — daí o OR montado por sala em vez de um filtro único.
    */
+  /**
+   * Total de mensagens não lidas do usuário, em todas as conversas.
+   *
+   * Existe separado da listagem porque serve a outra coisa: o badge do menu e
+   * do hub precisa do número em toda navegação, e carregar o inbox inteiro —
+   * com contraparte, última mensagem e contagem por sala — para exibir um
+   * inteiro seria caro e desnecessário.
+   *
+   * Duas consultas: as salas do usuário com a data da última leitura, e um
+   * `count` sobre as mensagens posteriores a ela. Nenhum `groupBy`, porque o
+   * detalhe por sala não interessa aqui.
+   */
+  async countUnreadTotal(user: User): Promise<ResponseUnreadCountDto> {
+    const participacoes = await this.prisma.chatParticipant.findMany({
+      where: { userId: user.id },
+      select: { roomId: true, lastReadAt: true },
+    });
+
+    if (!participacoes.length) return { total: 0 };
+
+    const total = await this.prisma.chatMessage.count({
+      where: {
+        OR: participacoes.map((participacao) => ({
+          roomId: participacao.roomId,
+          // A própria mensagem nunca conta como não lida.
+          senderId: { not: user.id },
+          ...(participacao.lastReadAt ? { createdAt: { gt: participacao.lastReadAt } } : {}),
+        })),
+      },
+    });
+
+    return { total };
+  }
+
   private async countUnread(
     userId: number,
     rooms: { id: number; participants: { userId: number; lastReadAt: Date | null }[] }[],
