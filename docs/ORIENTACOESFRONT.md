@@ -3,22 +3,26 @@
 > O que mudou no back-end e o que o front precisa fazer com cada mudança.
 >
 > Começou cobrindo só a autenticação por telefone e hoje cobre também delivery,
-> pagamento, repasse ao entregador, cupons, push e orçamento.
+> pagamento, repasse ao entregador, cupons, push, orçamento e assinatura.
+>
+> **Se você só tem tempo para uma seção, leia a 8.13.** É a única mudança do
+> lote que quebra contrato existente (`POST /v1/subscriptions`) e a que mais
+> mexe em tela.
 >
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-09-22 (Fases 0, 5, 6 e 8 da auditoria entregues) |
+> | **Atualizado em** | 2026-09-24 (assinatura por categoria — P1, P2 e P3) |
 > | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
 > | **Base da API local** | `http://localhost:8000/v1` |
 > | **Swagger** | `http://localhost:8000/docs` |
-| **Contrato OpenAPI** | `docs/openapi.json` — regerado com `npm run swagger:export` |
+| **Contrato OpenAPI** | `docs/swagger.json` — regerado com `npm run swagger:generate` |
 
 ---
 
 ## 0. O contrato em arquivo
 
-`docs/openapi.json` traz as 217 rotas e 319 schemas, pronto para gerar cliente.
+`docs/swagger.json` traz o contrato inteiro, pronto para gerar cliente.
 
 Copie o arquivo para a raiz do projeto do front, junto com o
 `ng-openapi-gen.json`, e rode:
@@ -27,8 +31,8 @@ Copie o arquivo para a raiz do projeto do front, junto com o
 npx ng-openapi-gen
 ```
 
-Sai em `src/app/api`: 319 modelos e 36 serviços `@Injectable`, um por tag do
-Swagger, com as descrições das rotas já em JSDoc.
+Sai em `src/app/api`: um modelo por schema e um serviço `@Injectable` por tag
+do Swagger, com as descrições das rotas já em JSDoc.
 
 > **Não use o `@openapitools/openapi-generator-cli`.** Ele é um invólucro de uma
 > ferramenta Java e falha com *"Unable to locate a Java Runtime"* em Mac sem JDK.
@@ -56,8 +60,10 @@ Duas coisas mudaram no contrato e valem saber antes de gerar:
 - **Doze rotas ganharam tipo de resposta** que antes só tinham descrição em
   texto, entre elas os quatro endpoints de cardápio e os rankings do admin.
 
-O arquivo é gerado. Rode `npm run swagger:export` depois de puxar mudanças do
-back-end, senão ele mente com cara de verdade.
+O arquivo é gerado. Rode `npm run swagger:generate` depois de puxar mudanças
+do back-end, senão ele mente com cara de verdade — **e o commit da assinatura
+por categoria é um desses casos**: ele acrescenta `catalog`, `renew` e
+`reactivate`, e torna `categoryId` obrigatório em `POST /v1/subscriptions`.
 
 ---
 
@@ -1346,6 +1352,245 @@ lista.
 Mensagens enviadas pelo próprio usuário nunca contam. Sala nunca aberta conta
 todas as mensagens da contraparte.
 
+## 8.13 Assinatura por categoria de atuação ✅
+
+A maior mudança de contrato desde o telefone. Mexe no cadastro do fornecedor,
+cria uma tela nova e altera o significado de duas rotas que já existiam.
+
+### A regra em uma frase
+
+**O fornecedor assina cada categoria em que quer atuar, separadamente.** Pintor
+e pedreiro são duas assinaturas, com planos, vencimentos e cancelamentos
+independentes. Cancelar uma não derruba a outra.
+
+Antes, uma assinatura destravava tudo e a API **recusava a segunda**. Era essa
+recusa que impedia o modelo de existir.
+
+### Os três planos
+
+| Plano | Cobrado | Ciclo | Equivalente |
+|---|---|---|---|
+| Mensal | R$ 19,90 | 1 mês | R$ 19,90/mês |
+| Semestral | R$ 89,40 | 6 meses | R$ 14,90/mês |
+| Anual | R$ 118,80 | 12 meses | R$ 9,90/mês |
+
+O `price` é **o valor cobrado no ciclo** — é ele que vai para o Mercado Pago. O
+"/mês" da peça de venda vem pronto em `monthlyPrice`, calculado pela API:
+
+```jsonc
+{ "name": "Plano anual", "price": "118.80", "monthlyPrice": "9.90", "interval": "Year", "intervalCount": 1 }
+```
+
+**Não recalcule no front.** Se a tabela de preços mudar, a conta feita na tela
+discorda da cobrada.
+
+O trimestral saiu do lançamento. Continua no banco, inativo — `GET /v1/plans/active`
+não o devolve.
+
+### A tela de contratação: uma chamada
+
+```
+GET /v1/subscriptions/catalog
+```
+
+```jsonc
+{
+  "plans": [ /* os 3 ativos, com monthlyPrice */ ],
+  "categories": [
+    {
+      "id": 1, "name": "Pintor", "slug": "pintor", "iconUrl": "…",
+      "isSubscribed": true,
+      "subscription": {
+        "id": 12, "planName": "Plano anual",
+        "currentPeriodEnd": "2027-03-20T12:00:00.000Z",
+        "daysUntilExpiration": 177,
+        "needsRenewal": false,
+        "inGracePeriod": false,
+        "expired": false,
+        "cancelAtPeriodEnd": false,
+        "coversAllCategories": false
+      }
+    },
+    { "id": 2, "name": "Pedreiro", "slug": "pedreiro", "isSubscribed": false }
+  ],
+  "subscribedCount": 1
+}
+```
+
+Existe para o front **não cruzar duas listas por conta própria**. Dá para montar
+a tela com `GET /v1/services/categories` + `GET /v1/plans/active` + as
+assinaturas do usuário, mas o cruzamento é justamente onde a tela passa a
+discordar da API.
+
+> **`isSubscribed` responde exatamente o que o portão responderia.** Inclui a
+> tolerância de 3 dias e a cobertura ampla das concessões administrativas. Se
+> ele vier `true`, a operação passa. É a única leitura em que confiar para
+> habilitar botão.
+
+`coversAllCategories: true` significa que quem cobre aquela categoria é uma
+**concessão administrativa** (cortesia do admin), que vale para todas. A tela
+não deve oferecer "cancelar a assinatura de Pintor" nesse caso.
+
+### Assinar: `categoryId` virou obrigatório
+
+```
+POST /v1/subscriptions
+```
+
+```jsonc
+{ "planId": 3, "categoryId": 1, "payerEmail": "…", "billingCity": "…" }
+```
+
+**Chamada sem `categoryId` passa a dar `400`.** É a única quebra de contrato do
+lote — se o front já chama essa rota, precisa mudar junto.
+
+A resposta traz `checkoutUrl` do Mercado Pago, como antes. O título da cobrança
+nomeia a categoria (*"Assinatura Plano anual — Pintor"*), para o fornecedor
+reconhecer o lançamento na fatura.
+
+Erros possíveis:
+
+| Código | Quando | O que a tela faz |
+|---|---|---|
+| `400` | já existe assinatura vigente cobrindo a categoria | mostra a mensagem — ela nomeia a categoria |
+| `404` | categoria inexistente ou inativa | recarrega o catálogo |
+| `404` | plano inexistente ou inativo | recarrega o catálogo |
+
+### Renovação é manual, com botão
+
+**Não há cobrança recorrente.** O Mercado Pago não cobra sozinho: o fornecedor
+clica e paga de novo. Foi decisão de produto — automatizar exige outra
+integração e habilitação comercial.
+
+```
+POST /v1/subscriptions/:id/renew   →   { "checkoutUrl": "…", "subscription": { … } }
+```
+
+O botão aparece quando **`needsRenewal: true`** — 7 dias ou menos até vencer, ou
+já vencida. A API recusa fora dessa janela com `400`, e recusa com `404` se o
+plano daquela assinatura tiver saído de circulação — renovar nele recriaria um
+produto que a plataforma parou de vender.
+
+O novo período **emenda no atual**: quem renova no dia 25 de um ciclo de 30 não
+perde os 5 dias que já pagou. Depois de vencida, conta a partir do pagamento.
+
+### Carência de 3 dias
+
+Vencida não é cortada na hora. Por 3 dias o fornecedor **continua operando
+normalmente** — é `inGracePeriod: true`.
+
+Nesse estado a tela deve insistir no aviso, não bloquear: ele ainda vende, mas
+está a poucos dias de sumir da plataforma.
+
+Passados os 3 dias, `expired: true` e o portão fecha.
+
+> A carência **não vale para quem cancelou**. Ela existe para o boleto que
+> compensou tarde, não para esticar o acesso de quem pediu para sair.
+
+### Cancelar mantém o que foi pago
+
+```
+PATCH /v1/subscriptions/:id/cancel
+```
+
+Mesma rota de antes, **efeito diferente**. Antes derrubava o acesso na hora —
+quem pagou R$ 118,80 pelo ano e cancelava no segundo mês perdia dez meses pagos.
+
+Agora o cancelamento é **agendado para o fim do período**: `status` continua
+`Active`, `cancelAtPeriodEnd` vira `true`, e o acesso segue até
+`currentPeriodEnd`.
+
+A tela precisa mudar o texto: em vez de "assinatura encerrada", algo como
+**"ativa até 12/03 · não renova"**.
+
+```
+PATCH /v1/subscriptions/:id/reactivate
+```
+
+Desfaz o agendamento, **sem cobrança**. Enquanto o período não acabou, o botão
+é "Reativar" — não "Renovar".
+
+> Numa assinatura **sem prazo** (concessão administrativa), cancelar encerra na
+> hora: não existe data para o portão fechar. Nesse caso a resposta volta com
+> `status: "Cancelled"`.
+
+### Os cinco campos que decidem a tela
+
+Vêm em `catalog`, `current`, `my-subscriptions` e `findById`:
+
+| Campo | Significado |
+|---|---|
+| `cancelAtPeriodEnd` | cancelamento agendado |
+| `daysUntilExpiration` | dias até vencer; **negativo** depois de vencida; `null` sem prazo |
+| `needsRenewal` | mostrar o botão de renovar |
+| `inGracePeriod` | vencida, mas ainda operando |
+| `expired` | vencida e fora da tolerância |
+
+O que a tela mostra, em ordem de prioridade:
+
+```
+cancelAtPeriodEnd  → "ativa até <data> · não renova"   [Reativar]
+expired            → "vencida"                          [Renovar]
+inGracePeriod      → "vencida — regularize em <n> dias" [Renovar]  (destaque)
+needsRenewal       → "vence em <n> dias"                [Renovar]
+resto              → "ativa até <data>"
+```
+
+### `GET /v1/subscriptions/current` ficou ambíguo — e ganhou filtro
+
+Com várias assinaturas, "a atual" deixou de ter resposta única. A rota devolve a
+mais recente, que pode não ser a que a tela está mostrando.
+
+```
+GET /v1/subscriptions/current?categoryId=1
+```
+
+Sem o parâmetro, o comportamento é o de antes — nada quebra.
+
+> Ela devolve **também a vencida**, de propósito: a tela precisa do registro para
+> oferecer a renovação. Quem diz se vale são `expired` e `inGracePeriod`, não a
+> ausência da resposta. Para *"posso operar?"*, use o catálogo.
+
+### O `403` agora diz qual categoria
+
+Quando o fornecedor tenta publicar serviço ou receber orçamento sem assinatura
+da categoria:
+
+```jsonc
+{
+  "statusCode": 403,
+  "message": "É necessário ter uma assinatura ativa desta categoria para realizar esta operação.",
+  "categoryId": 1
+}
+```
+
+Use o `categoryId` para levar direto ao checkout daquela categoria. Sem ele, um
+fornecedor com três categorias — uma vencida, duas em dia — recebe "assine" e
+não descobre qual pagar.
+
+### O que muda nas telas que já existem
+
+- **Cadastro / onboarding do fornecedor** — deixa de ser "escolha um plano" e
+  passa a ser "escolha categoria + plano". A tela de contratação é nova
+- **Publicar serviço** — o `403` agora é por categoria. Publicar em Pintor com
+  a assinatura de Pedreiro em dia **não passa mais**
+- **Orçamento** — o cliente recebe `409` quando a categoria **daquele serviço**
+  está vencida, e não mais quando qualquer assinatura do fornecedor venceu
+- **Minhas assinaturas** — vira lista de verdade, com uma linha por categoria
+
+### Travas de UI
+
+- Botão de assinar **desabilitado** quando `isSubscribed: true` — a API recusa
+  com `400` de qualquer forma
+- Botão de renovar **só** com `needsRenewal: true`
+- Com `cancelAtPeriodEnd: true`, oferecer **Reativar**, nunca Renovar — a API
+  recusa a renovação com `400` justamente para não cobrar de quem só queria
+  desfazer o cancelamento
+- Não esconder a assinatura vencida da lista: sem ela o fornecedor não tem por
+  onde renovar
+- Serviço publicado **não some** quando a categoria vence. Ele continua na
+  vitrine; o bloqueio acontece na interação
+
 ---
 
 ## 9. O que não muda
@@ -1359,6 +1604,12 @@ todas as mensagens da contraparte.
 ---
 
 ## 10. Ordem sugerida de ajuste
+
+### Primeiro de tudo
+
+0. **`categoryId` no `POST /v1/subscriptions`** (seção 8.13) — **é o único item
+   do documento que quebra chamada existente.** Se o front já assina plano, a
+   chamada passa a dar `400` sem ele. O resto da 8.13 pode vir depois; isto não
 
 ### Já validado contra a API ✅ — pode subir com confiança
 
@@ -1409,12 +1660,42 @@ Ordenado por quanto quebra se ficar de fora.
 > **Nada nesta lista espera entrega do back-end.** O que os itens 14 a 24
 > esperam é ambiente com banco para validar ponta a ponta.
 
+### Assinatura por categoria ✅ — validado contra MySQL
+
+Ordenado por dependência. O item 0 acima é pré-requisito de todos.
+
+25. **Texto do cancelamento** (seção 8.13) — a rota é a mesma, o efeito mudou.
+    "Encerrada" virou "ativa até tal data, não renova". É o ajuste mais barato
+    do bloco e o que mais confunde o fornecedor se ficar de fora
+26. **Tela de contratação** (seção 8.13) — tela nova, uma chamada
+    (`GET /v1/subscriptions/catalog`) monta ela inteira
+27. **Botão de renovar** (seção 8.13) — depende do 26 para saber quando mostrar
+28. **Reativar** (seção 8.13) — depende do 26
+29. **`categoryId` no `403`** (seção 8.13) — leva o fornecedor ao checkout certo
+30. **`?categoryId` no `current`** (seção 8.13) — só onde a tela mostra uma
+    categoria específica; sem ele a rota devolve uma assinatura qualquer
+
+> Este bloco **foi exercitado contra MySQL real**, não só contra duplo de
+> Prisma: 53 testes de integração cobrem o portão, a carência, o cancelamento,
+> a emenda do período na renovação e o acordo entre o catálogo e o portão.
+
 ---
 
 ## 11. Pendências que precisam de decisão sua
 
 ### Decisões de produto, sem resposta até agora
 
+- **Assinar uma categoria destrava as outras verticais.** A cobrança por
+  categoria vale só em Serviços. Produtos, Hospedagem, Transporte, Vagas e
+  Delivery continuam exigindo *qualquer* assinatura vigente — então quem assina
+  Pintor por R$ 9,90/mês passa a operar nas cinco. Já era assim antes; o que
+  mudou é que o preço caiu de R$ 39,90 para R$ 9,90, e a brecha ficou cinco
+  vezes mais barata. Resolver exige decisão comercial: plano por vertical, plano
+  sem categoria para as demais, ou aceitar no lançamento.
+  **Para o front, hoje, nada muda** — a listagem dessas verticais segue como
+  está. Só entra em cena se o cliente escolher uma das duas primeiras saídas
+- **Troca de plano no meio do período.** Decidido: só após o vencimento. Se
+  mudar, vira crédito proporcional e mexe em tela
 - **Estorno: quem absorve?** O entregador entregou, o restaurante produziu, e o
   dinheiro voltou ao cliente. Hoje o back registra, alerta e sinaliza no
   repasse, mas **não reverte nada** — é decisão comercial, não de código
@@ -1439,7 +1720,12 @@ Ordenado por quanto quebra se ficar de fora.
 
 - **Sinalizar fornecedor vencido antes de fechar.** O `409` da seção 8.3 só
   aparece ao criar o pedido; não há campo na listagem dizendo que o fornecedor
-  está indisponível. Se a tela precisa avisar antes, é rota ou campo novo
+  está indisponível. Se a tela precisa avisar antes, é rota ou campo novo.
+  Com a assinatura por categoria isso ficou mais visível: um fornecedor de três
+  categorias com uma vencida tem parte do catálogo funcionando e parte não, e o
+  cliente só descobre ao pedir orçamento. As saídas são esconder da listagem os
+  serviços sem assinatura, marcar com selo de indisponível, ou manter como está
+  — decidido por ora: **manter como está**
 - **Cotação de frete antes de fechar o pedido.** O valor só aparece na resposta
   da criação. Mostrar antes exige rota nova
 - **Ordenação e filtro por preço** agora precisam decidir onde fica o serviço
@@ -1466,8 +1752,16 @@ de DevOps.
 | Chaves VAPID | `publicKey` vem `null`; não peça permissão de push |
 | Content Template do WhatsApp | notificações não chegam por WhatsApp; push e SMS seguem |
 | Template de OTP (Authentication) | código de verificação sai por SMS, como antes |
-| Credenciais do Mercado Pago | pagamento online não fecha; teste em dinheiro |
+| Credenciais do Mercado Pago | pagamento online não fecha; **e assinatura não ativa** — use a concessão administrativa da seção 8.2 para testar o fornecedor |
 | Escopo `money_transfer` | não afeta o front — o repasse é registrado à mão pelo admin |
 
 Nenhuma delas bloqueia construir tela. Todas bloqueiam testar o caminho feliz
 completo.
+
+Duas coisas do lado do deploy que valem saber, porque explicam comportamento
+estranho em homolog:
+
+- O pipeline sincroniza o banco com `prisma db push`, **não** com
+  `migrate deploy`. As migrations novas não rodam como migration lá
+- O CI (lint, build, testes, gate de drift, integração) **não trava o deploy**:
+  um push com teste vermelho publica do mesmo jeito
