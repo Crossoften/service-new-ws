@@ -250,7 +250,7 @@ export class BudgetsService {
   async create(user: User, payload: CreateBudgetDto): Promise<CreateBudgetResponseDto> {
     const service = await this.prisma.service.findUnique({
       where: { id: payload.serviceId },
-      select: { id: true, userId: true, isActive: true },
+      select: { id: true, userId: true, isActive: true, categoryId: true },
     });
 
     if (!service || !service.isActive) {
@@ -260,7 +260,13 @@ export class BudgetsService {
     // A assinatura do fornecedor precisa estar vigente para ele receber negócio
     // novo. Antes, ela só era conferida quando ele cadastrava o anúncio: tudo
     // publicado enquanto estava em dia seguia vendendo depois do vencimento.
-    await this.subscriptionGuard.assertProviderCanSell(service.userId);
+    //
+    // Confere a assinatura DA CATEGORIA do serviço, não uma qualquer: um
+    // fornecedor de pintura e jardinagem com a assinatura de pintura vencida
+    // segue vendendo jardinagem, e só ela.
+    await this.subscriptionGuard.assertProviderCanSell(service.userId, {
+      categoryId: service.categoryId,
+    });
 
     try {
       const budget = await this.prisma.$transaction(async (tx) => {

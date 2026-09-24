@@ -8,7 +8,10 @@ import { FinancialTransactionTypeEnum } from '../works/enums/financial-transacti
 import { FinancialTransactionCategoryEnum } from '../works/enums/financial-transaction-category.enum';
 import { CommercialTransactionStatusEnum } from '../commercial-transactions/enums/commercial-transaction-status.enum';
 import { SubscriptionStatusEnum } from '../plans/enums/subscription-status.enum';
-import { SubscriptionIntervalEnum } from '../plans/enums/subscription-interval.enum';
+import {
+  baseDoNovoPeriodo,
+  calcularFimDoPeriodo,
+} from '../plans/subscriptions/subscription-period';
 import { NotificationsService } from '../notifications/notifications.service';
 
 /**
@@ -522,6 +525,8 @@ export class WebhooksService {
           intervalCount: true,
           bonusMonths: true,
           userId: true,
+          startedAt: true,
+          currentPeriodEnd: true,
         },
       });
 
@@ -532,16 +537,20 @@ export class WebhooksService {
         return;
       }
 
-      const periodStart = new Date();
-      const periodEnd = new Date(periodStart);
-      if (subscription.planInterval === SubscriptionIntervalEnum.Year) {
-        periodEnd.setFullYear(periodEnd.getFullYear() + subscription.intervalCount);
-      } else {
-        periodEnd.setMonth(periodEnd.getMonth() + subscription.intervalCount);
-      }
-      if (subscription.bonusMonths > 0) {
-        periodEnd.setMonth(periodEnd.getMonth() + subscription.bonusMonths);
-      }
+      // Emenda no período vigente em vez de recomeçar do pagamento. Quem renova
+      // no dia 25 de um ciclo de 30 não pode perder os cinco que já pagou.
+      // Quando o período já venceu, a base volta a ser o pagamento — emendar
+      // num vencimento passado entregaria menos de um ciclo pelo preço de um.
+      //
+      // O mesmo caminho serve à primeira ativação: ali `currentPeriodEnd` é
+      // nulo e a base é o pagamento, exatamente como antes.
+      const periodStart = baseDoNovoPeriodo(subscription.currentPeriodEnd, paidAt);
+      const periodEnd = calcularFimDoPeriodo(
+        periodStart,
+        subscription.planInterval,
+        subscription.intervalCount,
+        subscription.bonusMonths,
+      );
 
       await this.claimPayment(tx, localPayment, mpPayment, method, paidAt);
 
@@ -549,9 +558,15 @@ export class WebhooksService {
         where: { id: subscription.id },
         data: {
           status: SubscriptionStatusEnum.Active,
-          startedAt: periodStart,
+          // `startedAt` marca a adesão, não o ciclo. Reescrevê-lo a cada
+          // renovação apagaria há quanto tempo o fornecedor é assinante.
+          startedAt: subscription.startedAt ?? periodStart,
           currentPeriodStart: periodStart,
           currentPeriodEnd: periodEnd,
+          // Renovar é o oposto de sair: um pagamento confirmado desfaz um
+          // cancelamento agendado que ainda não tinha chegado ao fim.
+          cancelAtPeriodEnd: false,
+          cancelledAt: null,
         },
       });
 

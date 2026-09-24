@@ -174,7 +174,8 @@ model ServiceCategory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  services Service[]
+  services      Service[]
+  subscriptions Subscription[]
 
   @@map("service_categories")
 }
@@ -789,6 +790,28 @@ model Subscription {
   planId             Int
   addressId          Int?
 
+  /// Categoria de atuação coberta por esta assinatura.
+  ///
+  /// A cobrança é por categoria: o fornecedor que atua como pintor e pedreiro
+  /// mantém duas assinaturas, cada uma com seu plano e seu vencimento. Cancelar
+  /// uma não derruba a outra.
+  ///
+  /// Nulo é cobertura ampla. Hoje só as concessões administrativas nascem
+  /// assim — cortesia não deve ficar presa a uma categoria —, e as verticais
+  /// sem cobrança por categoria (produtos, hospedagem, transporte, vagas e
+  /// delivery) seguem exigindo apenas assinatura vigente, sem olhar este campo.
+  categoryId         Int?
+
+  /// Cancelamento agendado para o fim do período pago.
+  ///
+  /// A peça de venda promete "sem fidelidade, cancele quando quiser". Cancelar
+  /// derrubando o acesso na hora transformaria a promessa em punição: quem
+  /// pagou doze meses adiantado e cancela no segundo perderia dez pagos.
+  ///
+  /// Com a marca aqui, `status` segue `Active` até o período acabar e o portão
+  /// fecha sozinho pela data — sem rotina que precise rodar para isso acontecer.
+  cancelAtPeriodEnd  Boolean  @default(false)
+
   // Concessão administrativa: assinatura criada por um admin, sem pagamento.
   // Existe para cortesia, acordo comercial e ambiente de teste. Nulo nas
   // assinaturas normais — é o que permite separar as duas coisas em qualquer
@@ -803,6 +826,7 @@ model Subscription {
   plan      Plan     @relation(fields: [planId], references: [id])
   address   Address? @relation(fields: [addressId], references: [id])
   grantedBy User?    @relation("SubscriptionGrantedBy", fields: [grantedById], references: [id])
+  category  ServiceCategory? @relation(fields: [categoryId], references: [id])
 
   @@index([userId])
   @@index([planId])
@@ -810,6 +834,8 @@ model Subscription {
   @@index([status])
   @@index([currentPeriodEnd])
   @@index([grantedById])
+  /// O portão por categoria consulta sempre estes três campos juntos.
+  @@index([userId, categoryId, status])
   @@map("subscriptions")
 }
 

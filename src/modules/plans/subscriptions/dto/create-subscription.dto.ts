@@ -9,6 +9,18 @@ export class CreateSubscriptionDto {
   @Min(1)
   planId: number;
 
+  @ApiProperty({
+    description:
+      'Id da categoria de atuação coberta pela assinatura. A cobrança é por ' +
+      'categoria: quem atua como pintor e pedreiro assina duas vezes, uma para ' +
+      'cada, com planos e vencimentos independentes.',
+    example: 1,
+  })
+  @Type(() => Number)
+  @IsInt({ message: 'O id da categoria deve ser um número inteiro.' })
+  @Min(1)
+  categoryId: number;
+
   @ApiPropertyOptional({
     description:
       'Email do pagador, usado para pré-preencher o checkout do Mercado Pago (opcional).',

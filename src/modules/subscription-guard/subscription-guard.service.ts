@@ -1,7 +1,7 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
 import { BillingTypeEnum, User } from '@prisma/client';
-import { SubscriptionStatusEnum } from '../plans/enums/subscription-status.enum';
+import { assinaturaVigenteWhere } from './active-subscription.filter';
 import { ProviderNotSellingException } from './exceptions/provider-not-selling.exception';
 import { SupplierSubscriptionRequiredException } from './exceptions/supplier-subscription-required.exception';
 
@@ -14,17 +14,21 @@ export class SubscriptionGuardService {
    * verticais. No delivery (híbrido), o fornecedor pode optar por comissão por
    * pedido (billingType Commission) em vez de assinatura — nesse caso o gate é
    * ignorado quando allowCommissionBilling é true.
+   *
+   * `categoryId` restringe a pergunta a uma categoria de atuação. Sem ele, a
+   * pergunta continua sendo a antiga — qualquer assinatura vigente serve —, que
+   * é o que as verticais sem cobrança por categoria ainda precisam.
    */
   async assertActiveSubscription(
     user: User,
-    options?: { allowCommissionBilling?: boolean },
+    options?: { allowCommissionBilling?: boolean; categoryId?: number },
   ): Promise<void> {
     if (options?.allowCommissionBilling && user.billingType === BillingTypeEnum.Commission) {
       return;
     }
 
-    if (!(await this.hasActiveSubscription(user.id))) {
-      throw new SupplierSubscriptionRequiredException();
+    if (!(await this.hasActiveSubscription(user.id, options?.categoryId))) {
+      throw new SupplierSubscriptionRequiredException(options?.categoryId);
     }
   }
 
@@ -43,7 +47,7 @@ export class SubscriptionGuardService {
    */
   async assertProviderCanSell(
     providerId: number,
-    options?: { allowCommissionBilling?: boolean },
+    options?: { allowCommissionBilling?: boolean; categoryId?: number },
   ): Promise<void> {
     if (options?.allowCommissionBilling) {
       const provider = await this.prisma.user.findUnique({
@@ -56,7 +60,7 @@ export class SubscriptionGuardService {
       }
     }
 
-    if (!(await this.hasActiveSubscription(providerId))) {
+    if (!(await this.hasActiveSubscription(providerId, options?.categoryId))) {
       throw new ProviderNotSellingException();
     }
   }
@@ -68,14 +72,13 @@ export class SubscriptionGuardService {
    * `Expired` no banco — valor que, aliás, existe no enum e nunca foi gravado
    * por nenhuma rotina. Conferir na leitura não tem job para falhar nem estado
    * para divergir: no segundo seguinte ao vencimento, o portão já fecha.
+   *
+   * O predicado mora em `assinaturaVigenteWhere` porque a criação de
+   * assinatura precisa fazer exatamente a mesma pergunta.
    */
-  private async hasActiveSubscription(userId: number): Promise<boolean> {
+  private async hasActiveSubscription(userId: number, categoryId?: number): Promise<boolean> {
     const subscription = await this.prisma.subscription.findFirst({
-      where: {
-        userId,
-        status: SubscriptionStatusEnum.Active,
-        OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gte: new Date() } }],
-      },
+      where: assinaturaVigenteWhere(userId, categoryId),
       select: { id: true },
     });
 

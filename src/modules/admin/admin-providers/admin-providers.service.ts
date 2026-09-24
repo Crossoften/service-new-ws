@@ -224,12 +224,19 @@ export class AdminProvidersService {
 
     if (!plan) throw new NotFoundException('Plano não encontrado.');
 
-    // Uma assinatura ativa por vez. Conceder por cima criaria duas válidas ao
+    // Uma concessão ativa por vez. Conceder por cima criaria duas válidas ao
     // mesmo tempo, e o guard passaria a depender de qual o banco devolvesse
     // primeiro. Para esticar uma concessão existente há a rota de bônus.
+    //
+    // O conflito olha só para as concessões (`categoryId` nulo, cobertura
+    // ampla). Desde que a cobrança passou a ser por categoria, barrar por causa
+    // de uma assinatura paga de pintura impediria a cortesia de um fornecedor
+    // que está em dia — exatamente o contrário do que a concessão existe para
+    // fazer.
     const active = await this._prisma.subscription.findFirst({
       where: {
         userId: providerId,
+        categoryId: null,
         status: SubscriptionStatusEnum.Active,
         OR: [{ currentPeriodEnd: null }, { currentPeriodEnd: { gte: new Date() } }],
       },
@@ -238,7 +245,7 @@ export class AdminProvidersService {
 
     if (active) {
       throw new ConflictException(
-        `Este fornecedor já possui a assinatura #${active.id} ativa. ` +
+        `Este fornecedor já possui a concessão #${active.id} ativa. ` +
           'Para estender a validade, use a rota de bônus.',
       );
     }

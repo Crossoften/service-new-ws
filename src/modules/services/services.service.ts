@@ -93,12 +93,17 @@ export class ServicesService {
   });
 
   async create(user: User, payload: CreateServiceDto): Promise<CreateServiceResponseDto> {
-    await this.subscriptionGuard.assertActiveSubscription(user);
-
     const category = await this.prisma.serviceCategory.findFirst({
       where: { id: payload.categoryId, isActive: true },
     });
     if (!category) throw new ServiceCategoryNotFoundException();
+
+    // A categoria é conferida ANTES da assinatura: com a cobrança por
+    // categoria, o gate precisa saber qual delas exigir, e mandar o fornecedor
+    // pagar por uma categoria que nem existe seria pior que o erro genérico.
+    await this.subscriptionGuard.assertActiveSubscription(user, {
+      categoryId: payload.categoryId,
+    });
 
     try {
       const service = await this.prisma.service.create({

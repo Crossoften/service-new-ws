@@ -28,6 +28,8 @@ export async function limparBanco(): Promise<void> {
   await prisma.budgetInformation.deleteMany();
   await prisma.budget.deleteMany();
   await prisma.service.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.plan.deleteMany();
   await prisma.serviceCategory.deleteMany();
   await prisma.bankAccount.deleteMany();
   await prisma.restaurant.deleteMany();
@@ -90,6 +92,64 @@ export async function criarServico(providerId: number) {
       type: 'Presential',
       categoryId: categoria.id,
       userId: providerId,
+    },
+    select: { id: true },
+  });
+}
+
+/** Categoria de atuação avulsa, para os testes de assinatura por categoria. */
+export async function criarCategoriaDeServico(nome: string) {
+  sequencia += 1;
+
+  return prisma.serviceCategory.create({
+    data: { name: `${nome} ${sequencia}`, slug: `${nome.toLowerCase()}-${sequencia}` },
+    select: { id: true, name: true },
+  });
+}
+
+/** Plano avulso, com o preço e o ciclo informados. */
+export async function criarPlano(nome: string, preco: string, meses: number) {
+  sequencia += 1;
+
+  return prisma.plan.create({
+    data: {
+      name: nome,
+      slug: `${nome.toLowerCase().replace(/\s+/g, '-')}-${sequencia}`,
+      price: preco,
+      interval: 'Month',
+      intervalCount: meses,
+    },
+    select: { id: true, name: true },
+  });
+}
+
+/**
+ * Assinatura ativa de uma categoria, já dentro do período.
+ *
+ * `categoryId` nulo é a concessão administrativa, que cobre todas as
+ * categorias — é o caso que o gate precisa aceitar sem filtro.
+ */
+export async function criarAssinaturaAtiva(opcoes: {
+  userId: number;
+  planId: number;
+  categoryId: number | null;
+  terminaEm: Date;
+  cancelAtPeriodEnd?: boolean;
+}) {
+  return prisma.subscription.create({
+    data: {
+      userId: opcoes.userId,
+      planId: opcoes.planId,
+      categoryId: opcoes.categoryId,
+      cancelAtPeriodEnd: opcoes.cancelAtPeriodEnd ?? false,
+      status: 'Active',
+      amount: '19.90',
+      planName: 'Plano de teste',
+      planInterval: 'Month',
+      intervalCount: 1,
+      startedAt: new Date(),
+      currentPeriodStart: new Date(),
+      currentPeriodEnd: opcoes.terminaEm,
     },
     select: { id: true },
   });

@@ -13,7 +13,7 @@ export async function seedPlan(prisma: PrismaClient) {
         interval: plan.interval,
         intervalCount: plan.intervalCount,
         bonusMonths: plan.bonusMonths,
-        isActive: true,
+        isActive: plan.isActive,
         sortOrder: plan.sortOrder,
       },
       update: {
@@ -23,7 +23,7 @@ export async function seedPlan(prisma: PrismaClient) {
         interval: plan.interval,
         intervalCount: plan.intervalCount,
         bonusMonths: plan.bonusMonths,
-        isActive: true,
+        isActive: plan.isActive,
         sortOrder: plan.sortOrder,
       },
     });

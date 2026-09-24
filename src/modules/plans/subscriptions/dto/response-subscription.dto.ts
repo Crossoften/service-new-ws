@@ -62,6 +62,17 @@ export class ResponseSubscriptionAddressDto {
   zipCode?: string;
 }
 
+export class ResponseSubscriptionCategoryDto {
+  @ApiProperty({ description: 'Identificador da categoria de atuação.', example: 1 })
+  id: number;
+
+  @ApiProperty({ description: 'Nome da categoria de atuação.', example: 'Pintor' })
+  name: string;
+
+  @ApiProperty({ description: 'Slug da categoria de atuação.', example: 'pintor' })
+  slug: string;
+}
+
 export class ResponseSubscriptionDto {
   @ApiProperty({ description: 'Identificador da assinatura.', example: 1 })
   id: number;
@@ -93,6 +104,14 @@ export class ResponseSubscriptionDto {
   plan: ResponsePlanDto;
 
   @ApiPropertyOptional({
+    description:
+      'Categoria de atuação coberta por esta assinatura. Ausente nas concessões ' +
+      'administrativas, que valem para todas as categorias.',
+    type: ResponseSubscriptionCategoryDto,
+  })
+  category?: ResponseSubscriptionCategoryDto;
+
+  @ApiPropertyOptional({
     description: 'Último pagamento associado à assinatura.',
     type: ResponseSubscriptionPaymentDto,
   })
@@ -121,6 +140,44 @@ export class ResponseSubscriptionDto {
     example: '2026-04-20T12:00:00.000Z',
   })
   currentPeriodEnd?: Date;
+
+  @ApiProperty({
+    description:
+      'Cancelamento agendado para o fim do período pago. A assinatura segue ' +
+      'valendo até lá e não renova depois.',
+    example: false,
+  })
+  cancelAtPeriodEnd: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Dias inteiros até o vencimento. Negativo quando já venceu. Nulo nas ' +
+      'assinaturas sem prazo.',
+    example: 5,
+    type: Number,
+    nullable: true,
+  })
+  daysUntilExpiration?: number | null;
+
+  @ApiProperty({
+    description:
+      'O botão de renovar deve aparecer: faltam 7 dias ou menos, e não há ' +
+      'cancelamento agendado.',
+    example: true,
+  })
+  needsRenewal: boolean;
+
+  @ApiProperty({
+    description: 'Vencida, porém ainda dentro dos 3 dias de tolerância — segue operando.',
+    example: false,
+  })
+  inGracePeriod: boolean;
+
+  @ApiProperty({
+    description: 'Vencida e fora da tolerância: já não libera operação nenhuma.',
+    example: false,
+  })
+  expired: boolean;
 
   @ApiPropertyOptional({
     description: 'Data de cancelamento da assinatura, quando houver.',
