@@ -11,6 +11,14 @@ async function generate() {
   // opção, o erro vira exceção e chega no catch lá embaixo.
   const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
 
+  // O MESMO prefixo que `main.ts` aplica na API de verdade. Sem esta linha o
+  // contrato exportado descrevia `/subscriptions/catalog` enquanto o servidor
+  // responde em `/v1/subscriptions/catalog` — e um cliente gerado a partir
+  // dele chamava todas as rotas sem o prefixo. O Swagger servido em `/docs`
+  // nunca teve o problema, porque ali o documento nasce depois do prefixo:
+  // era só o arquivo exportado que mentia.
+  app.setGlobalPrefix('/v1');
+
   const config = new DocumentBuilder()
     .setTitle('Documentação da API Projeto Service')
     .setDescription('API construída com NestJS')

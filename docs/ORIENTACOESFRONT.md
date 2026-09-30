@@ -22,7 +22,15 @@
 
 ## 0. O contrato em arquivo
 
-`docs/swagger.json` traz o contrato inteiro, pronto para gerar cliente.
+`docs/swagger.json` traz o contrato inteiro, pronto para gerar cliente. As
+rotas nele vêm com o prefixo `/v1`, igual ao que a API serve.
+
+> Até 30/09 o arquivo exportado saía **sem** o prefixo, porque o script de
+> geração não aplicava o `setGlobalPrefix` que a API aplica. O contrato dizia
+> `/subscriptions/catalog` e o servidor respondia em `/v1/subscriptions/catalog`
+> — um cliente gerado daquele arquivo chamava tudo errado. O Swagger servido em
+> `/docs` nunca teve o problema; era só o arquivo. **Se você gerou o cliente
+> antes dessa data, gere de novo.**
 
 Copie o arquivo para a raiz do projeto do front, junto com o
 `ng-openapi-gen.json`, e rode:
@@ -41,9 +49,13 @@ do Swagger, com as descrições das rotas já em JSDoc.
 
 Três coisas sobre o código gerado:
 
-- **`rootUrl` sai de `ApiConfiguration`** e vem do primeiro `server` do
-  contrato, hoje `http://localhost:8000`. **Sem `/v1`** — os caminhos já o
-  incluem. Para apontar para homolog, use `provideApiConfiguration('https://...')`
+- **`rootUrl` sai de `ApiConfiguration`** e é a origem da API, **sem `/v1`** —
+  os caminhos do contrato já trazem o prefixo. Local:
+  `http://localhost:8000`. Para apontar para homolog, use
+  `provideApiConfiguration('https://...')`.
+  O contrato exportado **não declara `servers`**, então o `ng-openapi-gen` gera
+  `rootUrl` vazia: configure-a explicitamente, senão as chamadas saem relativas
+  à origem do próprio front
 - **Os métodos dos serviços devolvem `Promise`.** Se você prefere `Observable`,
   as funções soltas em `fn/` devolvem — as duas formas são geradas
 - **O cliente gerado não injeta o token sozinho.** Ele respeita o

@@ -1,7 +1,7 @@
 {
   "openapi": "3.0.0",
   "paths": {
-    "/push/public-key": {
+    "/v1/push/public-key": {
       "get": {
         "description": "Pública por natureza: é ela que vai no `applicationServerKey` do `pushManager.subscribe`. A chave privada nunca sai do servidor.\n\nDevolve `null` quando o Web Push não está configurado no ambiente — nesse caso a tela deve omitir a oferta de notificações, não tratar como erro.",
         "operationId": "PushController_getPublicKey",
@@ -24,7 +24,7 @@
         ]
       }
     },
-    "/push/subscriptions": {
+    "/v1/push/subscriptions": {
       "post": {
         "description": "Idempotente por `endpoint`: reinscrever o mesmo navegador atualiza as chaves em vez de criar uma segunda inscrição. Um usuário pode ter várias — celular e desktop são inscrições distintas.",
         "operationId": "PushController_subscribe",
@@ -102,7 +102,7 @@
         ]
       }
     },
-    "/coupons/validate": {
+    "/v1/coupons/validate": {
       "post": {
         "description": "PRÉ-VISUALIZAÇÃO para a tela da sacola: o valor definitivo é recalculado na criação do pedido, a partir dos preços reais do cardápio. Mandar um `itemsValue` maior aqui não aumenta desconto nenhum — só faz a tela mostrar um número que o pedido depois corrige.\n\nResponde 400 com a razão em `message` quando o cupom não vale: expirado, esgotado, de outro restaurante, abaixo do mínimo, ou grande demais para o pedido.",
         "operationId": "CouponsController_validate",
@@ -146,7 +146,7 @@
         ]
       }
     },
-    "/admin-coupons": {
+    "/v1/admin-coupons": {
       "post": {
         "description": "O desconto é custeado pela PLATAFORMA: o restaurante recebe os itens integrais e o entregador recebe frete e gorjeta normalmente. Por isso o desconto de um pedido nunca passa da comissão dele — use `minOrderValue` e `maxDiscountValue` para manter o cupom dentro desse limite, senão ele será recusado nos pedidos menores.",
         "operationId": "AdminCouponsController_create",
@@ -230,7 +230,7 @@
         ]
       }
     },
-    "/admin-coupons/{id}": {
+    "/v1/admin-coupons/{id}": {
       "get": {
         "operationId": "AdminCouponsController_findById",
         "parameters": [
@@ -376,7 +376,7 @@
         ]
       }
     },
-    "/login": {
+    "/v1/login": {
       "post": {
         "operationId": "AuthController_login",
         "parameters": [],
@@ -414,7 +414,7 @@
         ]
       }
     },
-    "/logout": {
+    "/v1/logout": {
       "post": {
         "operationId": "AuthController_logout",
         "parameters": [],
@@ -444,7 +444,7 @@
         ]
       }
     },
-    "/no-auth/register/client": {
+    "/v1/no-auth/register/client": {
       "post": {
         "operationId": "NoAuthController_registerClient",
         "parameters": [],
@@ -486,7 +486,7 @@
         ]
       }
     },
-    "/no-auth/register/supplier": {
+    "/v1/no-auth/register/supplier": {
       "post": {
         "operationId": "NoAuthController_registerSupplier",
         "parameters": [],
@@ -528,7 +528,7 @@
         ]
       }
     },
-    "/no-auth/register/delivery": {
+    "/v1/no-auth/register/delivery": {
       "post": {
         "operationId": "NoAuthController_registerDelivery",
         "parameters": [],
@@ -570,7 +570,7 @@
         ]
       }
     },
-    "/no-auth/register/influencer": {
+    "/v1/no-auth/register/influencer": {
       "post": {
         "description": "O campo referralCode é opcional. Se não informado, pode ser definido posteriormente pelo perfil.",
         "operationId": "NoAuthController_registerInfluencer",
@@ -613,7 +613,7 @@
         ]
       }
     },
-    "/no-auth/forgot": {
+    "/v1/no-auth/forgot": {
       "post": {
         "operationId": "NoAuthController_forgotNoAuth",
         "parameters": [],
@@ -652,7 +652,7 @@
         ]
       }
     },
-    "/forgot": {
+    "/v1/forgot": {
       "post": {
         "operationId": "NoAuthController_forgot",
         "parameters": [],
@@ -691,7 +691,7 @@
         ]
       }
     },
-    "/no-auth/verify-account": {
+    "/v1/no-auth/verify-account": {
       "post": {
         "description": "A conta nasce com status Pending e não consegue autenticar até ser verificada. Em caso de falha a mensagem é sempre a mesma, para não revelar quais telefones estão cadastrados.",
         "operationId": "NoAuthController_verifyAccount",
@@ -731,7 +731,7 @@
         ]
       }
     },
-    "/no-auth/resend-verification": {
+    "/v1/no-auth/resend-verification": {
       "post": {
         "description": "Responde sucesso mesmo quando a conta não existe ou já está verificada — distinguir os casos revelaria quais telefones estão na base.",
         "operationId": "NoAuthController_resendVerification",
@@ -771,7 +771,7 @@
         ]
       }
     },
-    "/no-auth/verify-code": {
+    "/v1/no-auth/verify-code": {
       "post": {
         "operationId": "NoAuthController_verifyCode",
         "parameters": [],
@@ -810,7 +810,7 @@
         ]
       }
     },
-    "/no-auth/reset": {
+    "/v1/no-auth/reset": {
       "post": {
         "operationId": "NoAuthController_reset",
         "parameters": [],
@@ -849,7 +849,7 @@
         ]
       }
     },
-    "/no-auth/contact-us": {
+    "/v1/no-auth/contact-us": {
       "post": {
         "operationId": "NoAuthController_contactUs",
         "parameters": [],
@@ -888,7 +888,7 @@
         ]
       }
     },
-    "/no-auth/texts": {
+    "/v1/no-auth/texts": {
       "get": {
         "operationId": "NoAuthController_texts",
         "parameters": [
@@ -935,7 +935,7 @@
         ]
       }
     },
-    "/no-auth/health-check": {
+    "/v1/no-auth/health-check": {
       "get": {
         "operationId": "NoAuthController_healthCheck",
         "parameters": [],
@@ -951,7 +951,7 @@
         ]
       }
     },
-    "/my-self": {
+    "/v1/my-self": {
       "get": {
         "operationId": "NoAuthController_mySelf",
         "parameters": [],
@@ -985,7 +985,7 @@
         ]
       }
     },
-    "/upload/one-file": {
+    "/v1/upload/one-file": {
       "post": {
         "description": "Essa rota aceita arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.",
         "operationId": "UploadController_uploadOneFile",
@@ -1027,7 +1027,7 @@
         ]
       }
     },
-    "/upload/many-files": {
+    "/v1/upload/many-files": {
       "post": {
         "description": "Essa rota aceita no máximo 5 arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.",
         "operationId": "UploadController_uploadManyFiles",
@@ -1075,7 +1075,7 @@
         ]
       }
     },
-    "/files/{fileKey}": {
+    "/v1/files/{fileKey}": {
       "get": {
         "description": "Só responde quando a API está sem credenciais da AWS e grava em disco. Com S3 configurado, a URL pública é a do próprio bucket e esta rota devolve 404. É pública por desenho: reproduz o `public_read` com que os objetos vão para o S3 — a proteção, nos dois casos, é a chave não ser adivinhável.",
         "operationId": "UploadController_serveLocalFile",
@@ -1103,7 +1103,7 @@
         ]
       }
     },
-    "/one-file/{id}": {
+    "/v1/one-file/{id}": {
       "get": {
         "operationId": "UploadController_getFileById",
         "parameters": [
@@ -1163,7 +1163,7 @@
         ]
       }
     },
-    "/one-file/download/{id}": {
+    "/v1/one-file/download/{id}": {
       "get": {
         "operationId": "UploadController_dowload",
         "parameters": [
@@ -1190,7 +1190,7 @@
         ]
       }
     },
-    "/profile-photo": {
+    "/v1/profile-photo": {
       "delete": {
         "operationId": "UploadController_deleteProfilePhoto",
         "parameters": [
@@ -1223,7 +1223,7 @@
         ]
       }
     },
-    "/admin-settings": {
+    "/v1/admin-settings": {
       "post": {
         "operationId": "AdminSettingsController_create",
         "parameters": [],
@@ -1382,7 +1382,7 @@
         ]
       }
     },
-    "/admin-settings/all-permissions": {
+    "/v1/admin-settings/all-permissions": {
       "get": {
         "operationId": "AdminSettingsController_findAllPermissions",
         "parameters": [],
@@ -1410,7 +1410,7 @@
         ]
       }
     },
-    "/admin-settings/platform": {
+    "/v1/admin-settings/platform": {
       "get": {
         "operationId": "AdminSettingsController_getPlatformSettings",
         "parameters": [],
@@ -1493,7 +1493,7 @@
         ]
       }
     },
-    "/admin-settings/{id}": {
+    "/v1/admin-settings/{id}": {
       "get": {
         "operationId": "AdminSettingsController_findById",
         "parameters": [
@@ -1594,7 +1594,7 @@
         ]
       }
     },
-    "/admin-users": {
+    "/v1/admin-users": {
       "get": {
         "operationId": "AdminUsersController_findAll",
         "parameters": [
@@ -1835,7 +1835,7 @@
         ]
       }
     },
-    "/admin-users/referrals": {
+    "/v1/admin-users/referrals": {
       "get": {
         "operationId": "AdminUsersController_findAllReferrals",
         "parameters": [],
@@ -1871,7 +1871,7 @@
         ]
       }
     },
-    "/admin-users/actives": {
+    "/v1/admin-users/actives": {
       "get": {
         "operationId": "AdminUsersController_findAllActiveUsers",
         "parameters": [
@@ -2112,7 +2112,7 @@
         ]
       }
     },
-    "/admin-users/{id}": {
+    "/v1/admin-users/{id}": {
       "get": {
         "operationId": "AdminUsersController_findById",
         "parameters": [
@@ -2207,7 +2207,7 @@
         ]
       }
     },
-    "/admin-users/{id}/status-active": {
+    "/v1/admin-users/{id}/status-active": {
       "patch": {
         "operationId": "AdminUsersController_updateStatus",
         "parameters": [
@@ -2252,7 +2252,7 @@
         ]
       }
     },
-    "/admin-users/ranking/providers-by-location": {
+    "/v1/admin-users/ranking/providers-by-location": {
       "get": {
         "operationId": "AdminUsersController_providersRankingByLocation",
         "parameters": [
@@ -2298,7 +2298,7 @@
         ]
       }
     },
-    "/admin-dashboard/cards": {
+    "/v1/admin-dashboard/cards": {
       "get": {
         "operationId": "AdminDashboardController_getCards",
         "parameters": [],
@@ -2334,7 +2334,7 @@
         ]
       }
     },
-    "/admin-dashboard/chart": {
+    "/v1/admin-dashboard/chart": {
       "get": {
         "operationId": "AdminDashboardController_getChart",
         "parameters": [
@@ -2380,7 +2380,7 @@
         ]
       }
     },
-    "/admin-services": {
+    "/v1/admin-services": {
       "get": {
         "operationId": "AdminServicesController_findAll",
         "parameters": [
@@ -2506,7 +2506,7 @@
         ]
       }
     },
-    "/admin-services/receipt-by-category": {
+    "/v1/admin-services/receipt-by-category": {
       "get": {
         "operationId": "AdminServicesController_listPercentageByCategory",
         "parameters": [
@@ -2601,7 +2601,7 @@
         ]
       }
     },
-    "/admin-services/{id}": {
+    "/v1/admin-services/{id}": {
       "get": {
         "operationId": "AdminServicesController_findById",
         "parameters": [
@@ -2649,7 +2649,7 @@
         ]
       }
     },
-    "/admin-services/{id}/clients": {
+    "/v1/admin-services/{id}/clients": {
       "get": {
         "operationId": "AdminServicesController_findClients",
         "parameters": [
@@ -2747,7 +2747,7 @@
         ]
       }
     },
-    "/admin-services/ranking/purchases-by-location": {
+    "/v1/admin-services/ranking/purchases-by-location": {
       "get": {
         "operationId": "AdminServicesController_purchasesRankingByLocation",
         "parameters": [
@@ -2793,7 +2793,7 @@
         ]
       }
     },
-    "/admin-providers": {
+    "/v1/admin-providers": {
       "get": {
         "operationId": "AdminProvidersController_findAll",
         "parameters": [
@@ -2899,7 +2899,7 @@
         ]
       }
     },
-    "/admin-providers/{id}": {
+    "/v1/admin-providers/{id}": {
       "get": {
         "operationId": "AdminProvidersController_findById",
         "parameters": [
@@ -2947,7 +2947,7 @@
         ]
       }
     },
-    "/admin-providers/{id}/history": {
+    "/v1/admin-providers/{id}/history": {
       "get": {
         "operationId": "AdminProvidersController_findHistory",
         "parameters": [
@@ -3045,7 +3045,7 @@
         ]
       }
     },
-    "/admin-providers/{id}/subscriptions/grant": {
+    "/v1/admin-providers/{id}/subscriptions/grant": {
       "post": {
         "description": "Cria uma assinatura já ativa, válida pelo número de meses informado. Serve para cortesia comercial e para ambientes de teste, onde não há como obter assinatura ativa — ela nasce Pending e só é ativada pelo webhook de pagamento. A concessão registra quem a fez e o motivo, e não gera lançamento financeiro. Fornecedor que já tenha assinatura ativa responde 409: para estender a validade, use a rota de bônus.",
         "operationId": "AdminProvidersController_grantSubscription",
@@ -3110,7 +3110,7 @@
         ]
       }
     },
-    "/admin-providers/{id}/subscriptions/{subscriptionId}/bonus": {
+    "/v1/admin-providers/{id}/subscriptions/{subscriptionId}/bonus": {
       "patch": {
         "operationId": "AdminProvidersController_addSubscriptionBonus",
         "parameters": [
@@ -3179,7 +3179,7 @@
         ]
       }
     },
-    "/admin-influencers": {
+    "/v1/admin-influencers": {
       "get": {
         "operationId": "AdminInfluencersController_findAll",
         "parameters": [
@@ -3285,7 +3285,7 @@
         ]
       }
     },
-    "/admin-influencers/{id}": {
+    "/v1/admin-influencers/{id}": {
       "get": {
         "operationId": "AdminInfluencersController_findById",
         "parameters": [
@@ -3333,7 +3333,7 @@
         ]
       }
     },
-    "/admin-influencers/{id}/commission": {
+    "/v1/admin-influencers/{id}/commission": {
       "patch": {
         "description": "Envie commissionRate com valor para taxa customizada, ou null para usar a taxa global.",
         "operationId": "AdminInfluencersController_updateCommission",
@@ -3385,7 +3385,7 @@
         ]
       }
     },
-    "/admin-influencers/{id}/referrals": {
+    "/v1/admin-influencers/{id}/referrals": {
       "get": {
         "operationId": "AdminInfluencersController_findReferralsById",
         "parameters": [
@@ -3426,7 +3426,7 @@
         ]
       }
     },
-    "/admin-influencers/ranking/location": {
+    "/v1/admin-influencers/ranking/location": {
       "get": {
         "operationId": "AdminInfluencersController_rankingByLocation",
         "parameters": [
@@ -3472,7 +3472,7 @@
         ]
       }
     },
-    "/admin-categories/{context}": {
+    "/v1/admin-categories/{context}": {
       "post": {
         "operationId": "AdminCategoriesController_create",
         "parameters": [
@@ -3579,7 +3579,7 @@
         ]
       }
     },
-    "/admin-categories/{context}/{id}": {
+    "/v1/admin-categories/{context}/{id}": {
       "patch": {
         "operationId": "AdminCategoriesController_update",
         "parameters": [
@@ -3699,7 +3699,7 @@
         ]
       }
     },
-    "/admin-categories/services/{id}/platform-fee-rate": {
+    "/v1/admin-categories/services/{id}/platform-fee-rate": {
       "patch": {
         "operationId": "AdminCategoriesController_updatePlatformFeeRate",
         "parameters": [
@@ -3757,7 +3757,7 @@
         ]
       }
     },
-    "/admin-categories/{context}/{id}/inactivate": {
+    "/v1/admin-categories/{context}/{id}/inactivate": {
       "patch": {
         "operationId": "AdminCategoriesController_inactivate",
         "parameters": [
@@ -3813,7 +3813,7 @@
         ]
       }
     },
-    "/admin-delivery-fees": {
+    "/v1/admin-delivery-fees": {
       "get": {
         "description": "Ordenadas por distância inicial. O servidor aplica a faixa mais específica que contém a distância entre restaurante e cliente.",
         "operationId": "AdminDeliveryFeesController_findAll",
@@ -3900,7 +3900,7 @@
         ]
       }
     },
-    "/admin-delivery-fees/{id}": {
+    "/v1/admin-delivery-fees/{id}": {
       "patch": {
         "operationId": "AdminDeliveryFeesController_update",
         "parameters": [
@@ -3995,7 +3995,7 @@
         ]
       }
     },
-    "/admin-delivery-payouts/pending": {
+    "/v1/admin-delivery-payouts/pending": {
       "get": {
         "description": "Soma os créditos de frete e gorjeta que ainda não foram repassados, com os dados bancários do entregador para o pagamento. Entregador sem conta cadastrada aparece sem `bankAccount`: não há para onde enviar.",
         "operationId": "AdminDeliveryPayoutsController_findPending",
@@ -4035,7 +4035,7 @@
         ]
       }
     },
-    "/admin-delivery-payouts": {
+    "/v1/admin-delivery-payouts": {
       "post": {
         "description": "O pagamento acontece fora do sistema — o admin faz o Pix e registra aqui. Liquida TODO o saldo em aberto do entregador e grava a saída no razão. Envie `expectedAmount` com o valor que a tela mostrava: se o saldo tiver mudado nesse intervalo, nada é liquidado e a resposta é 409.",
         "operationId": "AdminDeliveryPayoutsController_create",
@@ -4134,7 +4134,7 @@
         ]
       }
     },
-    "/accommodations": {
+    "/v1/accommodations": {
       "post": {
         "operationId": "AccommodationsController_create",
         "parameters": [],
@@ -4297,7 +4297,7 @@
         ]
       }
     },
-    "/accommodations/categories": {
+    "/v1/accommodations/categories": {
       "get": {
         "operationId": "AccommodationsController_findAllCategories",
         "parameters": [],
@@ -4325,7 +4325,7 @@
         ]
       }
     },
-    "/accommodations/my-accommodations": {
+    "/v1/accommodations/my-accommodations": {
       "get": {
         "operationId": "AccommodationsController_findMyAccommodations",
         "parameters": [
@@ -4452,7 +4452,7 @@
         ]
       }
     },
-    "/accommodations/{id}": {
+    "/v1/accommodations/{id}": {
       "get": {
         "operationId": "AccommodationsController_findById",
         "parameters": [
@@ -4591,7 +4591,7 @@
         ]
       }
     },
-    "/accommodations/{id}/reviews": {
+    "/v1/accommodations/{id}/reviews": {
       "post": {
         "operationId": "AccommodationsController_review",
         "parameters": [
@@ -4649,7 +4649,7 @@
         ]
       }
     },
-    "/balances/overview": {
+    "/v1/balances/overview": {
       "get": {
         "operationId": "BalancesController_findOverview",
         "parameters": [],
@@ -4682,7 +4682,7 @@
         ]
       }
     },
-    "/balances/receipts": {
+    "/v1/balances/receipts": {
       "get": {
         "operationId": "BalancesController_findReceipts",
         "parameters": [],
@@ -4715,7 +4715,7 @@
         ]
       }
     },
-    "/bank-accounts": {
+    "/v1/bank-accounts": {
       "post": {
         "operationId": "BankAccountsController_create",
         "parameters": [],
@@ -4761,7 +4761,7 @@
         ]
       }
     },
-    "/bank-accounts/me": {
+    "/v1/bank-accounts/me": {
       "get": {
         "operationId": "BankAccountsController_findMine",
         "parameters": [],
@@ -4869,7 +4869,7 @@
         ]
       }
     },
-    "/budgets": {
+    "/v1/budgets": {
       "post": {
         "operationId": "BudgetsController_create",
         "parameters": [],
@@ -5011,7 +5011,7 @@
         ]
       }
     },
-    "/budgets/{id}": {
+    "/v1/budgets/{id}": {
       "get": {
         "operationId": "BudgetsController_findById",
         "parameters": [
@@ -5161,7 +5161,7 @@
         ]
       }
     },
-    "/budgets/{id}/request-more-information": {
+    "/v1/budgets/{id}/request-more-information": {
       "patch": {
         "operationId": "BudgetsController_requestMoreInformation",
         "parameters": [
@@ -5219,7 +5219,7 @@
         ]
       }
     },
-    "/budgets/{id}/request-extra": {
+    "/v1/budgets/{id}/request-extra": {
       "patch": {
         "operationId": "BudgetsController_requestExtra",
         "parameters": [
@@ -5277,7 +5277,7 @@
         ]
       }
     },
-    "/budgets/{id}/respond-extra": {
+    "/v1/budgets/{id}/respond-extra": {
       "patch": {
         "operationId": "BudgetsController_respondExtra",
         "parameters": [
@@ -5335,7 +5335,7 @@
         ]
       }
     },
-    "/budgets/{id}/approve": {
+    "/v1/budgets/{id}/approve": {
       "patch": {
         "operationId": "BudgetsController_approve",
         "parameters": [
@@ -5383,7 +5383,7 @@
         ]
       }
     },
-    "/budgets/{id}/reject": {
+    "/v1/budgets/{id}/reject": {
       "patch": {
         "description": "Só funciona em orçamento com status `Responded`. Marca como `Rejected`, que é estado terminal: o orçamento não aceita mais alteração depois disso. Recusar é diferente de cancelar — cancelar é desistir do pedido, recusar é não aceitar o preço proposto.",
         "operationId": "BudgetsController_reject",
@@ -5445,7 +5445,7 @@
         ]
       }
     },
-    "/plans": {
+    "/v1/plans": {
       "post": {
         "operationId": "PlansController_create",
         "parameters": [],
@@ -5563,7 +5563,7 @@
         ]
       }
     },
-    "/plans/active": {
+    "/v1/plans/active": {
       "get": {
         "operationId": "PlansController_findActive",
         "parameters": [
@@ -5626,7 +5626,7 @@
         ]
       }
     },
-    "/plans/{id}": {
+    "/v1/plans/{id}": {
       "get": {
         "operationId": "PlansController_findById",
         "parameters": [
@@ -5761,7 +5761,7 @@
         ]
       }
     },
-    "/subscriptions": {
+    "/v1/subscriptions": {
       "post": {
         "operationId": "SubscriptionsController_create",
         "parameters": [],
@@ -5813,7 +5813,7 @@
         ]
       }
     },
-    "/subscriptions/my-subscriptions": {
+    "/v1/subscriptions/my-subscriptions": {
       "get": {
         "operationId": "SubscriptionsController_findMine",
         "parameters": [],
@@ -5840,10 +5840,50 @@
         ]
       }
     },
-    "/subscriptions/current": {
+    "/v1/subscriptions/catalog": {
       "get": {
-        "operationId": "SubscriptionsController_findCurrent",
+        "description": "Monta a tela de contratação numa chamada. `isSubscribed` responde exatamente o que o portão responderia, incluindo a tolerância de 3 dias e a cobertura ampla das concessões administrativas.",
+        "operationId": "SubscriptionsController_catalog",
         "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseSubscriptionCatalogDto"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Rota para listar categorias, planos e a situação do fornecedor em cada categoria.",
+        "tags": [
+          "Assinaturas"
+        ]
+      }
+    },
+    "/v1/subscriptions/current": {
+      "get": {
+        "description": "Com a cobrança por categoria o fornecedor tem várias assinaturas; use `categoryId` para escolher uma. Devolve também a vencida, para a tela conseguir oferecer a renovação — quem diz se ela vale são `expired` e `inGracePeriod`.",
+        "operationId": "SubscriptionsController_findCurrent",
+        "parameters": [
+          {
+            "name": "categoryId",
+            "required": false,
+            "in": "query",
+            "description": "Restringe a busca a uma categoria de atuação. Sem ele, devolve a assinatura mais recente — que, com várias categorias, pode não ser a que a tela está mostrando.",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "",
@@ -5861,13 +5901,13 @@
             "bearerAuth": []
           }
         ],
-        "summary": "Rota para recuperar a assinatura ativa atual do usuário.",
+        "summary": "Rota para recuperar a assinatura atual do usuário.",
         "tags": [
           "Assinaturas"
         ]
       }
     },
-    "/subscriptions/{id}": {
+    "/v1/subscriptions/{id}": {
       "get": {
         "operationId": "SubscriptionsController_findById",
         "parameters": [
@@ -5903,9 +5943,9 @@
         ]
       }
     },
-    "/subscriptions/{id}/cancel": {
+    "/v1/subscriptions/{id}/cancel": {
       "patch": {
-        "description": "Ao ser processada, notifica o assinante via WhatsApp sobre o cancelamento.",
+        "description": "O cancelamento é agendado para o fim do período já pago: a assinatura segue valendo até `currentPeriodEnd` e não renova depois. Numa assinatura sem prazo, encerra na hora. Notifica o assinante via WhatsApp.",
         "operationId": "SubscriptionsController_cancel",
         "parameters": [
           {
@@ -5940,7 +5980,87 @@
         ]
       }
     },
-    "/mercado-pago/status": {
+    "/v1/subscriptions/{id}/reactivate": {
+      "patch": {
+        "description": "Sem cobrança. Só vale enquanto o período pago não terminou — depois disso o caminho é renovar.",
+        "operationId": "SubscriptionsController_reactivate",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseSubscriptionDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "A assinatura não está com cancelamento agendado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Rota para desfazer o cancelamento agendado de uma assinatura.",
+        "tags": [
+          "Assinaturas"
+        ]
+      }
+    },
+    "/v1/subscriptions/{id}/renew": {
+      "post": {
+        "description": "Gera um novo checkout do Mercado Pago. Disponível a 7 dias do vencimento (`needsRenewal`) e durante a tolerância de 3 dias após vencer. O novo período emenda no atual, sem perder os dias já pagos.",
+        "operationId": "SubscriptionsController_renew",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateSubscriptionResponseDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Renovação indisponível para esta assinatura."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Rota para renovar uma assinatura por mais um ciclo.",
+        "tags": [
+          "Assinaturas"
+        ]
+      }
+    },
+    "/v1/mercado-pago/status": {
       "get": {
         "operationId": "MercadoPagoController_status",
         "parameters": [],
@@ -5973,7 +6093,7 @@
         ]
       }
     },
-    "/mercado-pago/connect-url": {
+    "/v1/mercado-pago/connect-url": {
       "get": {
         "description": "O front leva o usuário até essa URL. Ao autorizar, o Mercado Pago redireciona para a `redirectUri` com um `code` na query, que deve ser enviado em POST /mercado-pago/oauth/callback. Se informar `redirectUri` aqui, use exatamente a mesma no callback — o Mercado Pago compara.",
         "operationId": "MercadoPagoController_connectUrl",
@@ -6016,7 +6136,7 @@
         ]
       }
     },
-    "/mercado-pago/oauth/callback": {
+    "/v1/mercado-pago/oauth/callback": {
       "post": {
         "description": "Os tokens são gravados cifrados. A resposta devolve apenas o identificador público do vendedor — nenhum token sai da API.",
         "operationId": "MercadoPagoController_oauthCallback",
@@ -6063,7 +6183,7 @@
         ]
       }
     },
-    "/products": {
+    "/v1/products": {
       "post": {
         "operationId": "ProductsController_create",
         "parameters": [],
@@ -6215,7 +6335,7 @@
         ]
       }
     },
-    "/products/categories": {
+    "/v1/products/categories": {
       "get": {
         "operationId": "ProductsController_findAllCategories",
         "parameters": [],
@@ -6243,7 +6363,7 @@
         ]
       }
     },
-    "/products/my-products": {
+    "/v1/products/my-products": {
       "get": {
         "operationId": "ProductsController_findMyProducts",
         "parameters": [
@@ -6359,7 +6479,7 @@
         ]
       }
     },
-    "/products/{id}": {
+    "/v1/products/{id}": {
       "get": {
         "operationId": "ProductsController_findById",
         "parameters": [
@@ -6498,7 +6618,7 @@
         ]
       }
     },
-    "/products/{id}/reviews": {
+    "/v1/products/{id}/reviews": {
       "post": {
         "operationId": "ProductsController_review",
         "parameters": [
@@ -6556,7 +6676,7 @@
         ]
       }
     },
-    "/profile/me": {
+    "/v1/profile/me": {
       "get": {
         "operationId": "ProfileController_findMine",
         "parameters": [],
@@ -6636,7 +6756,7 @@
         ]
       }
     },
-    "/profile/me/address": {
+    "/v1/profile/me/address": {
       "patch": {
         "operationId": "ProfileController_updateMyAddress",
         "parameters": [],
@@ -6685,7 +6805,7 @@
         ]
       }
     },
-    "/profile/me/billing-type": {
+    "/v1/profile/me/billing-type": {
       "patch": {
         "description": "Restrito ao perfil Supplier. O modelo de cobrança define se o fornecedor opera por assinatura ou por comissão por pedido, e é lido a cada pedido de delivery para decidir se há comissão.",
         "operationId": "ProfileController_updateMyBillingType",
@@ -6735,7 +6855,7 @@
         ]
       }
     },
-    "/services": {
+    "/v1/services": {
       "post": {
         "operationId": "ServicesController_create",
         "parameters": [],
@@ -6887,7 +7007,7 @@
         ]
       }
     },
-    "/services/categories": {
+    "/v1/services/categories": {
       "get": {
         "operationId": "ServicesController_findAllCategories",
         "parameters": [],
@@ -6915,7 +7035,7 @@
         ]
       }
     },
-    "/services/my-services": {
+    "/v1/services/my-services": {
       "get": {
         "operationId": "ServicesController_findMyServices",
         "parameters": [
@@ -7031,7 +7151,7 @@
         ]
       }
     },
-    "/services/{id}": {
+    "/v1/services/{id}": {
       "get": {
         "operationId": "ServicesController_findById",
         "parameters": [
@@ -7170,7 +7290,7 @@
         ]
       }
     },
-    "/services/{id}/reviews": {
+    "/v1/services/{id}/reviews": {
       "post": {
         "operationId": "ServicesController_review",
         "parameters": [
@@ -7228,7 +7348,7 @@
         ]
       }
     },
-    "/transportations": {
+    "/v1/transportations": {
       "post": {
         "operationId": "TransportationsController_create",
         "parameters": [],
@@ -7371,7 +7491,7 @@
         ]
       }
     },
-    "/transportations/categories": {
+    "/v1/transportations/categories": {
       "get": {
         "operationId": "TransportationsController_findAllCategories",
         "parameters": [],
@@ -7399,7 +7519,7 @@
         ]
       }
     },
-    "/transportations/my-transportations": {
+    "/v1/transportations/my-transportations": {
       "get": {
         "operationId": "TransportationsController_findMyTransportations",
         "parameters": [
@@ -7506,7 +7626,7 @@
         ]
       }
     },
-    "/transportations/{id}": {
+    "/v1/transportations/{id}": {
       "get": {
         "operationId": "TransportationsController_findById",
         "parameters": [
@@ -7645,7 +7765,7 @@
         ]
       }
     },
-    "/transportations/{id}/reviews": {
+    "/v1/transportations/{id}/reviews": {
       "post": {
         "operationId": "TransportationsController_review",
         "parameters": [
@@ -7703,7 +7823,7 @@
         ]
       }
     },
-    "/works": {
+    "/v1/works": {
       "post": {
         "operationId": "WorksController_create",
         "parameters": [],
@@ -7845,7 +7965,7 @@
         ]
       }
     },
-    "/works/my-requests": {
+    "/v1/works/my-requests": {
       "get": {
         "operationId": "WorksController_findMyRequests",
         "parameters": [
@@ -7940,7 +8060,7 @@
         ]
       }
     },
-    "/works/{id}": {
+    "/v1/works/{id}": {
       "get": {
         "operationId": "WorksController_findById",
         "parameters": [
@@ -8090,7 +8210,7 @@
         ]
       }
     },
-    "/works/{id}/start": {
+    "/v1/works/{id}/start": {
       "patch": {
         "description": "Ao ser processada, notifica o cliente via WhatsApp que o atendimento começou.",
         "operationId": "WorksController_start",
@@ -8136,7 +8256,7 @@
         ]
       }
     },
-    "/works/{id}/confirm-arrival": {
+    "/v1/works/{id}/confirm-arrival": {
       "patch": {
         "operationId": "WorksController_confirmArrival",
         "parameters": [
@@ -8181,7 +8301,7 @@
         ]
       }
     },
-    "/works/{id}/finish": {
+    "/v1/works/{id}/finish": {
       "patch": {
         "description": "Ao ser processada, notifica o cliente via WhatsApp que o trabalho foi concluído.",
         "operationId": "WorksController_finish",
@@ -8240,7 +8360,7 @@
         ]
       }
     },
-    "/works/{id}/pay": {
+    "/v1/works/{id}/pay": {
       "post": {
         "operationId": "WorksController_pay",
         "parameters": [
@@ -8301,7 +8421,7 @@
         ]
       }
     },
-    "/works/{id}/request-warranty": {
+    "/v1/works/{id}/request-warranty": {
       "post": {
         "operationId": "WorksController_requestWarranty",
         "parameters": [
@@ -8359,7 +8479,7 @@
         ]
       }
     },
-    "/works/{id}/respond-warranty": {
+    "/v1/works/{id}/respond-warranty": {
       "patch": {
         "operationId": "WorksController_respondWarranty",
         "parameters": [
@@ -8417,7 +8537,7 @@
         ]
       }
     },
-    "/works/{id}/request-extra": {
+    "/v1/works/{id}/request-extra": {
       "patch": {
         "operationId": "WorksController_requestExtra",
         "parameters": [
@@ -8475,7 +8595,7 @@
         ]
       }
     },
-    "/works/{id}/respond-extra": {
+    "/v1/works/{id}/respond-extra": {
       "patch": {
         "operationId": "WorksController_respondExtra",
         "parameters": [
@@ -8533,7 +8653,7 @@
         ]
       }
     },
-    "/works/{id}/cancel": {
+    "/v1/works/{id}/cancel": {
       "patch": {
         "description": "Ao ser processada, notifica via WhatsApp a contraparte que não iniciou o cancelamento.",
         "operationId": "WorksController_cancel",
@@ -8592,7 +8712,7 @@
         ]
       }
     },
-    "/chats": {
+    "/v1/chats": {
       "get": {
         "description": "Ordenadas pela última mensagem. Traz a contraparte, um trecho da última mensagem e a contagem de não lidas — o suficiente para a tela de Conversas sem abrir cada sala.",
         "operationId": "ChatsController_findMyChats",
@@ -8654,7 +8774,38 @@
         ]
       }
     },
-    "/chats/context/{contextType}/{referenceId}": {
+    "/v1/chats/unread-count": {
+      "get": {
+        "description": "Soma todas as conversas. Serve aos badges do menu e do hub, que precisam do número em toda navegação — carregar o inbox inteiro só para exibir um inteiro seria caro. Mensagens enviadas pelo próprio usuário nunca contam.",
+        "operationId": "ChatsController_countUnread",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseUnreadCountDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Total de mensagens não lidas do usuário.",
+        "tags": [
+          "Chats"
+        ]
+      }
+    },
+    "/v1/chats/context/{contextType}/{referenceId}": {
       "get": {
         "operationId": "ChatsController_openByContext",
         "parameters": [
@@ -8707,7 +8858,7 @@
         ]
       }
     },
-    "/chats/{id}": {
+    "/v1/chats/{id}": {
       "get": {
         "operationId": "ChatsController_findById",
         "parameters": [
@@ -8749,7 +8900,7 @@
         ]
       }
     },
-    "/chats/{id}/messages": {
+    "/v1/chats/{id}/messages": {
       "get": {
         "operationId": "ChatsController_findMessages",
         "parameters": [
@@ -8877,7 +9028,7 @@
         ]
       }
     },
-    "/chats/{id}/read": {
+    "/v1/chats/{id}/read": {
       "patch": {
         "operationId": "ChatsController_markAsRead",
         "parameters": [
@@ -8919,7 +9070,7 @@
         ]
       }
     },
-    "/commercial-transactions": {
+    "/v1/commercial-transactions": {
       "post": {
         "operationId": "CommercialTransactionsController_create",
         "parameters": [],
@@ -9069,7 +9220,7 @@
         ]
       }
     },
-    "/commercial-transactions/{id}": {
+    "/v1/commercial-transactions/{id}": {
       "get": {
         "operationId": "CommercialTransactionsController_findById",
         "parameters": [
@@ -9117,7 +9268,7 @@
         ]
       }
     },
-    "/commercial-transactions/{id}/respond": {
+    "/v1/commercial-transactions/{id}/respond": {
       "patch": {
         "description": "Ao ser processada, notifica o comprador via WhatsApp sobre a decisão do vendedor.",
         "operationId": "CommercialTransactionsController_respond",
@@ -9176,7 +9327,7 @@
         ]
       }
     },
-    "/commercial-transactions/{id}/pay": {
+    "/v1/commercial-transactions/{id}/pay": {
       "post": {
         "operationId": "CommercialTransactionsController_pay",
         "parameters": [
@@ -9237,7 +9388,7 @@
         ]
       }
     },
-    "/commercial-transactions/{id}/complete": {
+    "/v1/commercial-transactions/{id}/complete": {
       "patch": {
         "operationId": "CommercialTransactionsController_complete",
         "parameters": [
@@ -9282,7 +9433,7 @@
         ]
       }
     },
-    "/commercial-transactions/{id}/cancel": {
+    "/v1/commercial-transactions/{id}/cancel": {
       "patch": {
         "operationId": "CommercialTransactionsController_cancel",
         "parameters": [
@@ -9327,7 +9478,7 @@
         ]
       }
     },
-    "/referrals/me": {
+    "/v1/referrals/me": {
       "get": {
         "operationId": "ReferralsController_findMyReferrals",
         "parameters": [],
@@ -9363,7 +9514,7 @@
         ]
       }
     },
-    "/referrals/me/summary": {
+    "/v1/referrals/me/summary": {
       "get": {
         "operationId": "ReferralsController_findMySummary",
         "parameters": [],
@@ -9399,7 +9550,7 @@
         ]
       }
     },
-    "/rentals": {
+    "/v1/rentals": {
       "post": {
         "operationId": "RentalsController_create",
         "parameters": [],
@@ -9532,7 +9683,7 @@
         ]
       }
     },
-    "/rentals/{id}": {
+    "/v1/rentals/{id}": {
       "get": {
         "operationId": "RentalsController_findById",
         "parameters": [
@@ -9577,7 +9728,7 @@
         ]
       }
     },
-    "/rentals/{id}/respond": {
+    "/v1/rentals/{id}/respond": {
       "patch": {
         "operationId": "RentalsController_respond",
         "parameters": [
@@ -9635,7 +9786,7 @@
         ]
       }
     },
-    "/rentals/{id}/start": {
+    "/v1/rentals/{id}/start": {
       "patch": {
         "operationId": "RentalsController_start",
         "parameters": [
@@ -9683,7 +9834,7 @@
         ]
       }
     },
-    "/rentals/{id}/return": {
+    "/v1/rentals/{id}/return": {
       "patch": {
         "operationId": "RentalsController_return",
         "parameters": [
@@ -9731,7 +9882,7 @@
         ]
       }
     },
-    "/rentals/{id}/cancel": {
+    "/v1/rentals/{id}/cancel": {
       "patch": {
         "operationId": "RentalsController_cancel",
         "parameters": [
@@ -9789,7 +9940,7 @@
         ]
       }
     },
-    "/transport-requests": {
+    "/v1/transport-requests": {
       "post": {
         "operationId": "TransportRequestsController_create",
         "parameters": [],
@@ -9923,7 +10074,7 @@
         ]
       }
     },
-    "/transport-requests/{id}": {
+    "/v1/transport-requests/{id}": {
       "get": {
         "operationId": "TransportRequestsController_findById",
         "parameters": [
@@ -9968,7 +10119,7 @@
         ]
       }
     },
-    "/transport-requests/{id}/quote": {
+    "/v1/transport-requests/{id}/quote": {
       "patch": {
         "operationId": "TransportRequestsController_quote",
         "parameters": [
@@ -10026,7 +10177,7 @@
         ]
       }
     },
-    "/transport-requests/{id}/respond": {
+    "/v1/transport-requests/{id}/respond": {
       "patch": {
         "operationId": "TransportRequestsController_respond",
         "parameters": [
@@ -10084,7 +10235,7 @@
         ]
       }
     },
-    "/transport-requests/{id}/start": {
+    "/v1/transport-requests/{id}/start": {
       "patch": {
         "operationId": "TransportRequestsController_start",
         "parameters": [
@@ -10132,7 +10283,7 @@
         ]
       }
     },
-    "/transport-requests/{id}/deliver": {
+    "/v1/transport-requests/{id}/deliver": {
       "patch": {
         "operationId": "TransportRequestsController_deliver",
         "parameters": [
@@ -10180,7 +10331,7 @@
         ]
       }
     },
-    "/transport-requests/{id}/cancel": {
+    "/v1/transport-requests/{id}/cancel": {
       "patch": {
         "operationId": "TransportRequestsController_cancel",
         "parameters": [
@@ -10238,7 +10389,7 @@
         ]
       }
     },
-    "/bookings": {
+    "/v1/bookings": {
       "post": {
         "operationId": "BookingsController_create",
         "parameters": [],
@@ -10371,7 +10522,7 @@
         ]
       }
     },
-    "/bookings/{id}": {
+    "/v1/bookings/{id}": {
       "get": {
         "operationId": "BookingsController_findById",
         "parameters": [
@@ -10416,7 +10567,7 @@
         ]
       }
     },
-    "/bookings/{id}/respond": {
+    "/v1/bookings/{id}/respond": {
       "patch": {
         "operationId": "BookingsController_respond",
         "parameters": [
@@ -10474,7 +10625,7 @@
         ]
       }
     },
-    "/bookings/{id}/check-in": {
+    "/v1/bookings/{id}/check-in": {
       "patch": {
         "operationId": "BookingsController_checkIn",
         "parameters": [
@@ -10522,7 +10673,7 @@
         ]
       }
     },
-    "/bookings/{id}/complete": {
+    "/v1/bookings/{id}/complete": {
       "patch": {
         "operationId": "BookingsController_complete",
         "parameters": [
@@ -10570,7 +10721,7 @@
         ]
       }
     },
-    "/bookings/{id}/cancel": {
+    "/v1/bookings/{id}/cancel": {
       "patch": {
         "operationId": "BookingsController_cancel",
         "parameters": [
@@ -10628,7 +10779,7 @@
         ]
       }
     },
-    "/jobs": {
+    "/v1/jobs": {
       "post": {
         "operationId": "JobsController_create",
         "parameters": [],
@@ -10767,7 +10918,7 @@
         ]
       }
     },
-    "/jobs/applications/me": {
+    "/v1/jobs/applications/me": {
       "get": {
         "operationId": "JobsController_findMyApplications",
         "parameters": [
@@ -10835,7 +10986,7 @@
         ]
       }
     },
-    "/jobs/applications/{id}": {
+    "/v1/jobs/applications/{id}": {
       "get": {
         "operationId": "JobsController_findApplicationById",
         "parameters": [
@@ -10880,7 +11031,7 @@
         ]
       }
     },
-    "/jobs/applications/{id}/respond": {
+    "/v1/jobs/applications/{id}/respond": {
       "patch": {
         "operationId": "JobsController_respondApplication",
         "parameters": [
@@ -10938,7 +11089,7 @@
         ]
       }
     },
-    "/jobs/{id}": {
+    "/v1/jobs/{id}": {
       "get": {
         "operationId": "JobsController_findById",
         "parameters": [
@@ -11036,7 +11187,7 @@
         ]
       }
     },
-    "/jobs/{id}/applications": {
+    "/v1/jobs/{id}/applications": {
       "get": {
         "operationId": "JobsController_findJobApplications",
         "parameters": [
@@ -11115,7 +11266,7 @@
         ]
       }
     },
-    "/jobs/{id}/apply": {
+    "/v1/jobs/{id}/apply": {
       "post": {
         "operationId": "JobsController_apply",
         "parameters": [
@@ -11173,7 +11324,7 @@
         ]
       }
     },
-    "/restaurants/categories": {
+    "/v1/restaurants/categories": {
       "get": {
         "operationId": "RestaurantsController_listCategories",
         "parameters": [],
@@ -11201,7 +11352,7 @@
         ]
       }
     },
-    "/restaurants/me": {
+    "/v1/restaurants/me": {
       "get": {
         "operationId": "RestaurantsController_findMine",
         "parameters": [],
@@ -11237,7 +11388,7 @@
         ]
       }
     },
-    "/restaurants/me/payouts": {
+    "/v1/restaurants/me/payouts": {
       "get": {
         "description": "Sem `period`, considera todo o histórico — o comportamento anterior a este parâmetro. Com `period`, recorta em hoje, semana corrente ou mês corrente, nas mesmas fronteiras usadas nos ganhos do entregador.",
         "operationId": "RestaurantsController_findMyPayouts",
@@ -11290,7 +11441,7 @@
         ]
       }
     },
-    "/restaurants/me/card-machine": {
+    "/v1/restaurants/me/card-machine": {
       "patch": {
         "description": "Com a modalidade ligada, pedido no cartão NÃO gera checkout nem split: o dinheiro não passa pela plataforma. Como o frete e a gorjeta deixam de ser retidos, o repasse ao entregador passa a ser responsabilidade do estabelecimento — por isso ligar exige `acceptResponsibility: true`, e o aceite fica registrado com data, autor e versão do termo. Pix e boleto continuam pelo gateway: a maquininha é de cartão. Pedidos já criados não mudam.",
         "operationId": "RestaurantsController_updateMyCardMachine",
@@ -11343,7 +11494,7 @@
         ]
       }
     },
-    "/restaurants": {
+    "/v1/restaurants": {
       "post": {
         "operationId": "RestaurantsController_create",
         "parameters": [],
@@ -11453,7 +11604,7 @@
         ]
       }
     },
-    "/restaurants/menu-categories/{id}": {
+    "/v1/restaurants/menu-categories/{id}": {
       "patch": {
         "operationId": "RestaurantsController_updateMenuCategory",
         "parameters": [
@@ -11511,7 +11662,7 @@
         ]
       }
     },
-    "/restaurants/menu-categories": {
+    "/v1/restaurants/menu-categories": {
       "post": {
         "operationId": "RestaurantsController_createMenuCategory",
         "parameters": [],
@@ -11560,7 +11711,7 @@
         ]
       }
     },
-    "/restaurants/menu-items": {
+    "/v1/restaurants/menu-items": {
       "post": {
         "operationId": "RestaurantsController_createMenuItem",
         "parameters": [],
@@ -11602,7 +11753,7 @@
         ]
       }
     },
-    "/restaurants/menu-items/{id}": {
+    "/v1/restaurants/menu-items/{id}": {
       "patch": {
         "operationId": "RestaurantsController_updateMenuItem",
         "parameters": [
@@ -11697,7 +11848,7 @@
         ]
       }
     },
-    "/restaurants/{id}/reviews": {
+    "/v1/restaurants/{id}/reviews": {
       "post": {
         "description": "Só quem tem pedido entregue no restaurante pode avaliar, e apenas uma vez. A segunda tentativa responde 409.",
         "operationId": "RestaurantsController_review",
@@ -11756,7 +11907,7 @@
         ]
       }
     },
-    "/restaurants/menu-items/{id}/additions": {
+    "/v1/restaurants/menu-items/{id}/additions": {
       "post": {
         "operationId": "RestaurantsController_createMenuItemAddition",
         "parameters": [
@@ -11807,7 +11958,7 @@
         ]
       }
     },
-    "/restaurants/menu-item-additions/{id}": {
+    "/v1/restaurants/menu-item-additions/{id}": {
       "patch": {
         "operationId": "RestaurantsController_updateMenuItemAddition",
         "parameters": [
@@ -11858,7 +12009,7 @@
         ]
       }
     },
-    "/restaurants/{id}": {
+    "/v1/restaurants/{id}": {
       "get": {
         "operationId": "RestaurantsController_findById",
         "parameters": [
@@ -11956,7 +12107,7 @@
         ]
       }
     },
-    "/food-orders": {
+    "/v1/food-orders": {
       "post": {
         "operationId": "FoodOrdersController_create",
         "parameters": [],
@@ -12070,7 +12221,7 @@
         ]
       }
     },
-    "/food-orders/{id}": {
+    "/v1/food-orders/{id}": {
       "get": {
         "operationId": "FoodOrdersController_findById",
         "parameters": [
@@ -12113,7 +12264,7 @@
         ]
       }
     },
-    "/food-orders/{id}/respond": {
+    "/v1/food-orders/{id}/respond": {
       "patch": {
         "description": "Ao ser processada, notifica o cliente via WhatsApp sobre a decisão do restaurante.",
         "operationId": "FoodOrdersController_respond",
@@ -12167,7 +12318,7 @@
         ]
       }
     },
-    "/food-orders/{id}/preparing": {
+    "/v1/food-orders/{id}/preparing": {
       "patch": {
         "operationId": "FoodOrdersController_markPreparing",
         "parameters": [
@@ -12210,7 +12361,7 @@
         ]
       }
     },
-    "/food-orders/{id}/pay": {
+    "/v1/food-orders/{id}/pay": {
       "post": {
         "description": "Só vale para pedidos que não são em dinheiro — pedido em dinheiro é liquidado na entrega e responde 400. A confirmação do pagamento ocorre de forma assíncrona via webhook: esta rota apenas devolve a URL do checkout. Enquanto houver um checkout em aberto para o pedido, uma nova chamada responde 400; um pagamento recusado libera gerar outro.",
         "operationId": "FoodOrdersController_pay",
@@ -12264,7 +12415,7 @@
         ]
       }
     },
-    "/food-orders/{id}/confirm-payment": {
+    "/v1/food-orders/{id}/confirm-payment": {
       "patch": {
         "description": "Só vale para pedidos com paymentMethod Cash — os demais meios são quitados pelo provedor de pagamento e respondem 400. Pode ser chamada pelo entregador designado ou, quando não há entrega atribuída, pelo dono do restaurante. Chamar de novo em um pedido já confirmado não é erro: a rota é idempotente.",
         "operationId": "FoodOrdersController_confirmCashPayment",
@@ -12308,7 +12459,7 @@
         ]
       }
     },
-    "/food-orders/{id}/cancel": {
+    "/v1/food-orders/{id}/cancel": {
       "patch": {
         "description": "Ao ser processada, notifica a contraparte via WhatsApp sobre o cancelamento.",
         "operationId": "FoodOrdersController_cancel",
@@ -12362,7 +12513,7 @@
         ]
       }
     },
-    "/deliveries/available": {
+    "/v1/deliveries/available": {
       "get": {
         "operationId": "DeliveriesController_findAvailable",
         "parameters": [
@@ -12414,7 +12565,7 @@
         ]
       }
     },
-    "/deliveries/me": {
+    "/v1/deliveries/me": {
       "get": {
         "operationId": "DeliveriesController_findMine",
         "parameters": [
@@ -12466,7 +12617,7 @@
         ]
       }
     },
-    "/deliveries/me/earnings": {
+    "/v1/deliveries/me/earnings": {
       "get": {
         "description": "Soma os repasses já creditados (categoria DeliveryPayout) em hoje, semana corrente, mês corrente e acumulado, com a contagem de entregas de cada faixa. Alimenta o faturamento exibido na Home do entregador.",
         "operationId": "DeliveriesController_findMyEarnings",
@@ -12506,7 +12657,7 @@
         ]
       }
     },
-    "/deliveries/{id}": {
+    "/v1/deliveries/{id}": {
       "get": {
         "operationId": "DeliveriesController_findById",
         "parameters": [
@@ -12549,7 +12700,7 @@
         ]
       }
     },
-    "/deliveries/{id}/accept": {
+    "/v1/deliveries/{id}/accept": {
       "patch": {
         "operationId": "DeliveriesController_accept",
         "parameters": [
@@ -12589,7 +12740,7 @@
         ]
       }
     },
-    "/deliveries/{id}/reject": {
+    "/v1/deliveries/{id}/reject": {
       "patch": {
         "operationId": "DeliveriesController_reject",
         "parameters": [
@@ -12632,7 +12783,7 @@
         ]
       }
     },
-    "/deliveries/{id}/pickup": {
+    "/v1/deliveries/{id}/pickup": {
       "patch": {
         "description": "Ao ser processada, notifica o cliente via WhatsApp que o pedido saiu para entrega.",
         "operationId": "DeliveriesController_pickup",
@@ -12676,7 +12827,7 @@
         ]
       }
     },
-    "/deliveries/{id}/location": {
+    "/v1/deliveries/{id}/location": {
       "patch": {
         "operationId": "DeliveriesController_updateLocation",
         "parameters": [
@@ -12729,7 +12880,7 @@
         ]
       }
     },
-    "/deliveries/{id}/deliver": {
+    "/v1/deliveries/{id}/deliver": {
       "patch": {
         "description": "Ao ser processada, notifica o cliente via WhatsApp que o pedido foi entregue.",
         "operationId": "DeliveriesController_deliver",
@@ -12773,7 +12924,7 @@
         ]
       }
     },
-    "/webhooks/mercado-pago": {
+    "/v1/webhooks/mercado-pago": {
       "post": {
         "description": "Recebe notificações do tipo \"payment\" enviadas pelo Mercado Pago (via body ou query string), busca o pagamento oficial na API do Mercado Pago e confirma/cancela o pagamento local correspondente. Sempre responde 200 para evitar reenvios em loop, mesmo em casos de referência desconhecida ou credenciais não configuradas. Ao confirmar ou cancelar o pagamento, notifica as partes envolvidas via WhatsApp.",
         "operationId": "WebhooksController_mercadoPago",
@@ -17249,6 +17400,19 @@
           "serviceId"
         ]
       },
+      "ResponseBudgetChatDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Id da sala de chat.",
+            "example": 12
+          }
+        },
+        "required": [
+          "id"
+        ]
+      },
       "ExtraRequestStatus": {
         "type": "string",
         "enum": [
@@ -17462,10 +17626,13 @@
             "nullable": true,
             "example": "350.00"
           },
-          "acceptedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Quando o cliente aceitou a proposta."
+          "chat": {
+            "description": "Quando o cliente aceitou a proposta.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseBudgetChatDto"
+              }
+            ]
           },
           "rejectedAt": {
             "format": "date-time",
@@ -17670,10 +17837,13 @@
             "nullable": true,
             "example": "350.00"
           },
-          "acceptedAt": {
-            "format": "date-time",
-            "type": "string",
-            "description": "Quando o cliente aceitou a proposta."
+          "chat": {
+            "description": "Quando o cliente aceitou a proposta.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseBudgetChatDto"
+              }
+            ]
           },
           "rejectedAt": {
             "format": "date-time",
@@ -17901,6 +18071,26 @@
         },
         "required": [
           "id"
+        ]
+      },
+      "ResponseWorkWarrantyItemDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 87
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/WorkStatusEnum"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "status"
         ]
       },
       "ResponseWorkBudgetDto": {
@@ -18273,10 +18463,22 @@
             "nullable": true,
             "example": "350.00"
           },
-          "budgetId": {
+          "parentWorkId": {
             "type": "number",
             "description": "Identificador do orçamento de origem.",
             "example": 1
+          },
+          "isWarranty": {
+            "type": "boolean",
+            "description": "Verdadeiro quando este trabalho é um reparo em garantia: ciclo próprio, sem custo, sem pagamento e sem pedido de adicional.",
+            "example": false
+          },
+          "warrantyWorks": {
+            "description": "Reparos em garantia abertos a partir deste trabalho. Só o trabalho original tem.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseWorkWarrantyItemDto"
+            }
           },
           "budget": {
             "description": "Resumo do orçamento que originou o trabalho.",
@@ -18356,7 +18558,7 @@
           "id",
           "status",
           "isUnderWarranty",
-          "budgetId",
+          "isWarranty",
           "budget",
           "serviceId",
           "service",
@@ -18662,6 +18864,11 @@
             "description": "Id do plano a ser assinado.",
             "example": 1
           },
+          "categoryId": {
+            "type": "number",
+            "description": "Id da categoria de atuação coberta pela assinatura. A cobrança é por categoria: quem atua como pintor e pedreiro assina duas vezes, uma para cada, com planos e vencimentos independentes.",
+            "example": 1
+          },
           "payerEmail": {
             "type": "string",
             "description": "Email do pagador, usado para pré-preencher o checkout do Mercado Pago (opcional).",
@@ -18694,7 +18901,33 @@
           }
         },
         "required": [
-          "planId"
+          "planId",
+          "categoryId"
+        ]
+      },
+      "ResponseSubscriptionCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "description": "Identificador da categoria de atuação.",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "description": "Nome da categoria de atuação.",
+            "example": "Pintor"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Slug da categoria de atuação.",
+            "example": "pintor"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
         ]
       },
       "ResponseSubscriptionPaymentDto": {
@@ -18851,6 +19084,14 @@
               }
             ]
           },
+          "category": {
+            "description": "Categoria de atuação coberta por esta assinatura. Ausente nas concessões administrativas, que valem para todas as categorias.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseSubscriptionCategoryDto"
+              }
+            ]
+          },
           "payment": {
             "description": "Último pagamento associado à assinatura.",
             "allOf": [
@@ -18885,6 +19126,32 @@
             "description": "Fim do período atual da assinatura.",
             "example": "2026-04-20T12:00:00.000Z"
           },
+          "cancelAtPeriodEnd": {
+            "type": "boolean",
+            "description": "Cancelamento agendado para o fim do período pago. A assinatura segue valendo até lá e não renova depois.",
+            "example": false
+          },
+          "daysUntilExpiration": {
+            "type": "number",
+            "description": "Dias inteiros até o vencimento. Negativo quando já venceu. Nulo nas assinaturas sem prazo.",
+            "example": 5,
+            "nullable": true
+          },
+          "needsRenewal": {
+            "type": "boolean",
+            "description": "O botão de renovar deve aparecer: faltam 7 dias ou menos, e não há cancelamento agendado.",
+            "example": true
+          },
+          "inGracePeriod": {
+            "type": "boolean",
+            "description": "Vencida, porém ainda dentro dos 3 dias de tolerância — segue operando.",
+            "example": false
+          },
+          "expired": {
+            "type": "boolean",
+            "description": "Vencida e fora da tolerância: já não libera operação nenhuma.",
+            "example": false
+          },
           "cancelledAt": {
             "format": "date-time",
             "type": "string",
@@ -18912,6 +19179,10 @@
           "planInterval",
           "intervalCount",
           "plan",
+          "cancelAtPeriodEnd",
+          "needsRenewal",
+          "inGracePeriod",
+          "expired",
           "createdAt",
           "updatedAt"
         ]
@@ -18957,6 +19228,128 @@
         },
         "required": [
           "subscriptions"
+        ]
+      },
+      "ResponseCatalogSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 12
+          },
+          "planName": {
+            "type": "string",
+            "example": "Plano anual"
+          },
+          "currentPeriodEnd": {
+            "format": "date-time",
+            "type": "string",
+            "example": "2027-03-20T12:00:00.000Z"
+          },
+          "daysUntilExpiration": {
+            "type": "number",
+            "example": 5,
+            "nullable": true
+          },
+          "needsRenewal": {
+            "type": "boolean",
+            "example": false
+          },
+          "inGracePeriod": {
+            "type": "boolean",
+            "example": false
+          },
+          "expired": {
+            "type": "boolean",
+            "example": false
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean",
+            "example": false
+          },
+          "coversAllCategories": {
+            "type": "boolean",
+            "description": "Assinatura de cobertura ampla — hoje só as concessões administrativas. Vale para todas as categorias, então a tela não deve oferecer cancelá-la a partir de uma categoria específica.",
+            "example": false
+          }
+        },
+        "required": [
+          "id",
+          "planName",
+          "needsRenewal",
+          "inGracePeriod",
+          "expired",
+          "cancelAtPeriodEnd",
+          "coversAllCategories"
+        ]
+      },
+      "ResponseCatalogCategoryDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Pintor"
+          },
+          "slug": {
+            "type": "string",
+            "example": "pintor"
+          },
+          "iconUrl": {
+            "type": "string",
+            "example": "https://cdn.exemplo.com/pintor.png"
+          },
+          "isSubscribed": {
+            "type": "boolean",
+            "description": "O fornecedor pode operar nesta categoria agora. Responde exatamente o que o portão responderia — inclui a tolerância de 3 dias e a cobertura ampla das concessões.",
+            "example": true
+          },
+          "subscription": {
+            "description": "A assinatura que cobre esta categoria, quando existe.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseCatalogSubscriptionDto"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "isSubscribed"
+        ]
+      },
+      "ResponseSubscriptionCatalogDto": {
+        "type": "object",
+        "properties": {
+          "plans": {
+            "description": "Planos ativos, com o valor do ciclo e o equivalente mensal.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponsePlanDto"
+            }
+          },
+          "categories": {
+            "description": "Categorias de atuação ativas, com a situação do fornecedor em cada uma.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseCatalogCategoryDto"
+            }
+          },
+          "subscribedCount": {
+            "type": "number",
+            "description": "Quantas categorias o fornecedor pode operar agora.",
+            "example": 2
+          }
+        },
+        "required": [
+          "plans",
+          "categories",
+          "subscribedCount"
         ]
       },
       "ResponseMercadoPagoStatusDto": {
@@ -19756,6 +20149,49 @@
         ],
         "description": "Modelo de cobrança do usuário, quando aplicável."
       },
+      "ResponseWarrantyStatsDto": {
+        "type": "object",
+        "properties": {
+          "warrantiesTotal": {
+            "type": "number",
+            "description": "Acionamentos de garantia recebidos, aprovados ou não.",
+            "example": 7
+          },
+          "warrantiesApproved": {
+            "type": "number",
+            "description": "Acionamentos aprovados pelo fornecedor.",
+            "example": 6
+          },
+          "warrantiesRejected": {
+            "type": "number",
+            "description": "Acionamentos recusados. A recusa é final.",
+            "example": 1
+          },
+          "warrantiesPending": {
+            "type": "number",
+            "description": "Acionamentos aguardando resposta.",
+            "example": 0
+          },
+          "warrantiesCompleted": {
+            "type": "number",
+            "description": "Reparos em garantia concluídos. É o que o perfil chama de \"atendidas\": para quem lê, atendida significa problema resolvido, não apenas aprovado.",
+            "example": 5
+          },
+          "warrantiesInProgress": {
+            "type": "number",
+            "description": "Reparos abertos ou em andamento.",
+            "example": 1
+          }
+        },
+        "required": [
+          "warrantiesTotal",
+          "warrantiesApproved",
+          "warrantiesRejected",
+          "warrantiesPending",
+          "warrantiesCompleted",
+          "warrantiesInProgress"
+        ]
+      },
       "ResponseProfileDto": {
         "type": "object",
         "properties": {
@@ -19882,6 +20318,14 @@
                 "$ref": "#/components/schemas/BillingTypeEnum"
               }
             ]
+          },
+          "warranties": {
+            "description": "Contador de garantias do fornecedor. Zerado para quem nunca recebeu acionamento.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseWarrantyStatsDto"
+              }
+            ]
           }
         },
         "required": [
@@ -19893,7 +20337,8 @@
           "status",
           "socialMedias",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "warranties"
         ]
       },
       "UpdateProfileDto": {
@@ -20248,6 +20693,14 @@
             "type": "string",
             "description": "Data da última atualização do serviço.",
             "example": "2026-03-14T10:00:00.000Z"
+          },
+          "providerWarranties": {
+            "description": "Contador de garantias do prestador deste serviço. Só no detalhe; a listagem não traz.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/ResponseWarrantyStatsDto"
+              }
+            ]
           }
         },
         "required": [
@@ -20264,7 +20717,8 @@
           "negativeReviews",
           "completedWorks",
           "createdAt",
-          "updatedAt"
+          "updatedAt",
+          "providerWarranties"
         ]
       },
       "CreateServiceResponseDto": {
@@ -21376,13 +21830,26 @@
             "nullable": true,
             "example": "350.00"
           },
-          "budget": {
+          "parentWorkId": {
             "description": "Resumo do orçamento que originou o trabalho.",
+            "example": 12,
             "allOf": [
               {
                 "$ref": "#/components/schemas/ResponseWorkBudgetDto"
               }
             ]
+          },
+          "isWarranty": {
+            "type": "boolean",
+            "description": "Verdadeiro quando este trabalho é um reparo em garantia: ciclo próprio, sem custo, sem pagamento e sem pedido de adicional.",
+            "example": false
+          },
+          "warrantyWorks": {
+            "description": "Reparos em garantia abertos a partir deste trabalho. Só o trabalho original tem.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ResponseWorkWarrantyItemDto"
+            }
           },
           "service": {
             "description": "Resumo do serviço vinculado ao trabalho.",
@@ -21427,7 +21894,7 @@
           "id",
           "status",
           "isUnderWarranty",
-          "budget",
+          "isWarranty",
           "service",
           "requester",
           "provider",
@@ -21894,6 +22361,19 @@
           "currentPage",
           "totalPages",
           "totalRecords"
+        ]
+      },
+      "ResponseUnreadCountDto": {
+        "type": "object",
+        "properties": {
+          "total": {
+            "type": "number",
+            "description": "Total de mensagens não lidas do usuário, somando todas as conversas. Mensagens enviadas por ele mesmo nunca contam.",
+            "example": 3
+          }
+        },
+        "required": [
+          "total"
         ]
       },
       "ResponseChatParticipantDto": {
