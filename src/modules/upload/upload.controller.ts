@@ -38,7 +38,7 @@ import {
   PresignUploadDto,
   ResponsePresignUploadDto,
 } from './dto/upload-direct.dto';
-import { LIMITE_UPLOAD_DIRETO } from './upload-direct.constants';
+import { EXTENSOES_DE_IMAGEM, LIMITE_UPLOAD_DIRETO } from './upload-direct.constants';
 import { UploadService } from './upload.service';
 
 const MB = 1024 * 1024;
@@ -67,7 +67,9 @@ export class UploadController {
   @ApiOperation({
     summary: 'Rota para upload de um arquivo.',
     description:
-      'Essa rota aceita arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.',
+      'Essa rota aceita arquivos dos tipos png, jpg, jpeg, webp, pdf, de até 10 MB. Armazena no ' +
+      'S3 ou em disco e retorna a URL definitiva. Vídeo não passa por aqui — use ' +
+      'POST /v1/upload/presign.',
   })
   @ApiResponse({ status: 201, type: ResponseOneFileDto })
   @ApiResponse({ status: 422, description: 'Tamanho ou tipo de arquivo inválido.' })
@@ -77,7 +79,7 @@ export class UploadController {
   async uploadOneFile(
     @UploadedFile(
       new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: /png|jpg|jpeg|pdf/, skipMagicNumbersValidation: true })
+        .addFileTypeValidator({ fileType: EXTENSOES_DE_IMAGEM, skipMagicNumbersValidation: true })
         .addMaxSizeValidator({ maxSize: LIMITE_POR_ARQUIVO })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
@@ -96,7 +98,8 @@ export class UploadController {
   @ApiOperation({
     summary: 'Rota para upload de múltiplos arquivos.',
     description:
-      'Essa rota aceita no máximo 5 arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.',
+      'Essa rota aceita no máximo 5 arquivos dos tipos png, jpg, jpeg, webp, pdf, de até 10 MB cada. ' +
+      'Vídeo não passa por aqui — use POST /v1/upload/presign.',
   })
   @ApiResponse({ status: 201, type: [ResponseOneFileDto] })
   @ApiResponse({ status: 422, description: 'Tamanho ou tipo de arquivo inválido.' })
@@ -109,7 +112,7 @@ export class UploadController {
   async uploadManyFiles(
     @UploadedFiles(
       new ParseFilePipeBuilder()
-        .addFileTypeValidator({ fileType: /png|jpg|jpeg|pdf/, skipMagicNumbersValidation: true })
+        .addFileTypeValidator({ fileType: EXTENSOES_DE_IMAGEM, skipMagicNumbersValidation: true })
         .addMaxSizeValidator({ maxSize: LIMITE_POR_ARQUIVO })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )

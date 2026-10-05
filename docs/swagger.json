@@ -987,7 +987,7 @@
     },
     "/v1/upload/one-file": {
       "post": {
-        "description": "Essa rota aceita arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.",
+        "description": "Essa rota aceita arquivos dos tipos png, jpg, jpeg, webp, pdf, de até 10 MB. Armazena no S3 ou em disco e retorna a URL definitiva. Vídeo não passa por aqui — use POST /v1/upload/presign.",
         "operationId": "UploadController_uploadOneFile",
         "parameters": [],
         "requestBody": {
@@ -1029,7 +1029,7 @@
     },
     "/v1/upload/many-files": {
       "post": {
-        "description": "Essa rota aceita no máximo 5 arquivos dos tipos png, jpg, jpeg, pdf. Armazena local/nuvem e retorna o link do local de armazenagem.",
+        "description": "Essa rota aceita no máximo 5 arquivos dos tipos png, jpg, jpeg, webp, pdf, de até 10 MB cada. Vídeo não passa por aqui — use POST /v1/upload/presign.",
         "operationId": "UploadController_uploadManyFiles",
         "parameters": [],
         "requestBody": {

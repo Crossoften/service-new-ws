@@ -12,7 +12,7 @@
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-09-24 (assinatura por categoria — P1, P2 e P3) |
+> | **Atualizado em** | 2026-10-05 (upload no S3 com bucket privado e vídeo direto) |
 > | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
 > | **Base da API local** | `http://localhost:8000/v1` |
 > | **Swagger** | `http://localhost:8000/docs` |
@@ -1603,6 +1603,142 @@ não descobre qual pagar.
 - Serviço publicado **não some** quando a categoria vence. Ele continua na
   vitrine; o bloqueio acontece na interação
 
+## 8.14 Upload: bucket privado e vídeo direto 🟡
+
+Mexe em **todas** as telas que enviam ou exibem arquivo. A entrada de arquivo do
+sistema é uma só — `/v1/upload/*` —, então o que muda aqui vale para perfil,
+serviço, orçamento, garantia, chat, restaurante, cardápio, produto, hospedagem,
+transporte e vaga ao mesmo tempo.
+
+### Foto continua igual
+
+```
+POST /v1/upload/one-file     (multipart, campo `file`)
+→ { id, fileUrl, fileKey }
+```
+
+Mesma rota, mesma resposta. Duas mudanças pequenas:
+
+- **`webp` passou a ser aceito.** Era recusado, e é o formato padrão de boa parte
+  dos Android — o fornecedor tirava a foto e levava `422` sem entender
+- **O teto é 10 MB**, agora aplicado antes de o arquivo entrar na memória do
+  servidor. Acima disso vem **`413`**, não `422`
+
+Aceitos: `png`, `jpg`, `jpeg`, `webp`, `pdf`.
+
+> **`heic` não é aceito, e é decisão, não esquecimento.** É o padrão do iPhone,
+> mas só o Safari exibe — guardar um `heic` produziria um arquivo que a própria
+> plataforma não mostra, e o sintoma seria "a foto sumiu" em vez de um erro no
+> envio. **A conversão é do front**, antes de enviar: `heic2any` ou um `canvas`
+> resolvem, com a imagem ainda em memória. Vale tratar, porque é um iPhone
+> inteiro de usuários.
+
+### A URL mudou de dono
+
+Antes, com S3 ligado, a `fileUrl` apontava para o bucket:
+`https://bkt-service.s3.amazonaws.com/chave`.
+
+Agora aponta sempre para a API: **`{API}/v1/files/{fileKey}`**.
+
+O bucket é privado — Block Public Access ligado — e quem entrega o conteúdo é a
+API. Para o front **nada muda no uso**: continua sendo uma URL que vai direto no
+`src` de um `<img>`, sem header de autenticação, e agora com cache de um ano.
+
+A razão de não ser URL pré-assinada: ela expira, e essa URL é **gravada em
+dezesseis tabelas**. URL que expira não pode morar em coluna — envelheceria no
+banco.
+
+### Vídeo: três passos, e o arquivo não passa pela API
+
+Um vídeo de 200 MB pela rota comum atravessaria a rede duas vezes e ficaria
+inteiro na memória do servidor. Por isso o navegador fala direto com o S3.
+
+**Passo 1 — pedir autorização**
+
+```
+POST /v1/upload/presign
+{ "fileName": "obra-concluida.mp4", "contentType": "video/mp4" }
+```
+
+```jsonc
+{
+  "strategy": "s3",                    // ou "api", em ambiente sem AWS
+  "uploadUrl": "https://bkt-service.s3.amazonaws.com/",
+  "fields": { "key": "...", "Content-Type": "video/mp4", "Policy": "...", "X-Amz-Signature": "..." },
+  "fileKey": "1791206064916-obra-concluida.mp4",
+  "token": "089a6474...",
+  "maxBytes": 209715200,
+  "expiresIn": 900,
+  "previewUrl": "https://api.../v1/files/1791206064916-obra-concluida.mp4"
+}
+```
+
+**Passo 2 — enviar**
+
+```ts
+const fd = new FormData();
+Object.entries(p.fields).forEach(([k, v]) => fd.append(k, v));
+fd.append('file', arquivo);        // o `file` vai POR ÚLTIMO
+
+await fetch(p.uploadUrl, { method: 'POST', body: fd });
+```
+
+Três detalhes que quebram se forem ignorados:
+
+- **O campo `file` vai depois de todos os `fields`.** O S3 ignora o que vier
+  após ele
+- **Na estratégia `s3`, NÃO mande `Authorization`.** O header quebra a
+  assinatura e a AWS recusa. Na `api`, ele é obrigatório
+- **`fields` vem vazio na estratégia `api`** — o laço simplesmente não itera, e
+  o mesmo código serve aos dois ambientes
+
+**Passo 3 — confirmar**
+
+```
+POST /v1/upload/confirm
+{ "fileKey": "...", "token": "..." }
+→ { id, fileUrl, fileKey }
+```
+
+Só aqui o arquivo entra na tabela `files`. A API confere no armazenamento que o
+objeto chegou — sem isso, um envio interrompido no meio viraria um registro
+apontando para vídeo inexistente.
+
+O `fileUrl` que volta é o mesmo `previewUrl` do passo 1, então dá para montar a
+pré-visualização antes de confirmar.
+
+### A estratégia `api`
+
+Aparece quando a API está sem credenciais da AWS. Existe para vocês
+desenvolverem a tela de vídeo localmente — o formato da resposta é idêntico, e o
+código da tela não muda entre ambientes.
+
+### Tipos de vídeo aceitos
+
+`video/mp4` · `video/quicktime` · `video/webm` · `video/x-matroska` · `video/3gpp`
+
+Outro tipo volta **`400`** com a mensagem pronta. Imagem nessa rota também volta
+`400`, apontando para `/v1/upload/one-file`.
+
+### Códigos de erro
+
+| Código | Quando | O que a tela faz |
+|---|---|---|
+| `400` | tipo não aceito no presign | mostra a mensagem, que já é específica |
+| `403` | token inválido ou expirado | pede novo presign e refaz o envio |
+| `404` | confirm de arquivo que não chegou | oferece reenviar |
+| `413` | acima do teto | avisa o tamanho máximo antes de tentar |
+
+### Travas de UI
+
+- Conferir o tamanho **antes** de pedir o presign: `maxBytes` vem na resposta,
+  mas descobrir o estouro depois do upload desperdiça a espera do usuário
+- A autorização vale **15 minutos**. Envio longo que estoure isso precisa de
+  presign novo
+- `previewUrl` só funciona **depois** do confirm — antes dele o arquivo existe no
+  bucket, mas não na tabela
+- Não cachear o resultado do presign: cada envio pede o seu
+
 ---
 
 ## 9. O que não muda
@@ -1686,6 +1822,16 @@ Ordenado por dependência. O item 0 acima é pré-requisito de todos.
 29. **`categoryId` no `403`** (seção 8.13) — leva o fornecedor ao checkout certo
 30. **`?categoryId` no `current`** (seção 8.13) — só onde a tela mostra uma
     categoria específica; sem ele a rota devolve uma assinatura qualquer
+
+### Upload no S3 🟡
+
+31. **Conversão de `heic` antes do envio** (seção 8.14) — **o que mais quebra
+    tela hoje**: usuário de iPhone não consegue enviar foto. Não depende do
+    back; é conversão no cliente
+32. **`413` no lugar de `422`** (seção 8.14) — quem trata o estouro de tamanho
+    precisa olhar o código novo
+33. **Tela de vídeo nos três passos** (seção 8.14) — presign, envio, confirm. É
+    tela nova; nada do que existe hoje depende dela
 
 > Este bloco **foi exercitado contra MySQL real**, não só contra duplo de
 > Prisma: 53 testes de integração cobrem o portão, a carência, o cancelamento,

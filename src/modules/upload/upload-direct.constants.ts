@@ -39,3 +39,17 @@ export const TIPOS_DE_VIDEO = [
 export function ehVideoAceito(contentType: string): boolean {
   return (TIPOS_DE_VIDEO as readonly string[]).includes(contentType);
 }
+
+/**
+ * Tipos aceitos no upload pela API — foto e documento.
+ *
+ * `webp` entrou porque é o formato padrão de boa parte dos Android há anos: sem
+ * ele, o fornecedor tira a foto, tenta enviar e leva 422 sem entender por quê.
+ *
+ * `heic` ficou DE FORA de propósito, e não por esquecimento. É o padrão do
+ * iPhone, mas nenhum navegador além do Safari o exibe: aceitá-lo aqui gravaria
+ * um arquivo que a própria plataforma não consegue mostrar, e o sintoma seria
+ * "a foto sumiu" em vez de um erro claro no envio. A conversão pertence ao
+ * front, antes do envio, onde a imagem ainda está em memória.
+ */
+export const EXTENSOES_DE_IMAGEM = /png|jpg|jpeg|webp|pdf/;
