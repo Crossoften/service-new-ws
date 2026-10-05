@@ -1075,6 +1075,143 @@
         ]
       }
     },
+    "/v1/upload/presign": {
+      "post": {
+        "description": "Primeiro dos três passos do upload de vídeo. Devolve para onde enviar e com quais campos; o arquivo NÃO passa pela API. O teto de 200 MB é imposto pelo próprio S3. Depois de enviar, chame POST /v1/upload/confirm. Imagem não usa este caminho — continua em POST /v1/upload/one-file.",
+        "operationId": "UploadController_presignUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresignUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponsePresignUploadDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Tipo de arquivo não aceito no upload direto."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Autoriza o envio de um vídeo direto para o armazenamento.",
+        "tags": [
+          "Upload de arquivos"
+        ]
+      }
+    },
+    "/v1/upload/direct/{fileKey}": {
+      "post": {
+        "description": "Par da estratégia `api` do presign. Existe para o front desenvolver a tela de vídeo sem credencial da AWS. Com S3 configurado responde 403 — ali o envio vai para o bucket, e aceitar aqui faria o arquivo cair no disco de uma instância só.",
+        "operationId": "UploadController_storeDirect",
+        "parameters": [
+          {
+            "name": "fileKey",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "token": {
+                    "type": "string"
+                  },
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Arquivo recebido. Agora chame o confirm."
+          },
+          "403": {
+            "description": "Autorização inválida, ou S3 está configurado."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Recebe o envio direto quando não há S3 configurado.",
+        "tags": [
+          "Upload de arquivos"
+        ]
+      }
+    },
+    "/v1/upload/confirm": {
+      "post": {
+        "description": "Último dos três passos. Confere no armazenamento que o objeto chegou e só então grava a linha em `files`. Sem isto, um envio interrompido no meio viraria um registro apontando para arquivo inexistente.",
+        "operationId": "UploadController_confirmUpload",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmUploadDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseOneFileDto"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Autorização inválida."
+          },
+          "404": {
+            "description": "O arquivo não chegou ao armazenamento."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Registra um arquivo que subiu direto para o armazenamento.",
+        "tags": [
+          "Upload de arquivos"
+        ]
+      }
+    },
     "/v1/files/{fileKey}": {
       "get": {
         "description": "É esta a URL gravada em `fileUrl`/`imageUrl` por todo o sistema. O bucket é privado, então o conteúdo passa pela API em vez de ser lido direto do S3. É pública por desenho — a proteção é a chave não ser adivinhável, e é o que permite usar a URL em `<img src>`, que não manda header de autenticação.",
@@ -14071,6 +14208,107 @@
           "id",
           "fileUrl",
           "fileKey"
+        ]
+      },
+      "PresignUploadDto": {
+        "type": "object",
+        "properties": {
+          "fileName": {
+            "type": "string",
+            "description": "Nome original do arquivo. Serve só para preservar a extensão na chave gerada.",
+            "example": "obra-concluida.mp4"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "Tipo do conteúdo. Só vídeo passa por aqui; imagem usa POST /v1/upload/one-file.",
+            "enum": [
+              "video/mp4",
+              "video/quicktime",
+              "video/webm",
+              "video/x-matroska",
+              "video/3gpp"
+            ],
+            "example": "video/mp4"
+          }
+        },
+        "required": [
+          "fileName",
+          "contentType"
+        ]
+      },
+      "ResponsePresignUploadDto": {
+        "type": "object",
+        "properties": {
+          "strategy": {
+            "type": "string",
+            "description": "Para onde o arquivo vai. `s3` é o caminho normal; `api` aparece em ambiente sem credenciais da AWS, para o front conseguir desenvolver. O envio é igual nos dois: um POST `multipart/form-data` para `uploadUrl`, com os `fields` antes do arquivo.",
+            "enum": [
+              "s3",
+              "api"
+            ],
+            "example": "s3"
+          },
+          "uploadUrl": {
+            "type": "string",
+            "description": "Endereço do POST de envio."
+          },
+          "fields": {
+            "type": "object",
+            "description": "Campos que precisam ir no formulário ANTES do campo `file`. Vazio na estratégia `api`.",
+            "example": {
+              "key": "1791164368874-video.mp4",
+              "Content-Type": "video/mp4"
+            }
+          },
+          "fileKey": {
+            "type": "string",
+            "description": "Chave gerada pelo servidor. Use-a no confirm."
+          },
+          "token": {
+            "type": "string",
+            "description": "Prova de autorização. Use-a no confirm."
+          },
+          "maxBytes": {
+            "type": "number",
+            "description": "Teto de tamanho em bytes, imposto pelo S3.",
+            "example": 209715200
+          },
+          "expiresIn": {
+            "type": "number",
+            "description": "Validade da autorização, em segundos.",
+            "example": 900
+          },
+          "previewUrl": {
+            "type": "string",
+            "description": "Como a URL definitiva do arquivo ficará depois do confirm."
+          }
+        },
+        "required": [
+          "strategy",
+          "uploadUrl",
+          "fields",
+          "fileKey",
+          "token",
+          "maxBytes",
+          "expiresIn"
+        ]
+      },
+      "ConfirmUploadDto": {
+        "type": "object",
+        "properties": {
+          "fileKey": {
+            "type": "string",
+            "description": "A `fileKey` devolvida pelo presign.",
+            "example": "1791164368874-obra-concluida.mp4"
+          },
+          "token": {
+            "type": "string",
+            "description": "O `token` devolvido pelo presign. Prova que esta chave foi autorizada para este usuário, e impede registrar em nome próprio um arquivo de outra pessoa."
+          }
+        },
+        "required": [
+          "fileKey",
+          "token"
         ]
       },
       "IfileEntity": {

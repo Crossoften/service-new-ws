@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   DeleteObjectCommandInput,
   GetObjectCommand,
+  HeadObjectCommand,
   PutObjectCommand,
   PutObjectCommandInput,
   S3Client,
@@ -10,7 +11,8 @@ import { PrismaService } from '@database/PrismaService';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { File, Role, User } from '@prisma/client';
-import { createReadStream, existsSync } from 'fs';
+import { createHmac, timingSafeEqual } from 'crypto';
+import { createReadStream, existsSync, statSync } from 'fs';
 import { mkdir, unlink, writeFile } from 'fs/promises';
 import { basename, extname, join, resolve } from 'path';
 import { Readable } from 'stream';
@@ -19,6 +21,10 @@ import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
 import { UploadFileNotFoundException } from './exceptions/upload-file-not-found.exception';
 import { UploadUserNotFoundException } from './exceptions/upload-user-not-found.exception';
+import { UploadNotAuthorizedException } from './exceptions/upload-not-authorized.exception';
+import { ResponsePresignUploadDto } from './dto/upload-direct.dto';
+import { LIMITE_UPLOAD_DIRETO, VALIDADE_DA_AUTORIZACAO } from './upload-direct.constants';
+import { createPresignedPost } from '@aws-sdk/s3-presigned-post';
 
 @Injectable()
 export class UploadService {
@@ -302,6 +308,145 @@ export class UploadService {
     // e falhar aqui deixaria a linha órfã para sempre.
     if (caminho.startsWith(this.localDir) && existsSync(caminho)) {
       await unlink(caminho);
+    }
+  }
+
+  /**
+   * Assina a autorização de envio e devolve ao front como mandar o arquivo.
+   *
+   * O vídeo não passa pela API. Um arquivo de 200 MB subindo pela rota comum
+   * atravessaria a rede duas vezes e ficaria inteiro na memória do processo
+   * antes de chegar ao bucket — com três envios simultâneos, o servidor cai.
+   * Aqui o navegador fala direto com o S3, e a API só assina e confere.
+   *
+   * O teto vai numa condição `content-length-range` da política assinada: é a
+   * AWS que recusa o arquivo grande, não um `if` do front. Com PUT assinado não
+   * haveria como impor isso — por isso POST pré-assinado.
+   *
+   * A chave é gerada AQUI, nunca aceita do cliente: `safeKey` já sanitiza, e
+   * deixar o cliente escolher permitiria sobrescrever o arquivo de outro.
+   */
+  async presign(
+    fileName: string,
+    contentType: string,
+    userId: number,
+  ): Promise<ResponsePresignUploadDto> {
+    const fileKey = this.safeKey(fileName);
+    const token = this.assinarAutorizacao(fileKey, userId);
+    const comum = {
+      fileKey,
+      token,
+      maxBytes: LIMITE_UPLOAD_DIRETO,
+      expiresIn: VALIDADE_DA_AUTORIZACAO,
+      previewUrl: this.fileUrlFor(fileKey),
+    };
+
+    if (!this.s3Client) {
+      // Sem AWS, o envio volta para a API — numa rota própria, que grava em
+      // disco com o mesmo teto. Existe para o front desenvolver a tela de vídeo
+      // sem credencial; o formato da resposta é o mesmo, então o código da tela
+      // não muda entre os ambientes.
+      return {
+        strategy: 'api',
+        uploadUrl: `${this.publicApiUrl}/v1/upload/direct/${fileKey}`,
+        fields: {},
+        ...comum,
+      };
+    }
+
+    const { url, fields } = await createPresignedPost(this.s3Client, {
+      Bucket: this.bucketName,
+      Key: fileKey,
+      Conditions: [
+        ['content-length-range', 1, LIMITE_UPLOAD_DIRETO],
+        ['eq', '$Content-Type', contentType],
+      ],
+      Fields: { 'Content-Type': contentType },
+      Expires: VALIDADE_DA_AUTORIZACAO,
+    });
+
+    return { strategy: 's3', uploadUrl: url, fields, ...comum };
+  }
+
+  /**
+   * Recebe o arquivo quando não há S3 — o par da estratégia `api`.
+   *
+   * A chave vem da URL e é conferida contra o token: sem isso, qualquer um
+   * escreveria em qualquer chave.
+   */
+  async storeDirect(
+    fileKey: string,
+    token: string,
+    file: Express.Multer.File,
+    userId: number,
+  ): Promise<void> {
+    this.conferirAutorizacao(fileKey, token, userId);
+
+    if (this.s3Client) {
+      // Com S3 ligado o envio tem de ir para o bucket. Aceitar por aqui faria
+      // o arquivo cair no disco de uma instância só, e sumir na próxima.
+      throw new UploadNotAuthorizedException();
+    }
+
+    await this.storeLocally(basename(fileKey), file.buffer);
+  }
+
+  /**
+   * Registra na tabela `files` um arquivo que subiu por fora da API.
+   *
+   * Confere no armazenamento que o objeto realmente chegou. Sem esta checagem,
+   * o front poderia registrar um envio que falhou no meio, e o sistema passaria
+   * a exibir um vídeo que não existe.
+   */
+  async confirmUpload(fileKey: string, token: string, userId: number): Promise<ResponseOneFileDto> {
+    this.conferirAutorizacao(fileKey, token, userId);
+
+    const nome = basename(fileKey);
+
+    if (this.s3Client) {
+      try {
+        await this.s3Client.send(new HeadObjectCommand({ Bucket: this.bucketName, Key: nome }));
+      } catch {
+        throw new UploadFileNotFoundException();
+      }
+    } else {
+      const caminho = resolve(join(this.localDir, nome));
+
+      if (!caminho.startsWith(this.localDir) || !existsSync(caminho)) {
+        throw new UploadFileNotFoundException();
+      }
+
+      // No disco não há `content-length-range`: o teto é conferido depois.
+      if (statSync(caminho).size > LIMITE_UPLOAD_DIRETO) {
+        throw new UploadNotAuthorizedException();
+      }
+    }
+
+    return this.persist(nome, userId);
+  }
+
+  /**
+   * Prova de que esta chave foi autorizada para este usuário.
+   *
+   * Sem ela, qualquer autenticado que descobrisse a chave de outro registraria
+   * o arquivo em nome próprio. Um HMAC resolve sem tabela nova e sem estado: a
+   * própria assinatura carrega a autorização.
+   */
+  private assinarAutorizacao(fileKey: string, userId: number): string {
+    const segredo = this.configService.get<string>('JWT_SECRET') || '';
+
+    return createHmac('sha256', segredo).update(`${fileKey}:${userId}`).digest('hex');
+  }
+
+  private conferirAutorizacao(fileKey: string, token: string, userId: number): void {
+    const esperado = Buffer.from(this.assinarAutorizacao(basename(fileKey), userId));
+    const recebido = Buffer.from(token || '');
+
+    // Comparação de tempo constante: `===` vaza, pelo tempo de resposta, quantos
+    // caracteres iniciais batem, e com isso um token pode ser descoberto byte a
+    // byte.
+    if (esperado.length !== recebido.length || !timingSafeEqual(esperado, recebido)) {
+      throw new UploadNotAuthorizedException();
     }
   }
 

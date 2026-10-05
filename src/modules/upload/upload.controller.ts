@@ -1,6 +1,7 @@
 import { IfileEntity } from '@interfaces/entities/Ifile.entity';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import {
+  Body,
   Controller,
   Delete,
   Get,
@@ -32,6 +33,12 @@ import { IsPublic } from '../auth/decorators/is-public.decorator';
 import { DeleteOneFileDto } from './dto/delete-one-file.dto';
 import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
+import {
+  ConfirmUploadDto,
+  PresignUploadDto,
+  ResponsePresignUploadDto,
+} from './dto/upload-direct.dto';
+import { LIMITE_UPLOAD_DIRETO } from './upload-direct.constants';
 import { UploadService } from './upload.service';
 
 const MB = 1024 * 1024;
@@ -111,6 +118,79 @@ export class UploadController {
   ) {
     const response = await this._uploadService.uploadManyFiles(files, user);
     return response;
+  }
+
+  @Post('upload/presign')
+  @ApiOperation({
+    summary: 'Autoriza o envio de um vídeo direto para o armazenamento.',
+    description:
+      'Primeiro dos três passos do upload de vídeo. Devolve para onde enviar e com quais ' +
+      'campos; o arquivo NÃO passa pela API. O teto de 200 MB é imposto pelo próprio S3. ' +
+      'Depois de enviar, chame POST /v1/upload/confirm. Imagem não usa este caminho — ' +
+      'continua em POST /v1/upload/one-file.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiResponse({ status: 201, type: ResponsePresignUploadDto })
+  @ApiResponse({ status: 400, description: 'Tipo de arquivo não aceito no upload direto.' })
+  async presignUpload(
+    @Body() payload: PresignUploadDto,
+    @CurrentUser() user: User,
+  ): Promise<ResponsePresignUploadDto> {
+    return this._uploadService.presign(payload.fileName, payload.contentType, user.id);
+  }
+
+  @Post('upload/direct/:fileKey')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: LIMITE_UPLOAD_DIRETO, files: 1 } }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiOperation({
+    summary: 'Recebe o envio direto quando não há S3 configurado.',
+    description:
+      'Par da estratégia `api` do presign. Existe para o front desenvolver a tela de vídeo ' +
+      'sem credencial da AWS. Com S3 configurado responde 403 — ali o envio vai para o ' +
+      'bucket, e aceitar aqui faria o arquivo cair no disco de uma instância só.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        token: { type: 'string' },
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
+  @ApiResponse({ status: 201, description: 'Arquivo recebido. Agora chame o confirm.' })
+  @ApiResponse({ status: 403, description: 'Autorização inválida, ou S3 está configurado.' })
+  async storeDirect(
+    @Param('fileKey') fileKey: string,
+    @Body('token') token: string,
+    @UploadedFile() file: Express.Multer.File,
+    @CurrentUser() user: User,
+  ): Promise<{ message: string }> {
+    await this._uploadService.storeDirect(fileKey, token, file, user.id);
+
+    return { message: 'Arquivo recebido. Confirme o envio para registrá-lo.' };
+  }
+
+  @Post('upload/confirm')
+  @ApiOperation({
+    summary: 'Registra um arquivo que subiu direto para o armazenamento.',
+    description:
+      'Último dos três passos. Confere no armazenamento que o objeto chegou e só então ' +
+      'grava a linha em `files`. Sem isto, um envio interrompido no meio viraria um ' +
+      'registro apontando para arquivo inexistente.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiResponse({ status: 201, type: ResponseOneFileDto })
+  @ApiResponse({ status: 403, description: 'Autorização inválida.' })
+  @ApiResponse({ status: 404, description: 'O arquivo não chegou ao armazenamento.' })
+  async confirmUpload(
+    @Body() payload: ConfirmUploadDto,
+    @CurrentUser() user: User,
+  ): Promise<ResponseOneFileDto> {
+    return this._uploadService.confirmUpload(payload.fileKey, payload.token, user.id);
   }
 
   @Get('files/:fileKey')

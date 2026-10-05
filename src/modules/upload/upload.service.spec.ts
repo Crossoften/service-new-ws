@@ -4,6 +4,7 @@ import { ConfigService } from '@nestjs/config';
 import { Readable } from 'stream';
 
 import { UploadFileNotFoundException } from './exceptions/upload-file-not-found.exception';
+import { UploadNotAuthorizedException } from './exceptions/upload-not-authorized.exception';
 import { UploadService } from './upload.service';
 
 type Env = Record<string, string | undefined>;
@@ -189,5 +190,130 @@ describe('UploadService — leitura pela chave', () => {
     await expect(build().openByKey('nao-existe-mesmo.png')).rejects.toThrow(
       UploadFileNotFoundException,
     );
+  });
+});
+
+describe('UploadService — upload direto de vídeo', () => {
+  const ENV = { ...ENV_AWS, URL_INTEGRATION: 'https://api.exemplo.com', JWT_SECRET: 'segredo' };
+
+  function autorizar(service: UploadService, fileKey: string, userId: number): string {
+    return (
+      service as unknown as { assinarAutorizacao: (k: string, u: number) => string }
+    ).assinarAutorizacao(fileKey, userId);
+  }
+
+  describe('sem S3 — estratégia da API', () => {
+    const service = build({ URL_INTEGRATION: 'https://api.exemplo.com', JWT_SECRET: 'segredo' });
+
+    it('manda o envio de volta para a API', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+
+      // Existe para o front desenvolver a tela sem credencial da AWS. O formato
+      // é o mesmo das duas estratégias, então a tela não muda entre ambientes.
+      expect(r.strategy).toBe('api');
+      expect(r.uploadUrl).toBe(`https://api.exemplo.com/v1/upload/direct/${r.fileKey}`);
+      expect(r.fields).toEqual({});
+    });
+
+    it('gera a chave no servidor, preservando a extensão', async () => {
+      const r = await service.presign('../../etc/passwd.mp4', 'video/mp4', 7);
+
+      // Aceitar a chave do cliente deixaria sobrescrever o arquivo de outro.
+      expect(r.fileKey).toMatch(/^\d+-passwd\.mp4$/);
+    });
+
+    it('já informa a URL que o arquivo terá depois do confirm', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+
+      expect(r.previewUrl).toBe(`https://api.exemplo.com/v1/files/${r.fileKey}`);
+    });
+  });
+
+  describe('autorização', () => {
+    const service = build(ENV);
+
+    it('recusa token de outro usuário', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+      const deOutro = autorizar(service, r.fileKey, 99);
+
+      await expect(service.confirmUpload(r.fileKey, deOutro, 7)).rejects.toThrow(
+        UploadNotAuthorizedException,
+      );
+    });
+
+    it('recusa token de outra chave', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+      const deOutraChave = autorizar(service, 'outra-chave.mp4', 7);
+
+      await expect(service.confirmUpload(r.fileKey, deOutraChave, 7)).rejects.toThrow(
+        UploadNotAuthorizedException,
+      );
+    });
+
+    it('recusa token vazio', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+
+      await expect(service.confirmUpload(r.fileKey, '', 7)).rejects.toThrow(
+        UploadNotAuthorizedException,
+      );
+    });
+
+    it('o token do presign confere com o do próprio usuário', async () => {
+      const r = await service.presign('video.mp4', 'video/mp4', 7);
+
+      expect(r.token).toBe(autorizar(service, r.fileKey, 7));
+    });
+
+    it('a mesma chave para usuários diferentes gera tokens diferentes', async () => {
+      expect(autorizar(service, 'v.mp4', 7)).not.toBe(autorizar(service, 'v.mp4', 8));
+    });
+  });
+
+  describe('confirmação', () => {
+    it('recusa quando o objeto não chegou ao bucket', async () => {
+      const service = build(ENV);
+      (service as unknown as { s3Client: { send: jest.Mock } }).s3Client = {
+        send: jest.fn().mockRejectedValue(Object.assign(new Error('nao'), { name: 'NotFound' })),
+      };
+      const token = autorizar(service, 'v.mp4', 7);
+
+      // Sem esta checagem, um envio interrompido viraria registro apontando
+      // para arquivo inexistente, e a tela exibiria vídeo quebrado.
+      await expect(service.confirmUpload('v.mp4', token, 7)).rejects.toThrow(
+        UploadFileNotFoundException,
+      );
+    });
+
+    it('registra o arquivo quando o objeto está no bucket', async () => {
+      const create = jest
+        .fn()
+        .mockImplementation(({ data }) =>
+          Promise.resolve({ id: 9, fileUrl: data.fileUrl, fileKey: data.fileKey }),
+        );
+      const service = build(ENV, { file: { create } });
+      (service as unknown as { s3Client: { send: jest.Mock } }).s3Client = {
+        send: jest.fn().mockResolvedValue({ ContentLength: 1234 }),
+      };
+      const token = autorizar(service, 'v.mp4', 7);
+
+      const salvo = await service.confirmUpload('v.mp4', token, 7);
+
+      expect(salvo.fileUrl).toBe('https://api.exemplo.com/v1/files/v.mp4');
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId: 7 }) }),
+      );
+    });
+  });
+
+  describe('rota local de envio', () => {
+    it('recusa quando o S3 está configurado', async () => {
+      const service = build(ENV);
+      const token = autorizar(service, 'v.mp4', 7);
+
+      // Aceitar aqui faria o arquivo cair no disco de uma instância só.
+      await expect(
+        service.storeDirect('v.mp4', token, { buffer: Buffer.from('x') } as never, 7),
+      ).rejects.toThrow(UploadNotAuthorizedException);
+    });
   });
 });
