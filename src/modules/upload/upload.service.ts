@@ -2,7 +2,6 @@ import {
   DeleteObjectCommand,
   DeleteObjectCommandInput,
   GetObjectCommand,
-  ObjectCannedACL,
   PutObjectCommand,
   PutObjectCommandInput,
   S3Client,
@@ -26,6 +25,7 @@ export class UploadService {
   private readonly logger = new Logger(UploadService.name);
   private readonly s3Client: S3Client | null;
   private readonly bucketName: string;
+  private readonly region: string;
   private readonly localDir: string;
   private readonly publicApiUrl: string;
 
@@ -37,6 +37,19 @@ export class UploadService {
     const accessKeyId = this.configService.get<string>('AWS_ACCESS_KEY_ID');
     const secretAccessKey = this.configService.get<string>('AWS_SECRET_ACCESS_KEY');
     this.bucketName = this.configService.get<string>('AWS_BUCKET_NAME');
+    this.region = region;
+
+    // Nomear o que falta, em vez de só dizer "S3 não configurado": quem
+    // preenche três das quatro variáveis e esquece uma passa a ver qual é, em
+    // vez de descobrir que os uploads foram para o disco sem ninguém notar.
+    const ausentes = [
+      ['AWS_REGION', region],
+      ['AWS_ACCESS_KEY_ID', accessKeyId],
+      ['AWS_SECRET_ACCESS_KEY', secretAccessKey],
+      ['AWS_BUCKET_NAME', this.bucketName],
+    ]
+      .filter(([, valor]) => !valor)
+      .map(([nome]) => nome);
 
     // Sem as quatro variáveis, o cliente do S3 era construído mesmo assim e o
     // `send` estourava a cada upload — a rota respondia 500 e a descrição dela
@@ -54,9 +67,12 @@ export class UploadService {
 
     if (!this.s3Client) {
       this.logger.warn(
-        `S3 não configurado; uploads vão para o disco em ${this.localDir}. ` +
-          'Adequado a desenvolvimento e homologação, não a produção com mais de uma instância.',
+        `S3 não configurado (falta ${ausentes.join(', ')}); uploads vão para o disco em ` +
+          `${this.localDir}. Adequado a desenvolvimento e homologação, não a produção com ` +
+          'mais de uma instância.',
       );
+    } else {
+      this.logger.log(`Uploads vão para o bucket ${this.bucketName} em ${region}.`);
     }
   }
 
@@ -102,12 +118,16 @@ export class UploadService {
     const key = this.safeKey(file.originalname);
 
     if (this.s3Client) {
+      // Sem `ACL`. Buckets criados desde 2023 nascem com *Object Ownership =
+      // Bucket owner enforced*, que desabilita ACLs — e `PutObject` com ACL
+      // falha com `AccessControlListNotSupported`, derrubando TODO upload.
+      // O objeto fica privado, e quem serve o conteúdo é a própria API, em
+      // `GET /v1/files/:fileKey`.
       const uploadParams: PutObjectCommandInput = {
         Bucket: this.bucketName,
         Key: key,
         Body: file.buffer,
         ContentType: file.mimetype,
-        ACL: ObjectCannedACL.public_read,
       };
 
       await this.s3Client.send(new PutObjectCommand(uploadParams));
@@ -148,26 +168,26 @@ export class UploadService {
    * `GET /one-file/{id}`, o download e o `DELETE /one-file/{id}` respondiam
    * 404 para qualquer id: a tabela nunca recebia uma linha sequer.
    */
+  /**
+   * URL pública de um arquivo, venha ele do S3 ou do disco.
+   *
+   * É sempre a da própria API. O bucket é privado, então a URL do objeto não
+   * abre para ninguém — e, mais importante, esta URL é GRAVADA em dezesseis
+   * tabelas (`User.fileUrl`, `Service.imageUrl`, `BudgetFile.fileUrl`…). Uma
+   * URL pré-assinada expira, e URL que expira não pode morar em coluna:
+   * envelheceria no banco. Servir pela API mantém o endereço estável para
+   * sempre e deixa o controle de acesso do nosso lado.
+   *
+   * Usa a `fileKey`, não o id: id sequencial seria enumerável, e qualquer um
+   * baixaria todos os anexos contando de 1 em diante.
+   */
+  fileUrlFor(fileKey: string): string {
+    return `${this.publicApiUrl}/v1/files/${fileKey}`;
+  }
+
   private async persist(fileKey: string, userId: number): Promise<ResponseOneFileDto> {
-    if (this.s3Client) {
-      const fileUrl = `https://${this.bucketName}.s3.amazonaws.com/${fileKey}`;
-
-      const created = await this.prisma.file.create({
-        data: { fileUrl, fileKey, userId },
-        select: { id: true, fileUrl: true, fileKey: true },
-      });
-
-      return { id: created.id, fileUrl: created.fileUrl, fileKey: created.fileKey };
-    }
-
-    // No disco, o arquivo é servido pela própria API. A URL usa a `fileKey`, não
-    // o id: no S3 os objetos são gravados com `public_read` e a proteção é a
-    // chave ser difícil de adivinhar. Servir por id sequencial seria enumerável
-    // — qualquer um baixaria todos os anexos contando de 1 em diante.
-    const fileUrl = `${this.publicApiUrl}/v1/files/${fileKey}`;
-
     const created = await this.prisma.file.create({
-      data: { fileUrl, fileKey, userId },
+      data: { fileUrl: this.fileUrlFor(fileKey), fileKey, userId },
       select: { id: true, fileUrl: true, fileKey: true },
     });
 
@@ -175,21 +195,59 @@ export class UploadService {
   }
 
   /**
-   * Abre um arquivo local pela chave, para a rota pública de leitura.
+   * Abre um arquivo pela chave, para a rota pública de leitura.
    *
-   * Só existe quando o armazenamento é em disco: com S3 configurado, a URL
-   * pública é a do próprio bucket e esta rota não tem o que servir.
+   * Atende os dois armazenamentos. Antes só servia o disco e devolvia 404 com
+   * S3 configurado, porque os objetos iam para o bucket com leitura pública e
+   * o navegador buscava direto lá. Com o bucket privado, é esta rota que
+   * entrega o conteúdo — sem ela, nenhuma imagem carregaria.
+   *
+   * O `Content-Type` vem do S3, que o guardou no upload; no disco não há onde
+   * guardá-lo, e o controller deduz pela extensão.
    */
-  async openLocalByKey(fileKey: string): Promise<{ stream: Readable; fileName: string }> {
-    if (this.s3Client) throw new UploadFileNotFoundException();
+  async openByKey(
+    fileKey: string,
+  ): Promise<{ stream: Readable; fileName: string; contentType?: string }> {
+    const nome = basename(fileKey);
 
-    const caminho = resolve(join(this.localDir, basename(fileKey)));
+    if (this.s3Client) {
+      try {
+        const { Body, ContentType } = await this.s3Client.send(
+          new GetObjectCommand({ Bucket: this.bucketName, Key: nome }),
+        );
+
+        if (!Body) throw new UploadFileNotFoundException();
+
+        return {
+          stream: Body instanceof Readable ? Body : Readable.from(Body as never),
+          fileName: nome,
+          contentType: ContentType,
+        };
+      } catch (erro) {
+        // Chave inexistente no bucket vem como `NoSuchKey`. Qualquer outra
+        // falha — credencial inválida, bucket errado, rede — não é "arquivo
+        // não encontrado" e não deve virar 404 silencioso: sobe como está, para
+        // aparecer no log e no monitoramento.
+        if (erro instanceof UploadFileNotFoundException) throw erro;
+        if (typeof erro === 'object' && erro !== null && 'name' in erro) {
+          const nomeDoErro = (erro as { name: string }).name;
+
+          if (nomeDoErro === 'NoSuchKey' || nomeDoErro === 'NotFound') {
+            throw new UploadFileNotFoundException();
+          }
+        }
+
+        throw erro;
+      }
+    }
+
+    const caminho = resolve(join(this.localDir, nome));
 
     if (!caminho.startsWith(this.localDir) || !existsSync(caminho)) {
       throw new UploadFileNotFoundException();
     }
 
-    return { stream: createReadStream(caminho), fileName: basename(fileKey) };
+    return { stream: createReadStream(caminho), fileName: nome };
   }
 
   /**

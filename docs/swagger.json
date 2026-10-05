@@ -1077,8 +1077,8 @@
     },
     "/v1/files/{fileKey}": {
       "get": {
-        "description": "Só responde quando a API está sem credenciais da AWS e grava em disco. Com S3 configurado, a URL pública é a do próprio bucket e esta rota devolve 404. É pública por desenho: reproduz o `public_read` com que os objetos vão para o S3 — a proteção, nos dois casos, é a chave não ser adivinhável.",
-        "operationId": "UploadController_serveLocalFile",
+        "description": "É esta a URL gravada em `fileUrl`/`imageUrl` por todo o sistema. O bucket é privado, então o conteúdo passa pela API em vez de ser lido direto do S3. É pública por desenho — a proteção é a chave não ser adivinhável, e é o que permite usar a URL em `<img src>`, que não manda header de autenticação.",
+        "operationId": "UploadController_serveFile",
         "parameters": [
           {
             "name": "fileKey",
@@ -1097,7 +1097,7 @@
             "description": "Arquivo não encontrado."
           }
         },
-        "summary": "Serve um arquivo do armazenamento local.",
+        "summary": "Serve um arquivo, do S3 ou do disco.",
         "tags": [
           "Upload de arquivos"
         ]

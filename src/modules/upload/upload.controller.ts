@@ -34,13 +34,28 @@ import { ResponseDeleteOneFileDto } from './dto/response-delete-one-file.dto';
 import { ResponseOneFileDto } from './dto/response-one-file.dto';
 import { UploadService } from './upload.service';
 
+const MB = 1024 * 1024;
+
+/**
+ * Teto de tamanho por arquivo, aplicado NO MULTER.
+ *
+ * O `ParseFilePipeBuilder` abaixo também limita, mas ele roda depois: quando a
+ * validação dele reprova, o arquivo inteiro já está na memória do processo.
+ * Com `limits`, a conexão é cortada ao ultrapassar o teto, e um envio de 2 GB
+ * não chega a virar 2 GB de RAM.
+ *
+ * Dez megabytes cobre foto de celular com folga. Vídeo não passa por aqui: ele
+ * sobe direto para o S3 por URL pré-assinada, sem ocupar memória da API.
+ */
+const LIMITE_POR_ARQUIVO = 10 * MB;
+
 @ApiTags('Upload de arquivos')
 @Controller()
 export class UploadController {
   constructor(private readonly _uploadService: UploadService) {}
 
   @Post('upload/one-file')
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: LIMITE_POR_ARQUIVO } }))
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Rota para upload de um arquivo.',
@@ -56,7 +71,7 @@ export class UploadController {
     @UploadedFile(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: /png|jpg|jpeg|pdf/, skipMagicNumbersValidation: true })
-        .addMaxSizeValidator({ maxSize: 8388608 })
+        .addMaxSizeValidator({ maxSize: LIMITE_POR_ARQUIVO })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     file: Express.Multer.File,
@@ -67,7 +82,9 @@ export class UploadController {
   }
 
   @Post('upload/many-files')
-  @UseInterceptors(FilesInterceptor('files', 5))
+  @UseInterceptors(
+    FilesInterceptor('files', 5, { limits: { fileSize: LIMITE_POR_ARQUIVO, files: 5 } }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({
     summary: 'Rota para upload de múltiplos arquivos.',
@@ -86,7 +103,7 @@ export class UploadController {
     @UploadedFiles(
       new ParseFilePipeBuilder()
         .addFileTypeValidator({ fileType: /png|jpg|jpeg|pdf/, skipMagicNumbersValidation: true })
-        .addMaxSizeValidator({ maxSize: 8388608 })
+        .addMaxSizeValidator({ maxSize: LIMITE_POR_ARQUIVO })
         .build({ errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }),
     )
     files: Express.Multer.File[],
@@ -99,19 +116,26 @@ export class UploadController {
   @Get('files/:fileKey')
   @IsPublic()
   @ApiOperation({
-    summary: 'Serve um arquivo do armazenamento local.',
+    summary: 'Serve um arquivo, do S3 ou do disco.',
     description:
-      'Só responde quando a API está sem credenciais da AWS e grava em disco. Com S3 ' +
-      'configurado, a URL pública é a do próprio bucket e esta rota devolve 404. ' +
-      'É pública por desenho: reproduz o `public_read` com que os objetos vão para o S3 — ' +
-      'a proteção, nos dois casos, é a chave não ser adivinhável.',
+      'É esta a URL gravada em `fileUrl`/`imageUrl` por todo o sistema. O bucket é ' +
+      'privado, então o conteúdo passa pela API em vez de ser lido direto do S3. ' +
+      'É pública por desenho — a proteção é a chave não ser adivinhável, e é o que ' +
+      'permite usar a URL em `<img src>`, que não manda header de autenticação.',
   })
   @ApiResponse({ status: 200, description: 'Arquivo encontrado.' })
   @ApiResponse({ status: 404, description: 'Arquivo não encontrado.' })
-  async serveLocalFile(@Param('fileKey') fileKey: string, @Res() res: Response) {
-    const { stream, fileName } = await this._uploadService.openLocalByKey(fileKey);
+  async serveFile(@Param('fileKey') fileKey: string, @Res() res: Response) {
+    const { stream, fileName, contentType } = await this._uploadService.openByKey(fileKey);
 
-    res.set({ 'Content-Disposition': `inline; filename=${fileName}` });
+    res.set({
+      'Content-Disposition': `inline; filename="${fileName}"`,
+      'Content-Type': contentType || tipoPelaExtensao(fileName),
+      // A chave carrega o timestamp e nunca é reaproveitada, então o conteúdo
+      // de uma chave jamais muda: cachear por um ano é seguro e tira do
+      // servidor a banda de reentregar a mesma foto a cada navegação.
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    });
 
     return stream.pipe(res);
   }
@@ -164,4 +188,30 @@ export class UploadController {
   async deleteFileById(@CurrentUser() user: User, @Param('id', ParseIntPipe) id: number) {
     return this._uploadService.deleteFileById(id, user);
   }
+}
+
+/**
+ * Content-Type a partir da extensão, para o armazenamento em disco.
+ *
+ * No S3 o tipo foi gravado junto com o objeto e vem de lá. No disco não há
+ * onde guardá-lo, e sem um tipo correto o navegador baixa a imagem em vez de
+ * exibi-la dentro de `<img>`.
+ */
+function tipoPelaExtensao(nome: string): string {
+  const porExtensao: Record<string, string> = {
+    '.png': 'image/png',
+    '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg',
+    '.webp': 'image/webp',
+    '.gif': 'image/gif',
+    '.pdf': 'application/pdf',
+    '.mp4': 'video/mp4',
+    '.mov': 'video/quicktime',
+    '.webm': 'video/webm',
+  };
+
+  const ponto = nome.lastIndexOf('.');
+  const extensao = ponto === -1 ? '' : nome.slice(ponto).toLowerCase();
+
+  return porExtensao[extensao] || 'application/octet-stream';
 }
