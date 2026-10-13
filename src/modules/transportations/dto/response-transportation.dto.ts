@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ResponseTransportationCategoryDto } from './response-transportation-category.dto';
 
 export class ResponseTransportationOwnerDto {
@@ -137,6 +137,11 @@ export class ResponseTransportationListItemDto {
     type: String,
   })
   imageUrl?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
 
   @ApiProperty({ description: 'Indica se o transporte está ativo.', example: true, type: Boolean })
   isActive: boolean;
@@ -244,6 +249,16 @@ export class ResponseTransportationDto {
     type: String,
   })
   imageKey?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
+  @ApiPropertyOptional({
+    description: 'Chave do vídeo no storage.',
+    nullable: true,
+  })
+  videoKey?: string;
 
   @ApiProperty({ description: 'Indica se o transporte está ativo.', example: true, type: Boolean })
   isActive: boolean;

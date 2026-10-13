@@ -38,6 +38,8 @@ export class ProductsService {
     description: true,
     imageUrl: true,
     imageKey: true,
+    videoUrl: true,
+    videoKey: true,
     isActive: true,
     categoryId: true,
     userId: true,
@@ -75,6 +77,7 @@ export class ProductsService {
     price: true,
     description: true,
     imageUrl: true,
+    videoUrl: true,
     isActive: true,
     category: {
       select: {
@@ -114,6 +117,8 @@ export class ProductsService {
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
+          videoUrl: payload.videoUrl || null,
+          videoKey: payload.videoKey || null,
           isActive: payload.isActive ?? true,
           categoryId: payload.categoryId,
           userId: user.id,
@@ -133,6 +138,8 @@ export class ProductsService {
           description: product.description || undefined,
           imageUrl: product.imageUrl || undefined,
           imageKey: product.imageKey || undefined,
+          videoUrl: product.videoUrl || undefined,
+          videoKey: product.videoKey || undefined,
           isActive: product.isActive,
           categoryId: product.categoryId,
           category: {
@@ -242,6 +249,7 @@ export class ProductsService {
         price: product.price.toFixed(2),
         description: product.description || undefined,
         imageUrl: product.imageUrl || undefined,
+        videoUrl: product.videoUrl || undefined,
         isActive: product.isActive,
         category: {
           id: product.category.id,
@@ -325,6 +333,7 @@ export class ProductsService {
         price: product.price.toFixed(2),
         description: product.description || undefined,
         imageUrl: product.imageUrl || undefined,
+        videoUrl: product.videoUrl || undefined,
         isActive: product.isActive,
         category: {
           id: product.category.id,
@@ -384,6 +393,8 @@ export class ProductsService {
       description: product.description || undefined,
       imageUrl: product.imageUrl || undefined,
       imageKey: product.imageKey || undefined,
+      videoUrl: product.videoUrl || undefined,
+      videoKey: product.videoKey || undefined,
       isActive: product.isActive,
       categoryId: product.categoryId,
       category: {
@@ -445,6 +456,8 @@ export class ProductsService {
       description: product.description || undefined,
       imageUrl: product.imageUrl || undefined,
       imageKey: product.imageKey || undefined,
+      videoUrl: product.videoUrl || undefined,
+      videoKey: product.videoKey || undefined,
       isActive: product.isActive,
       categoryId: product.categoryId,
       category: {
@@ -571,6 +584,8 @@ export class ProductsService {
               : undefined,
           imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
           imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
+          videoUrl: payload.videoUrl !== undefined ? payload.videoUrl || null : undefined,
+          videoKey: payload.videoKey !== undefined ? payload.videoKey || null : undefined,
           isActive: payload.isActive,
           categoryId: payload.categoryId,
         },

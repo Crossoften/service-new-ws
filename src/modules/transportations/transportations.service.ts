@@ -38,6 +38,8 @@ export class TransportationsService {
     description: true,
     imageUrl: true,
     imageKey: true,
+    videoUrl: true,
+    videoKey: true,
     isActive: true,
     categoryId: true,
     userId: true,
@@ -76,6 +78,7 @@ export class TransportationsService {
     price: true,
     description: true,
     imageUrl: true,
+    videoUrl: true,
     isActive: true,
     category: {
       select: {
@@ -119,6 +122,8 @@ export class TransportationsService {
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
+          videoUrl: payload.videoUrl || null,
+          videoKey: payload.videoKey || null,
           isActive: payload.isActive ?? true,
           categoryId: payload.categoryId,
           userId: user.id,
@@ -139,6 +144,8 @@ export class TransportationsService {
           description: transportation.description || undefined,
           imageUrl: transportation.imageUrl || undefined,
           imageKey: transportation.imageKey || undefined,
+          videoUrl: transportation.videoUrl || undefined,
+          videoKey: transportation.videoKey || undefined,
           isActive: transportation.isActive,
           categoryId: transportation.categoryId,
           category: {
@@ -248,6 +255,7 @@ export class TransportationsService {
         price: transportation.price.toFixed(2),
         description: transportation.description || undefined,
         imageUrl: transportation.imageUrl || undefined,
+        videoUrl: transportation.videoUrl || undefined,
         isActive: transportation.isActive,
         category: {
           id: transportation.category.id,
@@ -338,6 +346,7 @@ export class TransportationsService {
         price: transportation.price.toFixed(2),
         description: transportation.description || undefined,
         imageUrl: transportation.imageUrl || undefined,
+        videoUrl: transportation.videoUrl || undefined,
         isActive: transportation.isActive,
         category: {
           id: transportation.category.id,
@@ -402,6 +411,8 @@ export class TransportationsService {
       description: transportation.description || undefined,
       imageUrl: transportation.imageUrl || undefined,
       imageKey: transportation.imageKey || undefined,
+      videoUrl: transportation.videoUrl || undefined,
+      videoKey: transportation.videoKey || undefined,
       isActive: transportation.isActive,
       categoryId: transportation.categoryId,
       category: {
@@ -464,6 +475,8 @@ export class TransportationsService {
       description: transportation.description || undefined,
       imageUrl: transportation.imageUrl || undefined,
       imageKey: transportation.imageKey || undefined,
+      videoUrl: transportation.videoUrl || undefined,
+      videoKey: transportation.videoKey || undefined,
       isActive: transportation.isActive,
       categoryId: transportation.categoryId,
       category: {
@@ -595,6 +608,8 @@ export class TransportationsService {
               : undefined,
           imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
           imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
+          videoUrl: payload.videoUrl !== undefined ? payload.videoUrl || null : undefined,
+          videoKey: payload.videoKey !== undefined ? payload.videoKey || null : undefined,
           isActive: payload.isActive,
           categoryId: payload.categoryId,
         },

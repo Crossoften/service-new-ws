@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ProductTransactionTypeEnum } from '../enums/product-transaction-type.enum';
 import { ResponseProductCategoryDto } from './response-product-category.dto';
 
@@ -120,6 +120,11 @@ export class ResponseProductListItemDto {
     type: String,
   })
   imageUrl?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
 
   @ApiProperty({ description: 'Indica se o produto está ativo.', example: true, type: Boolean })
   isActive: boolean;
@@ -217,6 +222,16 @@ export class ResponseProductDto {
     type: String,
   })
   imageKey?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
+  @ApiPropertyOptional({
+    description: 'Chave do vídeo no storage.',
+    nullable: true,
+  })
+  videoKey?: string;
 
   @ApiProperty({ description: 'Indica se o produto está ativo.', example: true, type: Boolean })
   isActive: boolean;

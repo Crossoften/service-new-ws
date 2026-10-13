@@ -245,6 +245,12 @@ model Product {
   description     String?                    @db.LongText()
   imageUrl        String?                    @db.VarChar(1500)
   imageKey        String?                    @db.VarChar(1500)
+  /// Vídeo de apresentação do anúncio, enviado pelo fluxo de upload direto
+  /// (`POST /v1/upload/presign`). Um por anúncio: espelha `imageUrl`/`imageKey`
+  /// em vez de abrir uma tabela de mídias, porque o caso de uso é um vídeo de
+  /// vitrine, não uma galeria.
+  videoUrl        String?                    @db.VarChar(1500)
+  videoKey        String?                    @db.VarChar(1500)
   isActive        Boolean                    @default(true)
   categoryId      Int
   userId          Int
@@ -275,6 +281,12 @@ model Transportation {
   description String? @db.LongText()
   imageUrl    String? @db.VarChar(1500)
   imageKey    String? @db.VarChar(1500)
+  /// Vídeo de apresentação do anúncio, enviado pelo fluxo de upload direto
+  /// (`POST /v1/upload/presign`). Um por anúncio: espelha `imageUrl`/`imageKey`
+  /// em vez de abrir uma tabela de mídias, porque o caso de uso é um vídeo de
+  /// vitrine, não uma galeria.
+  videoUrl    String? @db.VarChar(1500)
+  videoKey    String? @db.VarChar(1500)
   isActive    Boolean @default(true)
   categoryId  Int
   userId      Int
@@ -302,6 +314,12 @@ model Accommodation {
   description   String? @db.LongText()
   imageUrl      String? @db.VarChar(1500)
   imageKey      String? @db.VarChar(1500)
+  /// Vídeo de apresentação do anúncio, enviado pelo fluxo de upload direto
+  /// (`POST /v1/upload/presign`). Um por anúncio: espelha `imageUrl`/`imageKey`
+  /// em vez de abrir uma tabela de mídias, porque o caso de uso é um vídeo de
+  /// vitrine, não uma galeria.
+  videoUrl      String? @db.VarChar(1500)
+  videoKey      String? @db.VarChar(1500)
   isActive      Boolean @default(true)
   categoryId    Int
   userId        Int

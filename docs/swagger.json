@@ -16586,6 +16586,16 @@
             "description": "Chave da imagem da hospedagem no storage.",
             "nullable": true
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se a hospedagem deve ser criada como ativa.",
@@ -16755,6 +16765,16 @@
             "description": "Chave da imagem da hospedagem no storage.",
             "nullable": true,
             "example": "accommodations/novo-leste-hotel.png"
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage.",
+            "nullable": true
           },
           "isActive": {
             "type": "boolean",
@@ -16949,6 +16969,11 @@
             "nullable": true,
             "example": "https://cdn.seudominio.com/accommodations/novo-leste-hotel.png"
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se a hospedagem está ativa.",
@@ -17087,6 +17112,16 @@
           "imageKey": {
             "type": "string",
             "description": "Chave da imagem da hospedagem no storage.",
+            "nullable": true
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
             "nullable": true
           },
           "isActive": {
@@ -19724,6 +19759,16 @@
             "description": "Chave da imagem no storage.",
             "nullable": true
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se o produto deve ser criado como ativo.",
@@ -19885,6 +19930,16 @@
             "description": "Chave da imagem do produto no storage.",
             "nullable": true,
             "example": "products/fiat-bravo.png"
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage.",
+            "nullable": true
           },
           "isActive": {
             "type": "boolean",
@@ -20083,6 +20138,11 @@
             "nullable": true,
             "example": "https://cdn.seudominio.com/products/fiat-bravo.png"
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se o produto está ativo.",
@@ -20212,6 +20272,16 @@
           "imageKey": {
             "type": "string",
             "description": "Chave da imagem no storage.",
+            "nullable": true
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
             "nullable": true
           },
           "isActive": {
@@ -21302,6 +21372,16 @@
             "description": "Chave da imagem no storage.",
             "nullable": true
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se o transporte deve ser criado como ativo.",
@@ -21465,6 +21545,16 @@
             "description": "Chave da imagem do transporte no storage.",
             "nullable": true,
             "example": "transportations/caminhao-bau.png"
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage.",
+            "nullable": true
           },
           "isActive": {
             "type": "boolean",
@@ -21665,6 +21755,11 @@
             "nullable": true,
             "example": "https://cdn.seudominio.com/transportations/caminhao-bau.png"
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação.",
+            "nullable": true
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se o transporte está ativo.",
@@ -21797,6 +21892,16 @@
           "imageKey": {
             "type": "string",
             "description": "Chave da imagem no storage.",
+            "nullable": true
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto (`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve `fileUrl` e `fileKey`. Um vídeo por anúncio.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.",
             "nullable": true
           },
           "isActive": {

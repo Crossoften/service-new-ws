@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ResponseAccommodationCategoryDto } from './response-accommodation-category.dto';
 
 export class ResponseAccommodationOwnerDto {
@@ -128,6 +128,11 @@ export class ResponseAccommodationListItemDto {
     type: String,
   })
   imageUrl?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
 
   @ApiProperty({ description: 'Indica se a hospedagem está ativa.', example: true, type: Boolean })
   isActive: boolean;
@@ -244,6 +249,16 @@ export class ResponseAccommodationDto {
     type: String,
   })
   imageKey?: string;
+  @ApiPropertyOptional({
+    description: 'URL pública do vídeo de apresentação.',
+    nullable: true,
+  })
+  videoUrl?: string;
+  @ApiPropertyOptional({
+    description: 'Chave do vídeo no storage.',
+    nullable: true,
+  })
+  videoKey?: string;
 
   @ApiProperty({ description: 'Indica se a hospedagem está ativa.', example: true, type: Boolean })
   isActive: boolean;

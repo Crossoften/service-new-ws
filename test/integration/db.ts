@@ -28,6 +28,12 @@ export async function limparBanco(): Promise<void> {
   await prisma.budgetInformation.deleteMany();
   await prisma.budget.deleteMany();
   await prisma.service.deleteMany();
+  await prisma.product.deleteMany();
+  await prisma.productCategory.deleteMany();
+  await prisma.accommodation.deleteMany();
+  await prisma.accommodationCategory.deleteMany();
+  await prisma.transportation.deleteMany();
+  await prisma.transportationCategory.deleteMany();
   await prisma.subscription.deleteMany();
   await prisma.plan.deleteMany();
   await prisma.serviceCategory.deleteMany();
@@ -153,4 +159,41 @@ export async function criarAssinaturaAtiva(opcoes: {
     },
     select: { id: true },
   });
+}
+
+/**
+ * Fornecedor com assinatura de cobertura ampla.
+ *
+ * Os módulos de anúncio passam pelo portão de assinatura, então sem isto todo
+ * `create` morre em 403 antes de chegar ao que o teste quer medir.
+ */
+export async function criarFornecedorComAssinatura() {
+  sequencia += 1;
+  const fornecedor = await criarUsuario('Fornecedor de anúncios');
+  const plano = await criarPlano('Plano mensal', '19.90', 1);
+
+  await criarAssinaturaAtiva({
+    userId: fornecedor.id,
+    planId: plano.id,
+    categoryId: null,
+    terminaEm: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+  });
+
+  return prisma.user.findUniqueOrThrow({ where: { id: fornecedor.id } });
+}
+
+/** Categoria avulsa para cada vertical de anúncio. */
+export async function criarCategoriaDeAnuncio(
+  vertical: 'product' | 'accommodation' | 'transportation',
+) {
+  sequencia += 1;
+  const dados = { name: `Categoria ${sequencia}`, slug: `categoria-${sequencia}` };
+  const select = { id: true } as const;
+
+  if (vertical === 'product') return prisma.productCategory.create({ data: dados, select });
+  if (vertical === 'accommodation') {
+    return prisma.accommodationCategory.create({ data: dados, select });
+  }
+
+  return prisma.transportationCategory.create({ data: dados, select });
 }

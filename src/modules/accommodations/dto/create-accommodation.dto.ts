@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
@@ -116,6 +116,24 @@ export class CreateAccommodationDto {
   @IsString({ message: 'A chave da imagem deve ser um texto.' })
   @IsOptional()
   imageKey?: string;
+  @ApiPropertyOptional({
+    description:
+      'URL pública do vídeo de apresentação. Enviado pelo fluxo de upload direto ' +
+      '(`POST /v1/upload/presign` → envio → `POST /v1/upload/confirm`), que devolve ' +
+      '`fileUrl` e `fileKey`. Um vídeo por anúncio.',
+    nullable: true,
+  })
+  @IsString({ message: 'A URL do vídeo deve ser um texto.' })
+  @IsOptional()
+  videoUrl?: string;
+
+  @ApiPropertyOptional({
+    description: 'Chave do vídeo no storage, devolvida pelo mesmo fluxo de upload.',
+    nullable: true,
+  })
+  @IsString({ message: 'A chave do vídeo deve ser um texto.' })
+  @IsOptional()
+  videoKey?: string;
 
   @ApiProperty({
     description: 'Indica se a hospedagem deve ser criada como ativa.',

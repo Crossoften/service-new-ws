@@ -36,6 +36,8 @@ export class AccommodationsService {
     description: true,
     imageUrl: true,
     imageKey: true,
+    videoUrl: true,
+    videoKey: true,
     isActive: true,
     categoryId: true,
     userId: true,
@@ -79,6 +81,7 @@ export class AccommodationsService {
     price: true,
     description: true,
     imageUrl: true,
+    videoUrl: true,
     isActive: true,
     address: {
       select: {
@@ -137,6 +140,8 @@ export class AccommodationsService {
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
+          videoUrl: payload.videoUrl || null,
+          videoKey: payload.videoKey || null,
           isActive: payload.isActive ?? true,
           category: {
             connect: { id: payload.categoryId },
@@ -162,6 +167,8 @@ export class AccommodationsService {
           description: accommodation.description || undefined,
           imageUrl: accommodation.imageUrl || undefined,
           imageKey: accommodation.imageKey || undefined,
+          videoUrl: accommodation.videoUrl || undefined,
+          videoKey: accommodation.videoKey || undefined,
           isActive: accommodation.isActive,
           categoryId: accommodation.categoryId,
           category: {
@@ -282,6 +289,7 @@ export class AccommodationsService {
         price: accommodation.price.toFixed(2),
         description: accommodation.description || undefined,
         imageUrl: accommodation.imageUrl || undefined,
+        videoUrl: accommodation.videoUrl || undefined,
         isActive: accommodation.isActive,
         category: {
           id: accommodation.category.id,
@@ -383,6 +391,7 @@ export class AccommodationsService {
         price: accommodation.price.toFixed(2),
         description: accommodation.description || undefined,
         imageUrl: accommodation.imageUrl || undefined,
+        videoUrl: accommodation.videoUrl || undefined,
         isActive: accommodation.isActive,
         category: {
           id: accommodation.category.id,
@@ -448,6 +457,8 @@ export class AccommodationsService {
       description: accommodation.description || undefined,
       imageUrl: accommodation.imageUrl || undefined,
       imageKey: accommodation.imageKey || undefined,
+      videoUrl: accommodation.videoUrl || undefined,
+      videoKey: accommodation.videoKey || undefined,
       isActive: accommodation.isActive,
       categoryId: accommodation.categoryId,
       category: {
@@ -511,6 +522,8 @@ export class AccommodationsService {
       description: accommodation.description || undefined,
       imageUrl: accommodation.imageUrl || undefined,
       imageKey: accommodation.imageKey || undefined,
+      videoUrl: accommodation.videoUrl || undefined,
+      videoKey: accommodation.videoKey || undefined,
       isActive: accommodation.isActive,
       categoryId: accommodation.categoryId,
       category: {
@@ -691,6 +704,8 @@ export class AccommodationsService {
                 : undefined,
             imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
             imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
+            videoUrl: payload.videoUrl !== undefined ? payload.videoUrl || null : undefined,
+            videoKey: payload.videoKey !== undefined ? payload.videoKey || null : undefined,
             isActive: payload.isActive,
             categoryId: payload.categoryId,
           },
