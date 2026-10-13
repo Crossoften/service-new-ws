@@ -12,7 +12,7 @@
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-10-05 (upload no S3 com bucket privado e vídeo direto) |
+> | **Atualizado em** | 2026-10-13 (vídeo em anúncios) |
 > | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
 > | **Base da API local** | `http://localhost:8000/v1` |
 > | **Swagger** | `http://localhost:8000/docs` |
@@ -1713,6 +1713,40 @@ Aparece quando a API está sem credenciais da AWS. Existe para vocês
 desenvolverem a tela de vídeo localmente — o formato da resposta é idêntico, e o
 código da tela não muda entre ambientes.
 
+### Onde guardar o vídeo de um anúncio ✅
+
+Os três passos acima dizem como **enviar**. Onde **gravar** o resultado, nos
+anúncios, era o que faltava — e agora existe.
+
+`videoUrl` e `videoKey` entraram em **produto**, **hospedagem** e **transporte**,
+espelhando o `imageUrl`/`imageKey` que já havia. **Aluguel vem junto**, porque
+reusa a entidade de produto.
+
+| Rota | Campos |
+|---|---|
+| `POST`/`PATCH` `/v1/products` | `videoUrl?`, `videoKey?` |
+| `POST`/`PATCH` `/v1/accommodations` | `videoUrl?`, `videoKey?` |
+| `POST`/`PATCH` `/v1/transportations` | `videoUrl?`, `videoKey?` |
+
+Os dois campos vêm também nas **respostas de detalhe**. Na **listagem** vai só a
+`videoUrl`, sem a chave — mesma convenção que já valia para a imagem, já que a
+chave só serve para apagar o arquivo depois.
+
+O fluxo não muda: presign → envio → confirm devolve `{ fileUrl, fileKey }`, e
+esses dois valores vão para `videoUrl` e `videoKey` do anúncio.
+
+**Para remover o vídeo** de um anúncio, mande os dois vazios na edição:
+
+```jsonc
+PATCH /v1/products/42
+{ "videoUrl": "", "videoKey": "" }
+```
+
+Vazio vira `null` na coluna. Não há rota própria para isso.
+
+Um vídeo por anúncio. Se um dia precisar de galeria, é mudança de modelo — não
+dá para empilhar mandando o campo duas vezes.
+
 ### Tipos de vídeo aceitos
 
 `video/mp4` · `video/quicktime` · `video/webm` · `video/x-matroska` · `video/3gpp`
@@ -1832,6 +1866,9 @@ Ordenado por dependência. O item 0 acima é pré-requisito de todos.
     precisa olhar o código novo
 33. **Tela de vídeo nos três passos** (seção 8.14) — presign, envio, confirm. É
     tela nova; nada do que existe hoje depende dela
+34. **Vídeo em anúncio** (seção 8.14) — `videoUrl`/`videoKey` em produto,
+    hospedagem e transporte. Destrava a **U3d**, que vocês já têm pronta;
+    depende do 33 para o envio
 
 > Este bloco **foi exercitado contra MySQL real**, não só contra duplo de
 > Prisma: 53 testes de integração cobrem o portão, a carência, o cancelamento,
