@@ -65,6 +65,72 @@ export function normalizePhoneBR(value: string | null | undefined): string | nul
 }
 
 /**
+ * Maior DDD que mantém o nono dígito no WhatsApp.
+ *
+ * O nono dígito foi adicionado aos celulares brasileiros por região, e o
+ * WhatsApp manteve no seu cadastro a forma vigente em cada uma delas: os DDDs
+ * do eixo SP–RJ–ES (11 a 28) registram o número **com** o nono dígito; de 31 em
+ * diante, **sem**. A linha telefônica tem o dígito nos dois casos — quem não
+ * tem é o cadastro do WhatsApp.
+ *
+ * Isto vale só para o WhatsApp. O SMS vai para a operadora, que exige o número
+ * completo, e por isso a regra mora aqui e não no `normalizePhoneBR`.
+ *
+ * ⚠️ É uma heurística sobre um sistema externo, observada no comportamento do
+ * WhatsApp, não uma especificação publicada pela Meta. Se um dia a Meta
+ * unificar o cadastro, é esta constante que muda.
+ */
+const BR_DDD_MAXIMO_COM_NONO_DIGITO = 28;
+
+/** Posição do nono dígito dentro do número nacional (`DDD` + `9` + 8 dígitos). */
+const BR_INDICE_DO_NONO_DIGITO = 2;
+
+/** Comprimento nacional de um celular brasileiro com o nono dígito. */
+const BR_CELULAR_COM_NONO_DIGITO = 11;
+
+/**
+ * E.164 no formato que o cadastro do WhatsApp reconhece.
+ *
+ * Enviar para a forma errada não dá erro de validação: a API do Twilio aceita a
+ * mensagem, devolve `queued`, e só depois a entrega falha de forma assíncrona
+ * (código 63015 no sandbox). Como a exceção nunca chega ao nosso código, o
+ * fallback de SMS não dispara e o usuário não recebe nada — daí a importância
+ * de acertar o formato na origem.
+ *
+ * Fora do caso "celular brasileiro de DDD alto", devolve o mesmo que o
+ * `normalizePhoneBR`: fixo, número já sem o nono dígito e número estrangeiro
+ * passam intactos.
+ */
+export function normalizeWhatsappPhoneBR(value: string | null | undefined): string | null {
+  const e164 = normalizePhoneBR(value);
+
+  if (!e164) return null;
+
+  const digits = e164.slice(1);
+
+  if (!digits.startsWith(BR_COUNTRY_CODE)) return e164;
+
+  const national = digits.slice(BR_COUNTRY_CODE.length);
+
+  // Só celular com o nono dígito: fixo (10 dígitos) e celular já sem o nono não
+  // têm o que remover.
+  if (
+    national.length !== BR_CELULAR_COM_NONO_DIGITO ||
+    national[BR_INDICE_DO_NONO_DIGITO] !== '9'
+  ) {
+    return e164;
+  }
+
+  const ddd = Number(national.slice(0, BR_INDICE_DO_NONO_DIGITO));
+
+  if (!Number.isInteger(ddd) || ddd <= BR_DDD_MAXIMO_COM_NONO_DIGITO) return e164;
+
+  return `+${BR_COUNTRY_CODE}${national.slice(0, BR_INDICE_DO_NONO_DIGITO)}${national.slice(
+    BR_INDICE_DO_NONO_DIGITO + 1,
+  )}`;
+}
+
+/**
  * Variantes de escrita do mesmo telefone, para consultar registros gravados
  * antes da normalização. Sem isto, um usuário salvo como `11955554444` ficaria
  * inacessível assim que o front passasse a enviar E.164.

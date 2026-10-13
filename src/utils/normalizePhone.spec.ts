@@ -1,4 +1,4 @@
-import { normalizePhoneBR, phoneLookupVariants } from './normalizePhone';
+import { normalizePhoneBR, normalizeWhatsappPhoneBR, phoneLookupVariants } from './normalizePhone';
 
 describe('normalizePhoneBR', () => {
   it('normaliza o formato nacional móvel', () => {
@@ -69,5 +69,56 @@ describe('phoneLookupVariants', () => {
   it('devolve lista vazia para entrada vazia', () => {
     expect(phoneLookupVariants('')).toEqual([]);
     expect(phoneLookupVariants(null)).toEqual([]);
+  });
+});
+
+describe('normalizeWhatsappPhoneBR', () => {
+  it('remove o nono dígito nos DDDs que o WhatsApp cadastra sem ele', () => {
+    expect(normalizeWhatsappPhoneBR('34998701109')).toBe('+553498701109');
+  });
+
+  it('mantém o nono dígito nos DDDs que o WhatsApp cadastra com ele', () => {
+    expect(normalizeWhatsappPhoneBR('11955554444')).toBe('+5511955554444');
+  });
+
+  // Os dois lados da fronteira, que é onde a regra erra se alguém mexer no
+  // comparador (`<=` virando `<`, por exemplo).
+  it('mantém o nono dígito no último DDD da faixa baixa', () => {
+    expect(normalizeWhatsappPhoneBR('28999998888')).toBe('+5528999998888');
+  });
+
+  it('remove o nono dígito no primeiro DDD da faixa alta', () => {
+    expect(normalizeWhatsappPhoneBR('31999998888')).toBe('+553199998888');
+  });
+
+  it('não altera telefone fixo', () => {
+    expect(normalizeWhatsappPhoneBR('3433334444')).toBe('+553433334444');
+  });
+
+  it('não altera número que já veio sem o nono dígito', () => {
+    expect(normalizeWhatsappPhoneBR('+553498701109')).toBe('+553498701109');
+  });
+
+  it('não altera número estrangeiro', () => {
+    expect(normalizeWhatsappPhoneBR('+14155238886')).toBe('+14155238886');
+  });
+
+  it('remove apenas o nono dígito, preservando DDD e assinante', () => {
+    expect(normalizeWhatsappPhoneBR('+55 34 99870-1109')).toBe('+553498701109');
+  });
+
+  it('converge máscara, nacional e E.164 para o mesmo destino', () => {
+    const variantes = ['34998701109', '(34) 99870-1109', '+55 34 99870-1109'].map(
+      normalizeWhatsappPhoneBR,
+    );
+
+    expect(new Set(variantes).size).toBe(1);
+    expect(variantes[0]).toBe('+553498701109');
+  });
+
+  it('devolve null para entrada não reconhecível, como o normalizePhoneBR', () => {
+    expect(normalizeWhatsappPhoneBR('123')).toBeNull();
+    expect(normalizeWhatsappPhoneBR('')).toBeNull();
+    expect(normalizeWhatsappPhoneBR(null)).toBeNull();
   });
 });

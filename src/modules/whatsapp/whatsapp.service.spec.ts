@@ -51,7 +51,7 @@ describe('WhatsappService (Twilio)', () => {
     expect(build().hasCredentials()).toBe(true);
   });
 
-  it('envia para o endereço no formato whatsapp:E.164', async () => {
+  it('envia para o endereço no formato que o cadastro do WhatsApp reconhece', async () => {
     const service = build();
     const create = capturarEnvio(service);
 
@@ -60,7 +60,7 @@ describe('WhatsappService (Twilio)', () => {
     expect(create).toHaveBeenCalledTimes(1);
     expect(create.mock.calls[0][0]).toMatchObject({
       from: ENV_COMPLETO.TWILIO_WHATSAPP_FROM,
-      to: 'whatsapp:+5534998701109',
+      to: 'whatsapp:+553498701109',
       contentSid: ENV_COMPLETO.TWILIO_WHATSAPP_CONTENT_SID,
     });
   });
@@ -77,7 +77,32 @@ describe('WhatsappService (Twilio)', () => {
     }
 
     expect(new Set(destinos).size).toBe(1);
-    expect(destinos[0]).toBe('whatsapp:+5534998701109');
+    expect(destinos[0]).toBe('whatsapp:+553498701109');
+  });
+
+  it('mantém o nono dígito nos DDDs que o WhatsApp cadastra com ele', async () => {
+    const service = build();
+    const create = capturarEnvio(service);
+
+    await service.sendMessage('(11) 99870-1109', 'Pedido confirmado');
+
+    expect(create.mock.calls[0][0].to).toBe('whatsapp:+5511998701109');
+  });
+
+  it('usa o mesmo formato no OTP e na notificação', async () => {
+    const paraCada = async (envio: (s: WhatsappService) => Promise<void>) => {
+      const service = build();
+      const create = capturarEnvio(service);
+
+      await envio(service);
+
+      return create.mock.calls[0][0].to as string;
+    };
+
+    const notificacao = await paraCada((s) => s.sendMessage('34998701109', 'oi'));
+    const otp = await paraCada((s) => s.sendVerificationCode('34998701109', '123456'));
+
+    expect(otp).toBe(notificacao);
   });
 
   it('envia o texto como variável 1 do template', async () => {
@@ -133,7 +158,7 @@ describe('WhatsappService (Twilio)', () => {
     await service.sendVerificationCode('(34) 99870-1109', '123456');
 
     expect(create.mock.calls[0][0]).toMatchObject({
-      to: 'whatsapp:+5534998701109',
+      to: 'whatsapp:+553498701109',
       contentSid: ENV_COMPLETO.TWILIO_WHATSAPP_OTP_CONTENT_SID,
     });
     expect(JSON.parse(create.mock.calls[0][0].contentVariables)).toEqual({ '1': '123456' });

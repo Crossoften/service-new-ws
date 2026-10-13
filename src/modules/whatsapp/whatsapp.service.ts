@@ -2,7 +2,7 @@ import { PrismaService } from '@database/PrismaService';
 import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Status } from '@prisma/client';
-import { normalizePhoneBR } from '@utils/normalizePhone';
+import { normalizeWhatsappPhoneBR } from '@utils/normalizePhone';
 import Twilio = require('twilio');
 
 @Injectable()
@@ -31,8 +31,15 @@ export class WhatsappService {
     this.client = accountSid?.startsWith('AC') && authToken ? Twilio(accountSid, authToken) : null;
   }
 
+  /**
+   * O WhatsApp tem o seu próprio formato para o número brasileiro: de DDD 31
+   * em diante o cadastro não tem o nono dígito. Mandar com ele é mandar para um
+   * número que não existe lá — a API aceita e a entrega falha depois, sem que o
+   * nosso código fique sabendo. Por isso o endereço sai do
+   * `normalizeWhatsappPhoneBR`, e não do `normalizePhoneBR` que o SMS usa.
+   */
   private toWhatsappAddress(phone: string): string | null {
-    const e164 = normalizePhoneBR(phone);
+    const e164 = normalizeWhatsappPhoneBR(phone);
 
     return e164 ? `whatsapp:${e164}` : null;
   }
