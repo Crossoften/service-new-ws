@@ -6,6 +6,8 @@
 -- já existem — daí este script.
 --
 -- COMO USAR
+--   0. Se o `LIKE` falhar com "Illegal mix of collations", ajuste o
+--      `SET NAMES` logo abaixo para a collation das suas tabelas.
 --   1. Corrija `URL_INTEGRATION` no `.env` e reinicie a API.
 --   2. Rode o bloco de CONFERÊNCIA e veja quantas linhas serão tocadas.
 --   3. Troque @BASE_ERRADA e @BASE_CERTA abaixo.
@@ -15,6 +17,23 @@
 --   Faça backup antes:  mysqldump -u <user> -p <banco> > backup.sql
 --   O script troca apenas o prefixo do host e preserva o caminho e a chave.
 --   Nenhuma linha é apagada.
+
+-- A collation da CONEXÃO precisa bater com a das colunas.
+--
+-- As variáveis `@BASE_ERRADA` e `@BASE_CERTA` nascem com a collation da
+-- conexão, não com a da coluna. No MySQL 8 o padrão da conexão é
+-- `utf8mb4_0900_ai_ci`, enquanto as tabelas deste schema são
+-- `utf8mb4_unicode_ci` — e o `LIKE` entre as duas falha com:
+--
+--   ERROR 1267: Illegal mix of collations ... for operation 'like'
+--
+-- Esta linha alinha a conexão às colunas e vale para o arquivo inteiro.
+-- Se o seu ambiente usar outra collation, é só trocá-la aqui, num lugar só.
+-- Para descobrir qual é:
+--
+--   SELECT TABLE_COLLATION FROM information_schema.TABLES
+--    WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'files';
+SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 SET @BASE_ERRADA = 'https://your-ngrok-url.ngrok-free.app';
 SET @BASE_CERTA  = 'https://COLOQUE-A-URL-REAL-AQUI';

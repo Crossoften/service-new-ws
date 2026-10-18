@@ -22,10 +22,39 @@ ok()      { printf '  \033[0;32m✓\033[0m %s\n' "$1"; }
 falhou()  { printf '  \033[0;31m✗\033[0m %s\n' "$1"; FALHAS=$((FALHAS + 1)); }
 FALHAS=0
 
+RAIZ="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Le uma chave da resposta JSON e aborta mostrando o CORPO quando ela nao vem.
+#
+# Antes cada leitura era um `python3 -c` inline. Quando a API falhava, o que
+# aparecia era um `KeyError` com traceback do Python — que diz qual chave
+# faltou, mas esconde o que a API respondeu, que e a unica informacao util.
+# Diagnosticar um 500 assim custou varias rodadas.
+extrair() {
+  local corpo="$1" chave="$2" valor
+
+  if ! valor=$(printf '%s' "$corpo" | python3 -c "
+import sys, json
+try:
+    dado = json.load(sys.stdin)
+except Exception:
+    sys.exit(1)
+valor = dado.get('$chave')
+if valor is None:
+    sys.exit(1)
+print(valor)
+" 2>/dev/null); then
+    printf '  \033[0;31m✗\033[0m resposta sem \"%s\" — a API devolveu: %s\n' "$chave" "$corpo" >&2
+    exit 1
+  fi
+
+  printf '%s' "$valor"
+}
+
 azul "0. Autenticando"
-TOKEN=$(curl -sS -X POST "$API/v1/login" -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$EMAIL\",\"password\":\"$SENHA\"}" \
-  | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+LOGIN=$(curl -sS -X POST "$API/v1/login" -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$EMAIL\",\"password\":\"$SENHA\"}")
+TOKEN=$(extrair "$LOGIN" token)
 ok "token obtido"
 
 azul "1. Upload de imagem"
@@ -36,7 +65,7 @@ open('/tmp/teste-s3.png','wb').write(base64.b64decode(
 "
 RESP=$(curl -sS -X POST "$API/v1/upload/one-file" -H "Authorization: Bearer $TOKEN" \
   -F "file=@/tmp/teste-s3.png")
-URL=$(echo "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["fileUrl"])')
+URL=$(extrair "$RESP" fileUrl)
 ok "enviado — $URL"
 
 azul "2. Leitura pela URL gravada"
@@ -50,8 +79,14 @@ fi
 azul "3. O objeto NÃO deve ser público no bucket"
 # Se esta URL abrir, o Block Public Access está desligado — e qualquer pessoa
 # lê os anexos de orçamento sabendo o nome do bucket.
-CHAVE=$(echo "$RESP" | python3 -c 'import sys,json;print(json.load(sys.stdin)["fileKey"])')
+CHAVE=$(extrair "$RESP" fileKey)
+# O nome do bucket nao e credencial, entao cai para o `.env` quando ele nao
+# esta exportado no shell — que e o caso normal de quem acabou de configurar.
+# As chaves continuam fora daqui: quem as tem e o processo do servidor.
 BUCKET="${AWS_BUCKET_NAME:-}"
+if [ -z "$BUCKET" ] && [ -f "$RAIZ/.env" ]; then
+  BUCKET=$(awk -F= '/^AWS_BUCKET_NAME=/{sub(/^[ \t"\x27]+/, "", $2); sub(/[ \t"\x27]+$/, "", $2); print $2; exit}' "$RAIZ/.env")
+fi
 if [ -n "$BUCKET" ]; then
   DIRETO=$(curl -sS -o /dev/null -w '%{http_code}' "https://$BUCKET.s3.amazonaws.com/$CHAVE" || echo 000)
   if [ "$DIRETO" = "200" ]; then
@@ -60,7 +95,7 @@ if [ -n "$BUCKET" ]; then
     ok "bucket fechado (HTTP $DIRETO ao tentar ler direto)"
   fi
 else
-  printf '  - defina AWS_BUCKET_NAME no shell para checar o acesso público\n'
+  printf '  - sem AWS_BUCKET_NAME no shell nem no .env; pulei a checagem de acesso público\n'
 fi
 
 azul "4. Teto de tamanho"
@@ -73,25 +108,36 @@ azul "5. Vídeo — presign"
 PRESIGN=$(curl -sS -X POST "$API/v1/upload/presign" -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"fileName":"teste.mp4","contentType":"video/mp4"}')
-ESTRATEGIA=$(echo "$PRESIGN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["strategy"])')
+ESTRATEGIA=$(extrair "$PRESIGN" strategy)
 ok "estratégia: $ESTRATEGIA"
 [ "$ESTRATEGIA" = "s3" ] || printf '  \033[0;33m!\033[0m a API está SEM credenciais da AWS\n'
 
 azul "6. Vídeo — envio e confirmação"
-UP=$(echo "$PRESIGN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["uploadUrl"])')
-CHAVE=$(echo "$PRESIGN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["fileKey"])')
-TK=$(echo "$PRESIGN" | python3 -c 'import sys,json;print(json.load(sys.stdin)["token"])')
+UP=$(extrair "$PRESIGN" uploadUrl)
+CHAVE=$(extrair "$PRESIGN" fileKey)
+TK=$(extrair "$PRESIGN" token)
 head -c 2000000 /dev/urandom > /tmp/teste-s3.mp4
 
 if [ "$ESTRATEGIA" = "s3" ]; then
-  # Os campos assinados vão ANTES do arquivo, e sem header de autenticação.
-  CAMPOS=$(echo "$PRESIGN" | python3 -c '
-import sys, json
-for k, v in json.load(sys.stdin)["fields"].items():
-    print(f"-F\n{k}={v}")
-')
-  CODIGO=$(echo "$CAMPOS" | xargs -d '\n' curl -sS -o /dev/null -w '%{http_code}' \
-    -X POST "$UP" -F "file=@/tmp/teste-s3.mp4" || true)
+  # Os campos assinados vão ANTES do arquivo — o S3 recusa o POST se o campo
+  # `file` não for o último.
+  #
+  # A versão anterior montava os argumentos com `xargs -d '\n'`, que tem dois
+  # defeitos: `-d` é extensão do GNU e não existe no xargs do macOS, e o xargs
+  # anexa o que vem da entrada DEPOIS dos argumentos fixos, deixando o `file`
+  # no meio. Agora o Python monta a linha inteira, na ordem certa e já com as
+  # aspas resolvidas pelo `shlex.quote`, e o shell apenas executa.
+  printf '%s' "$PRESIGN" | python3 -c "
+import sys, json, shlex
+dado = json.load(sys.stdin)
+args = ['curl', '-sS', '-o', '/dev/null', '-w', '%{http_code}',
+        '-X', 'POST', dado['uploadUrl']]
+for chave, valor in dado['fields'].items():
+    args += ['-F', f'{chave}={valor}']
+args += ['-F', 'file=@/tmp/teste-s3.mp4']
+print(' '.join(shlex.quote(a) for a in args))
+" > /tmp/envio-s3.sh
+  CODIGO=$(sh /tmp/envio-s3.sh || true)
 else
   CODIGO=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$UP" \
     -H "Authorization: Bearer $TOKEN" -F "token=$TK" -F "file=@/tmp/teste-s3.mp4" || true)
@@ -103,8 +149,11 @@ esac
 
 CONF=$(curl -sS -X POST "$API/v1/upload/confirm" -H "Authorization: Bearer $TOKEN" \
   -H 'Content-Type: application/json' -d "{\"fileKey\":\"$CHAVE\",\"token\":\"$TK\"}")
-echo "$CONF" | grep -q '"fileUrl"' && ok "registrado: $(echo "$CONF" | python3 -c 'import sys,json;print(json.load(sys.stdin)["fileUrl"])')" \
-  || falhou "confirm falhou: $CONF"
+if echo "$CONF" | grep -q '"fileUrl"'; then
+  ok "registrado: $(extrair "$CONF" fileUrl)"
+else
+  falhou "confirm falhou: $CONF"
+fi
 
 azul "7. Recusas"
 C=$(curl -sS -o /dev/null -w '%{http_code}' -X POST "$API/v1/upload/confirm" \

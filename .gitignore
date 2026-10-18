@@ -71,3 +71,5 @@ INTEGRACAO-WEBAPP.md
 
 # Duplicatas que o macOS cria ao resolver conflito de nome
 * [0-9].*
+.env.bak
+.env.*
