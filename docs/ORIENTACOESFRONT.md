@@ -12,7 +12,7 @@
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-10-13 (vídeo em anúncios) |
+> | **Atualizado em** | 2026-10-19 (origem da URL de mídia) |
 > | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
 > | **Base da API local** | `http://localhost:8000/v1` |
 > | **Swagger** | `http://localhost:8000/docs` |
@@ -1647,6 +1647,35 @@ API. Para o front **nada muda no uso**: continua sendo uma URL que vai direto no
 A razão de não ser URL pré-assinada: ela expira, e essa URL é **gravada em
 dezesseis tabelas**. URL que expira não pode morar em coluna — envelheceria no
 banco.
+
+### Quando a mídia não aparece, olhe o `URL_INTEGRATION` ⚠️
+
+Esta é a causa do **BE-FILE-URL-1**, e vale guardar porque o sintoma não aponta
+para ela.
+
+O `{API}` da URL acima não é descoberto em tempo de leitura: ele vem da variável
+**`URL_INTEGRATION`**, do `.env` do back-end, e é lida **no momento do upload**.
+A URL inteira é então **gravada na linha**, em dezesseis tabelas.
+
+Duas consequências que mudam como vocês diagnosticam:
+
+- **Se a variável estiver errada, a URL gravada nasce errada.** Foi o que
+  aconteceu: ela ficou com o texto-modelo `https://your-ngrok-url.ngrok-free.app`,
+  e toda foto e todo vídeo do sistema passaram a apontar para um host que não
+  existe. Nenhum erro na resposta da API — o upload retorna `201` normalmente, e
+  a quebra só aparece quando o `<img>` tenta carregar.
+- **Corrigir a variável conserta os uploads novos, não os antigos.** O valor já
+  gravado continua lá. Para reparar linhas existentes há o
+  `scripts/corrigir-urls-placeholder.sql`, do lado do back-end.
+
+**Como vocês identificam em 10 segundos:** olhem o campo `fileUrl` na resposta
+do upload. Se o host não for o da API daquele ambiente, **o problema é
+configuração do back-end, não código de front** — e a correção é no `.env` de
+quem hospeda a API, seguida de reinício.
+
+Em cada ambiente o valor é diferente, e quem define muda: local é a máquina de
+quem desenvolve, homologação e produção são do DevOps. Então essa checagem vale
+sempre que a mídia some num ambiente e funciona noutro.
 
 ### Vídeo: três passos, e o arquivo não passa pela API
 
