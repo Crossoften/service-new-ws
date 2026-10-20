@@ -7,9 +7,9 @@
 > |---|---|
 > | **Branch de trabalho** | `ajustes-gerais` |
 > | **Base** | `b2ae83e` (`luan/develop` @ 14/08/2026) |
-> | **Última atualização** | 2026-08-24 — fim da Fase B parcial |
-> | **Fases concluídas** | A, D, B, S, E e C — todas as fases planejadas |
-> | **Próxima fase** | Restante de B e Fase C — bloqueadas em decisões |
+> | **Última atualização** | 2026-10-20 — fim das Fases P, Q, AWS e X |
+> | **Fases concluídas** | A, D, B, S, E, C, MP, W, P, Q, AWS e X · T em andamento |
+> | **Próxima fase** | Nenhuma em código. O que resta é operação: rotação de credenciais, WABA do WhatsApp e SEC-1 (ver 5.6) |
 
 ---
 
@@ -833,6 +833,183 @@ desenho, nada quebra.
 
 ---
 
+### Fase P — Assinatura por categoria · ✅ entregue
+
+**Objetivo.** O fornecedor passa a pagar uma assinatura **por categoria de
+atuação** dentro da sua vertical, e não uma assinatura única que libera tudo.
+Confirmado com o cliente a partir da arte de planos: Mensal, Semestral e Anual,
+preço único por enquanto.
+
+**Motivo técnico.** O portão de assinatura era global — `userId` + `status`
+`Active`. Um pintor assinante entrava em qualquer categoria. A mudança move a
+decisão para um predicado único, compartilhado entre o portão e o catálogo, de
+modo que as duas respostas não possam divergir.
+
+**Patch P1 — `prisma/schema.prisma`, `src/modules/subscription-guard/active-subscription.filter.ts` (novo), serviço e portão**
+
+- `Subscription.categoryId Int?` — nulo significa assinatura legada, que cobre
+  tudo; índice composto `@@index([userId, categoryId, status])`
+- Novo `assinaturaVigenteWhere(userId, categoryId?, agora?)`, **usado pelo
+  portão e pelo catálogo**. É a peça central da fatia: enquanto eram duas
+  consultas separadas, nada impedia o catálogo dizer "assinado" e o portão
+  dizer "pague"
+- `POST /v1/subscriptions` passa a **exigir `categoryId`** — é a única mudança
+  do lote que quebra chamada existente
+
+> **Bug que eu mesma reintroduzi e o teste pegou.** A primeira versão do
+> predicado compunha as condições com espalhamento de objeto
+> (`{ ...periodoEmAberto, ...cobreACategoria }`). Como as duas metades têm uma
+> chave `OR`, a segunda **sobrescreve** a primeira em silêncio, e o portão
+> deixaria de checar datas. O TypeScript não acusa — é espalhamento, não chave
+> duplicada em literal. Corrigido com `AND` explícito, e confirmado por teste
+> de mutação: reintroduzir o bug derruba 2 testes.
+
+**Patch P2 — `subscription-period.ts` (novo), schema, serviço**
+
+- `Subscription.cancelAtPeriodEnd Boolean @default(false)` — cancelar agenda o
+  fim para o vencimento em vez de cortar na hora; `status` segue `Active` e
+  quem decide é o predicado
+- `JANELA_DE_RENOVACAO_DIAS = 7` e `DIAS_DE_CARENCIA = 3`, ambos definidos com
+  o cliente
+- `somarMeses` com **trava no último dia do mês**: o webhook usava `setMonth`,
+  que transforma 31/01 + 1 mês em 03/03 — e o erro **compõe** a cada renovação
+
+**Patch P3 — `GET /v1/subscriptions/catalog`, `/current`, `:id/reactivate`, `:id/renew`**
+
+Catálogo de categoria + prazo + valor numa chamada, para o front montar a tela
+de planos sem N requisições.
+
+**Patch P4 — `docs/ORIENTACOESFRONT.md` seção 8.13**
+
+**Validação.** Suíte completa verde; teste de mutação em dois pontos (predicado
+e emenda do webhook). Migration aplicada sem drift.
+
+---
+
+### Fase Q — Contrato e diagnóstico de erro · ✅ entregue
+
+**Patch P5 — `src/filters/prisma-exception.filter.ts`**
+
+Enum `PrismaErrorCode` com `PRISMA_VALIDATION`, `UNIQUE_CONSTRAINT`,
+`FOREIGN_KEY_CONSTRAINT`, `RECORD_NOT_FOUND`, `VALUE_TOO_LONG` e
+`UNEXPECTED_DATABASE_ERROR`, devolvido no campo `code` de toda resposta de erro.
+Nasceu de um caso real: o front via `{"message":"Requisição inválida."}` sem
+nenhuma pista do que era. 9 testes novos.
+
+**Patch P6 — `scripts/generate-swagger.ts`**
+
+Uma linha: `app.setGlobalPrefix('/v1')`.
+
+> **O artefato é que estava mentindo.** O `main.ts` aplica o prefixo; o gerador
+> do `swagger.json` não aplicava. O contrato exportado dizia
+> `/subscriptions/catalog` enquanto a API serve `/v1/subscriptions/catalog`, nas
+> 195 rotas. O `ORIENTACOESFRONT.md` estava certo o tempo todo. Verificado
+> contra a API rodando: `/v1/subscriptions/catalog` → `401`,
+> `/subscriptions/catalog` → `404`. Corrigi o gerador em vez de documentar o
+> defeito.
+
+---
+
+### Fase AWS — Armazenamento no S3 · ✅ entregue e validada de ponta a ponta
+
+**Objetivo.** Usar o bucket do cliente (`bkt-service`, `us-east-1`) como
+repositório de fotos e vídeos de todo o sistema.
+
+**Patch S1 — `upload.service.ts`**
+
+Removido `ACL: public_read`, que falha com `AccessControlListNotSupported` em
+bucket com *Object Ownership = Bucket owner enforced* — o padrão desde 2023.
+
+**Patch S3 — bucket privado e leitura pela API**
+
+`fileUrlFor(fileKey)` passa a devolver **sempre** `{API}/v1/files/{fileKey}`, e
+`openByKey` serve do S3 ou do disco. URL pré-assinada foi descartada de
+propósito: ela expira, e essa URL é **gravada em dezesseis tabelas** — URL que
+expira não pode morar em coluna.
+
+**Patch S4 e S4b — vídeo por envio direto**
+
+- `POST /v1/upload/presign` → `createPresignedPost` com
+  `['content-length-range', 1, LIMITE_UPLOAD_DIRETO]`, que é a **única** forma
+  de o teto ser imposto pelo próprio S3
+- `LIMITE_UPLOAD_DIRETO = 200 MB`, `VALIDADE_DA_AUTORIZACAO = 15 min`
+- Autorização sem estado por HMAC, conferida com `timingSafeEqual`
+- Sem credencial da AWS, a estratégia vira `api` e o arquivo vai para o disco —
+  o formato da resposta é o mesmo, então a tela do front não muda de ambiente
+- Imagem: **10 MB**, `png`, `jpg`, `jpeg`, `webp`, `pdf`
+
+**Patch S5 — `videoUrl` e `videoKey` em produto, hospedagem e transporte**
+
+Mais `scripts/corrigir-urls-placeholder.sql`, com bloco de conferência antes dos
+19 `UPDATE`s.
+
+**Patch S6 — `ORIENTACOESFRONT.md` seção 8.14**
+
+**Validação.** `scripts/testar-s3.sh` contra o bucket real: upload, leitura pela
+URL gravada com conteúdo idêntico, **objeto não legível publicamente**, teto de
+tamanho recusado com `413`, presign com estratégia `s3`, envio direto e
+confirmação, token forjado recusado com `403`.
+
+---
+
+### Fase X — Correções de campo · ✅ entregue
+
+Fatias nascidas de problemas reais encontrados ao colocar o sistema para rodar.
+
+**Patch X1 — código de verificação por WhatsApp**
+
+`VerificationCodeService` tenta WhatsApp e cai para SMS. Template **separado**,
+de categoria `AUTHENTICATION` (`TWILIO_WHATSAPP_OTP_CONTENT_SID`): a Meta proíbe
+OTP por template `UTILITY`, e o castigo não é o envio falhar na hora — é o
+template ser pausado depois e a nota de qualidade do número cair, degradando
+**todas** as mensagens.
+
+**Patch X2 — o nono dígito no endereço do WhatsApp**
+
+> **O bug mais sério do lote.** `toWhatsappAddress` montava
+> `whatsapp:${normalizePhoneBR(phone)}`, preservando o nono dígito. Mas o
+> WhatsApp cadastra o celular brasileiro na forma vigente em cada região quando
+> o dígito foi introduzido: DDD 11–28 **com**, de 31 em diante **sem**. A linha
+> telefônica tem o dígito nos dois casos; quem não tem é o cadastro.
+>
+> Atingia OTP e notificações para a maior parte do Brasil fora do eixo
+> SP–RJ–ES, e falhava do pior jeito: a API aceita (`queued`), nada é lançado, o
+> fallback de SMS **não** dispara, e o usuário não recebe nada.
+>
+> Novo `normalizeWhatsappPhoneBR`, usado só pelo endereço de WhatsApp — o SMS
+> vai para a operadora e precisa do número completo. **O spec anterior
+> codificava o bug**: três asserções esperavam `whatsapp:+5534998701109`. Por
+> isso a suíte passava com o defeito presente.
+>
+> A regra do DDD é heurística sobre sistema externo, não especificação
+> publicada pela Meta — está isolada na constante
+> `BR_DDD_MAXIMO_COM_NONO_DIGITO`.
+
+**Patch X3 — `scripts/testar-s3.sh` portável**
+
+Usava `xargs -d`, que é do GNU e não existe no macOS; e anexava os campos
+assinados **depois** do `-F file=@...`, enquanto o S3 exige o arquivo por
+último. Funcionava no Linux por acaso. Mais um helper `extrair()` que, quando a
+chave esperada não vem, imprime **o corpo da resposta** em vez de um traceback
+do Python.
+
+**Patch X4 — collation no `corrigir-urls-placeholder.sql`**
+
+As variáveis `@BASE_ERRADA`/`@BASE_CERTA` nascem com a collation da **conexão**
+(`utf8mb4_0900_ai_ci` no MySQL 8), as tabelas são `utf8mb4_unicode_ci`, e o
+`LIKE` estoura `ERROR 1267`. Resolvido com um `SET NAMES` no topo.
+
+**Patch X5 — `ORIENTACOESFRONT.md`, origem da URL de mídia**
+
+**Duas falhas de ambiente no meu lado.** X3 e X4 existem porque meus testes
+rodaram onde o problema não aparece: GNU `xargs` contra o BSD do macOS, e
+MariaDB — que não tem `utf8mb4_0900_ai_ci` — contra MySQL 8.
+
+**Validação.** Suíte completa: **45 suítes, 396 testes**. Teste de mutação no
+X2: remover a regra derruba 7 testes; errar a fronteira do DDD derruba 1.
+
+---
+
 ## 4. Correções ao entendimento anterior
 
 Registro do que se mostrou errado, para ninguém refazer a investigação.
@@ -846,6 +1023,9 @@ Registro do que se mostrou errado, para ninguém refazer a investigação.
 | `backend-demandas.md` · BE-D5 | `/restaurants/categories` sem `iconUrl` | **Já resolvido.** Existe no schema, no DTO e é selecionado em 5 pontos do service |
 | Análise minha, no plano da Fase B | Não existe regra de repasse ao entregador — só `deliveryFee`, que é o que o cliente paga | **Existe, e em código.** `deliveries.service.ts` (linha 250 em `b2ae83e`) credita `amount: foodOrder.deliveryFee` como `FinancialTransaction` de categoria `DeliveryPayout` ao concluir a entrega. Procurei por colunas de valor no schema; a regra estava no service. O repasse hoje é **100% da taxa de entrega** |
 | `backend-demandas.md` · BE-Q2 | `phone` é opcional no contrato | **O contrato mente.** Anotado `@ApiPropertyOptional`, mas o `@IsPhoneNumber` não tem `@IsOptional` — cadastrar sem telefone devolve `400`. Testado |
+| `backend-demandas.md` · BE-NUM-1 e BE-ROUTE-1 | Campos numéricos e rotas quebraram após os ajustes — `400` em todo cadastro | **Não era back-end.** Reproduzido contra a API rodando: `POST /services`, `/budgets`, `/jobs` e `/restaurants` devolvem `201` com `number` numérico. `@IsNumberString` tem zero ocorrências; os 122 `ParseIntPipe` estão todos em `@Param`. A causa era um processo antigo na porta 8000 (`node dist/src/main`, de um `start:prod` esquecido) fazendo o `start:dev` morrer com `EADDRINUSE` em silêncio e servir código velho com Prisma Client desatualizado. **Caí na mesma armadilha no meu container** |
+| Análise minha, sobre o upload | As rotas de upload não tinham `limits` nem `fileFilter` | **Falso.** O `ParseFilePipeBuilder` já validava tipo e tamanho. Eu havia olhado só o decorador do interceptor. O problema real era outro: o pipe roda **depois** de o multer bufferizar o arquivo |
+| Diagnóstico meu, sobre patches | `git apply` falhando significa que o patch já foi aplicado | **Não significa.** A mesma mensagem cobre dois casos opostos: conteúdo já presente, e base divergente. O teste que distingue é `git apply --check -R`, ou procurar uma âncora do conteúdo no arquivo. Errei nisso com a W3 e de novo com a S6 |
 
 ---
 
@@ -966,6 +1146,35 @@ que sugere um contêiner de desenvolvimento onde editar dentro é intencional.
 
 ---
 
+### 5.6 Fases P, Q, AWS e X — pendências abertas
+
+Nenhuma é de código. Todas são operação ou decisão.
+
+| Item | Situação | Quem resolve |
+|---|---|---|
+| **WABA do WhatsApp** | O OTP por WhatsApp **não vai a produção** sem WhatsApp Business Account. Conferido pela API: o único sender é `whatsapp:+14155238886` (sandbox), `status: OFFLINE`, `waba_id` vazio. Sem WABA não há a quem submeter template — é por isso que os três templates da conta estão `unsubmitted`. Exige Business Verification da Meta (CNPJ, comprovante, site), número dedicado fora do WhatsApp comum e aprovação de display name; leva dias a semanas | Cliente |
+| **Sandbox serve só para demonstração** | Cada participante precisa mandar `join <duas-palavras>`, a sessão **expira a cada 3 dias**, o remetente é um número americano sem identidade de marca e o texto do OTP é em inglês. E quando a sessão expira a primeira tentativa não entrega nada, em silêncio. Recomendação registrada: manter o WhatsApp **desligado** no piloto e demonstrar à parte | Decisão de produto |
+| **Rotação de credenciais** | A `AWS_SECRET_ACCESS_KEY` foi exposta em texto durante o trabalho, e o `TWILIO_AUTH_TOKEN` esteve num `.env.bak` que chegou a ser commitado — o push foi barrado pela proteção do GitHub e o commit foi reescrito, então **nada vazou para o remoto**. Rotacionar as duas mesmo assim | Brendha |
+| **SEC-1** | Restringir a chave do Google Maps no GCP por referrer e por API | Brendha |
+| **`URL_INTEGRATION` por ambiente** | É de onde sai a `fileUrl`, lida **no momento do upload** e gravada na linha. Valor errado faz toda a mídia apontar para host inexistente, sem erro na API. Em homologação e produção quem define é o DevOps. Documentado na 8.14 do `ORIENTACOESFRONT.md` | DevOps |
+| **Política do IAM** | Vale estreitar para `s3:PutObject`, `s3:GetObject` e `s3:DeleteObject` em `arn:aws:s3:::bkt-service/*` | Brendha |
+
+**Decisões de produto ainda abertas**, levantadas na auditoria de pagamento e
+não resolvidas:
+
+- Uma assinatura de R$ 9,90 em Pintor libera Produtos, Hospedagem, Transporte,
+  Vagas e Restaurante — as **verticais** não são cobradas separadamente
+- Entregador pagando assinatura foi pedido pelo cliente e **não** está
+  implementado; hoje ele recebe 100% da taxa de entrega
+- Comissão de influenciador é **uma vez só**, na primeira assinatura paga;
+  recorrente seria mudança de regra
+- Qualquer perfil pode indicar — o código de convite não filtra por
+  `profileType`
+- Estorno e chargeback caem no vazio; não há padrão global para a comissão de
+  delivery (20% fixo em código)
+
+---
+
 ## 6. Endereços do ambiente local
 
 A API roda em **`PORT=8000`** no ambiente local da equipe (mesmo valor do
@@ -1067,16 +1276,22 @@ cp .env.example .env          # ajustar JWT_SECRET, DATABASE_URL, FRONTEND_URL
 npx prisma migrate deploy
 npm run seed
 npm run seed:test             # cenário de teste completo, idempotente
-npm run start:dev             # 217 rotas · Swagger em http://localhost:8000/docs
-npm run swagger:export        # regrava docs/openapi.json para o front
+npm run start:dev             # Swagger em http://localhost:8000/docs
+npm run swagger:generate      # regrava docs/swagger.json para o front
 ```
 
 Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 `admin.one@`, `client.one@`, `supplier.one@`, `delivery.one@`,
 `influencer.one@` — todos `@email.com`.
 
-**Números de referência da branch:** 217 rotas · 47 modelos ·
-33 módulos · 19 migrations · 49 tabelas · 33 testes.
+**Números de referência da branch** (medidos em `e1d5940`): **195 rotas** no
+`docs/swagger.json`, todas com o prefixo `/v1` · **51 modelos** no schema ·
+**37 módulos** · **39 migrations** · **45 suítes, 396 testes**.
+
+> Os números anteriores desta seção (217 rotas, 47 modelos, 19 migrations,
+> 33 testes) estavam defasados, e o bloco acima mandava rodar
+> `npm run swagger:export` gravando `docs/openapi.json` — dois nomes que não
+> existem. O script é `swagger:generate` e o arquivo é `docs/swagger.json`.
 
 ---
 
@@ -1092,6 +1307,14 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 | **C** | Delivery e cobrança | ✅ Entregue · resíduos na 5.3 e 5.4 | 8 | 5 |
 | **T** | Ambiente de teste | 🟡 Em andamento | 3 | — |
 | **MP** | Split do Mercado Pago | ✅ Entregue · falta validar com credenciais reais | 3 | 8 |
+| **W** | WhatsApp no Twilio | ✅ Entregue | 1 | 11 |
+| **P** | Assinatura por categoria | ✅ Entregue | 4 | — |
+| **Q** | Contrato e código de erro | ✅ Entregue | 2 | 9 |
+| **AWS** | Armazenamento no S3 | ✅ Entregue e validada contra o bucket real | 6 | — |
+| **X** | Correções de campo | ✅ Entregue | 5 | 12 |
 
-**Total: 38 patches**, todos verificados aplicando em sequência sobre `b2ae83e`
-em worktree limpa, com build, `jest` e `eslint` no fim da cadeia.
+**Total: 56 patches**, todos verificados aplicando em sequência sobre a base da
+fase correspondente, em worktree descartável, com build, `jest` e `eslint` no
+fim da cadeia e conferência byte a byte contra a árvore validada.
+
+**Suíte hoje: 45 suítes, 396 testes.**
