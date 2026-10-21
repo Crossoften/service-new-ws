@@ -12,11 +12,11 @@
 > | | |
 > |---|---|
 > | **Back-end** | `service-new-ws`, branch `ajustes-gerais` |
-> | **Atualizado em** | 2026-10-19 (origem da URL de mídia) |
+> | **Atualizado em** | 2026-10-21 (onde a API atende) |
 > | **Origem** | mantido em `service-new-ws/docs/`; a cópia em `service-new-web-app/docs/` é espelho |
-> | **Base da API local** | `http://localhost:8000/v1` |
-> | **Swagger** | `http://localhost:8000/docs` |
-| **Contrato OpenAPI** | `docs/swagger.json` — regerado com `npm run swagger:generate` |
+> | **Base da API** | muda por ambiente — ver a **seção 0.1** |
+> | **Swagger** | `{BASE}/docs` — servido pela API, sempre atual |
+> | **Contrato OpenAPI** | `docs/swagger.json` — regerado com `npm run swagger:generate` |
 
 ---
 
@@ -50,9 +50,10 @@ do Swagger, com as descrições das rotas já em JSDoc.
 Três coisas sobre o código gerado:
 
 - **`rootUrl` sai de `ApiConfiguration`** e é a origem da API, **sem `/v1`** —
-  os caminhos do contrato já trazem o prefixo. Local:
-  `http://localhost:8000`. Para apontar para homolog, use
-  `provideApiConfiguration('https://...')`.
+  os caminhos do contrato já trazem o prefixo. **É aqui que se aponta para cada
+  ambiente**, com `provideApiConfiguration('...')`, e o valor certo depende de
+  onde você testa — veja a **seção 0.1**. Em particular, `http://localhost:8000`
+  **não funciona** quando o teste é no celular.
   O contrato exportado **não declara `servers`**, então o `ng-openapi-gen` gera
   `rootUrl` vazia: configure-a explicitamente, senão as chamadas saem relativas
   à origem do próprio front
@@ -76,6 +77,78 @@ O arquivo é gerado. Rode `npm run swagger:generate` depois de puxar mudanças
 do back-end, senão ele mente com cara de verdade — **e o commit da assinatura
 por categoria é um desses casos**: ele acrescenta `catalog`, `renew` e
 `reactivate`, e torna `categoryId` obrigatório em `POST /v1/subscriptions`.
+
+---
+
+## 0.1 Onde a API atende ⚠️
+
+**A base da API não é uma constante do projeto — ela muda por ambiente.** Esta
+seção existe porque o sintoma de errar isso é "o app não carrega nada", que
+parece bug de front e não é.
+
+### A regra
+
+```
+{BASE}/v1/...
+```
+
+O prefixo **`/v1`** é obrigatório nas 195 rotas. O que varia é o `{BASE}`.
+
+| Onde você testa | `{BASE}` |
+|---|---|
+| Navegador da **mesma máquina** que roda a API | `http://localhost:8000` |
+| **Celular** na mesma rede Wi-Fi | `http://<IP-da-máquina-na-rede>:8000` |
+| Homologação e produção | o domínio daquele ambiente — pergunte ao DevOps |
+
+### Por que `localhost` não serve no celular
+
+No aparelho, `localhost` aponta para o **próprio aparelho**, não para a máquina
+onde a API roda. Como o produto é um PWA e boa parte dos fluxos só faz sentido
+testada no telefone — câmera, geolocalização, push —, o endereço de rede é o
+que vale para o dia a dia.
+
+Quem roda a API descobre o IP assim, no Mac:
+
+```bash
+ipconfig getifaddr en0
+```
+
+### Esse IP muda sozinho ⚠️
+
+É endereço distribuído por DHCP. Ele troca quando o roteador renova a concessão
+ou quando a máquina muda de rede — e já trocou duas vezes num único dia de
+trabalho.
+
+**Quando o app parar de responder com erro de conexão, confiram o IP antes de
+procurar bug no código.** O sintoma de IP velho é característico: a requisição
+não é recusada na hora, ela fica pendurada e morre por timeout depois de ~75
+segundos, porque o pacote sai para a rede e não encontra ninguém. Recusa
+imediata significa outra coisa — API no ar mas sem escutar, ou porta errada.
+
+### CORS: a origem do front precisa estar autorizada
+
+O back-end só aceita chamadas de origens declaradas em `CORS_ORIGINS` (lista
+separada por vírgula no `.env` dele). Se o front mudar de host ou de porta —
+por exemplo, de `localhost:4200` para o IP da rede —, **o navegador bloqueia
+todas as chamadas** até a nova origem ser acrescentada lá.
+
+Não é algo que vocês resolvam no front. **Avisem qual origem vão usar** e ela é
+liberada do lado do back-end.
+
+### Se o front for servido por HTTPS
+
+O navegador recusa chamada de página HTTPS para API em HTTP — *mixed content*,
+bloqueio silencioso no console. Em teste local, sirvam o front por HTTP também,
+já que a API local não tem certificado.
+
+### URLs de mídia já vêm prontas
+
+O campo `fileUrl` chega **absoluto** da API, no formato
+`{BASE}/v1/files/{fileKey}`, pronto para ir direto no `src` de um `<img>`.
+
+**Não concatenem a base de novo** — daria URL duplicada. Se o host dentro do
+`fileUrl` estiver errado, a causa é a `URL_INTEGRATION` do back-end, e o
+diagnóstico está na **seção 8.14**.
 
 ---
 
