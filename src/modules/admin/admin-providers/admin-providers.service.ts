@@ -7,6 +7,7 @@ import { QueryAdminProviderDto } from './dto/query-admin-provider.dto';
 import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-history.dto';
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
+import { ResponseAdminProviderSubscriptionsDto } from './dto/response-admin-provider-subscriptions.dto';
 import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
 import { GrantSubscriptionDto } from './dto/grant-subscription.dto';
 import { ResponseGrantedSubscriptionDto } from './dto/response-granted-subscription.dto';
@@ -187,6 +188,87 @@ export class AdminProvidersService {
       currentPage,
       totalPages: totalRecords > 0 ? Math.ceil(totalRecords / take) : 1,
       totalRecords,
+    };
+  }
+
+  /**
+   * Lista as assinaturas de um fornecedor.
+   *
+   * Existe porque a concessão e o bônus eram inalcançáveis pela tela: o bônus
+   * exige um `subscriptionId` que nenhuma rota devolvia, e nada dizia se o
+   * fornecedor já tinha concessão vigente — o que a tela precisa saber para
+   * escolher entre conceder e bonificar, em vez de descobrir no 409.
+   *
+   * `activeGrantId` aplica o mesmo critério do conflito da concessão
+   * (`categoryId` nulo, ativa e dentro da validade). Fica aqui, e não na tela,
+   * para a regra não passar a existir em dois lugares.
+   */
+  async findSubscriptions(providerId: number): Promise<ResponseAdminProviderSubscriptionsDto> {
+    const provider = await this._prisma.user.findUnique({
+      where: { id: providerId },
+      select: { id: true },
+    });
+
+    if (!provider) throw new NotFoundException('Fornecedor não encontrado.');
+
+    const rows = await this._prisma.subscription.findMany({
+      where: { userId: providerId },
+      select: {
+        id: true,
+        planId: true,
+        planName: true,
+        planInterval: true,
+        intervalCount: true,
+        amount: true,
+        status: true,
+        categoryId: true,
+        category: { select: { name: true } },
+        grantedById: true,
+        grantReason: true,
+        bonusMonths: true,
+        cancelAtPeriodEnd: true,
+        startedAt: true,
+        currentPeriodStart: true,
+        currentPeriodEnd: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const now = new Date();
+
+    const subscriptions = rows.map((subscription) => ({
+      subscriptionId: subscription.id,
+      planId: subscription.planId,
+      planName: subscription.planName,
+      planInterval: subscription.planInterval,
+      intervalCount: subscription.intervalCount,
+      amount: Number(subscription.amount),
+      status: subscription.status,
+      categoryId: subscription.categoryId ?? undefined,
+      categoryName: subscription.category?.name ?? undefined,
+      isGranted: subscription.grantedById !== null,
+      grantedById: subscription.grantedById ?? undefined,
+      grantReason: subscription.grantReason ?? undefined,
+      bonusMonths: subscription.bonusMonths,
+      cancelAtPeriodEnd: subscription.cancelAtPeriodEnd,
+      startedAt: subscription.startedAt ?? undefined,
+      currentPeriodStart: subscription.currentPeriodStart ?? undefined,
+      currentPeriodEnd: subscription.currentPeriodEnd ?? undefined,
+      isCurrent:
+        subscription.status === SubscriptionStatusEnum.Active &&
+        (subscription.currentPeriodEnd === null || subscription.currentPeriodEnd >= now),
+      createdAt: subscription.createdAt,
+    }));
+
+    const activeGrant = subscriptions.find(
+      (subscription) => subscription.categoryId === undefined && subscription.isCurrent,
+    );
+
+    return {
+      providerId,
+      activeGrantId: activeGrant?.subscriptionId,
+      subscriptions,
     };
   }
 

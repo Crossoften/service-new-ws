@@ -21,6 +21,7 @@ import { QueryAdminProviderDto } from './dto/query-admin-provider.dto';
 import { ResponseAdminProviderHistoryDto } from './dto/response-admin-provider-history.dto';
 import { ResponseAdminProviderDto } from './dto/response-admin-provider.dto';
 import { ResponseFindAllAdminProviderDto } from './dto/response-admin-provider-list.dto';
+import { ResponseAdminProviderSubscriptionsDto } from './dto/response-admin-provider-subscriptions.dto';
 import { ResponseSubscriptionBonusDto } from './dto/response-subscription-bonus.dto';
 import { GrantSubscriptionDto } from './dto/grant-subscription.dto';
 import { ResponseGrantedSubscriptionDto } from './dto/response-granted-subscription.dto';
@@ -85,6 +86,30 @@ export class AdminProvidersController {
     handleAccessControl.verifyAdminRole(user);
     handleAccessControl.verifyPermission(user, 'Users');
     return this._adminProvidersService.findHistory(id, query);
+  }
+
+  @Get(':id/subscriptions')
+  @ApiOperation({
+    summary: 'Lista as assinaturas de um fornecedor, pagas e concedidas.',
+    description:
+      'Devolve as assinaturas do fornecedor com o id de cada uma, que é o que a rota de ' +
+      'bônus exige, a categoria coberta (ausente nas concessões, de cobertura ampla) e ' +
+      '`isCurrent` já calculado. `activeGrantId` antecipa o 409 da concessão: quando vem ' +
+      'preenchido, o caminho para estender a validade é o bônus sobre aquele id.',
+    security: [{ bearerAuth: [] }],
+  })
+  @ApiOkResponse({ type: ResponseAdminProviderSubscriptionsDto })
+  @ApiNotFoundResponse({ description: 'Fornecedor não encontrado.' })
+  @ApiUnauthorizedResponse({ description: 'Token inválido.' })
+  @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })
+  @ApiInternalServerErrorResponse({ description: 'Erro interno no servidor.' })
+  async findSubscriptions(
+    @CurrentUser() user: User,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<ResponseAdminProviderSubscriptionsDto> {
+    handleAccessControl.verifyAdminRole(user);
+    handleAccessControl.verifyPermission(user, 'Users');
+    return this._adminProvidersService.findSubscriptions(id);
   }
 
   @Post(':id/subscriptions/grant')
