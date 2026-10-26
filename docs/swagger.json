@@ -2317,7 +2317,14 @@
         },
         "responses": {
           "200": {
-            "description": "Perfil atualizado com sucesso."
+            "description": "Perfil atualizado com sucesso.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseAdminUserDto"
+                }
+              }
+            }
           },
           "400": {
             "description": "Requisição inválida."
@@ -14900,6 +14907,12 @@
             "description": "Documento do usuário, quando cadastrado.",
             "nullable": true,
             "example": "123.456.789-10"
+          },
+          "biography": {
+            "type": "string",
+            "description": "Biografia ou descrição do usuário, quando preenchida.",
+            "nullable": true,
+            "example": "Pintor residencial há 12 anos."
           },
           "status": {
             "description": "Status atual do usuário.",

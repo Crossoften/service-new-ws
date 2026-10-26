@@ -207,7 +207,12 @@ export class AdminUsersService {
         id,
         role: Role.User,
       },
-      select: this.userSelect,
+      // `biography` entra aqui e NÃO no `userSelect`: a coluna é `LongText` e o
+      // `userSelect` também serve a listagem paginada, que buscaria o texto
+      // inteiro de cada linha para não exibir nenhum. No detalhe o custo é de
+      // um registro só, e é o único lugar que precisa do valor — a tela de
+      // edição não tem como preencher o campo sem ele.
+      select: { ...this.userSelect, biography: true },
     });
 
     if (!user) {
@@ -227,6 +232,7 @@ export class AdminUsersService {
       email: user.email,
       phone: user.phone,
       document: user.document,
+      biography: user.biography ?? undefined,
       birthDate: user.birthDate ?? undefined,
       status: user.status,
       openServices,

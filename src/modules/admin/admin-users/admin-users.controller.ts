@@ -106,7 +106,7 @@ export class AdminUsersController {
     summary: 'Rota para administradores atualizarem qualquer informação do usuário.',
     security: [{ bearerAuth: [] }],
   })
-  @ApiOkResponse({ description: 'Perfil atualizado com sucesso.' })
+  @ApiOkResponse({ description: 'Perfil atualizado com sucesso.', type: ResponseAdminUserDto })
   @ApiBadRequestResponse({ description: 'Requisição inválida.' })
   @ApiUnauthorizedResponse({ description: 'Token inválido.' })
   @ApiForbiddenResponse({ description: 'Acesso não autorizado.' })

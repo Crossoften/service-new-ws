@@ -51,6 +51,15 @@ export class ResponseAdminUserDto {
   document?: string;
 
   @ApiProperty({
+    description: 'Biografia ou descrição do usuário, quando preenchida.',
+    required: false,
+    nullable: true,
+    example: 'Pintor residencial há 12 anos.',
+    type: String,
+  })
+  biography?: string;
+
+  @ApiProperty({
     description: 'Status atual do usuário.',
     enum: Status,
     enumName: 'Status',
