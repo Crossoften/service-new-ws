@@ -218,6 +218,19 @@ export class UploadController {
       // de uma chave jamais muda: cachear por um ano é seguro e tira do
       // servidor a banda de reentregar a mesma foto a cada navegação.
       'Cache-Control': 'public, max-age=31536000, immutable',
+      // O `helmet()` global devolve `Cross-Origin-Resource-Policy: same-origin`,
+      // e o navegador então BLOQUEIA o uso da imagem em `<img>` quando o front
+      // está em outra origem — que é sempre o caso: `localhost:4200` contra
+      // `localhost:8000` em desenvolvimento, domínios distintos em homologação.
+      //
+      // A falha é silenciosa do lado do servidor: a resposta sai `200`, o
+      // arquivo chega íntegro, e só o navegador recusa a pintar. Procurar isso
+      // no log da API não leva a lugar nenhum.
+      //
+      // O relaxamento fica NESTA rota, não no `helmet()` global: é a única que
+      // serve mídia para `<img>`, e afrouxar a política para toda a API
+      // alcançaria respostas JSON que não precisam disso.
+      'Cross-Origin-Resource-Policy': 'cross-origin',
     });
 
     return stream.pipe(res);
