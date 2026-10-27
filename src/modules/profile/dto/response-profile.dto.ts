@@ -166,6 +166,18 @@ export class ResponseProfileDto {
   })
   commissionRate?: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Percentual que a plataforma retém sobre os ITENS de cada pedido do delivery pago pelo ' +
+      'aplicativo, além da assinatura. É o percentual já resolvido: a taxa própria do ' +
+      'fornecedor quando existe, senão a taxa global do painel administrativo. Presente ' +
+      'apenas no perfil de fornecedor. Frete e gorjeta não entram na base, e pedido pago na ' +
+      'entrega não tem retenção.',
+    example: 20,
+    type: Number,
+  })
+  deliveryCommissionRate?: number;
+
   @ApiProperty({
     description: 'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
     type: [ResponseProfileSocialMediaDto],

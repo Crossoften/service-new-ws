@@ -1,4 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
+import { resolveCommissionRate } from '../food-orders/commission';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { WarrantyStatsService } from '../works/warranty-stats.service';
 import { Injectable, Logger } from '@nestjs/common';
 import { User, UserProfileType } from '@prisma/client';
@@ -20,6 +22,7 @@ export class ProfileService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly warrantyStats: WarrantyStatsService,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   async findMine(user: User): Promise<ResponseProfileDto> {
@@ -40,6 +43,7 @@ export class ProfileService {
         referralCode: true,
         birthDate: true,
         commissionRate: true,
+        deliveryCommissionRate: true,
         billingType: true,
         createdAt: true,
         updatedAt: true,
@@ -91,6 +95,24 @@ export class ProfileService {
       referralCode: profile.referralCode || undefined,
       birthDate: profile.birthDate || undefined,
       commissionRate: profile.commissionRate !== null ? Number(profile.commissionRate) : undefined,
+      // Percentual **efetivo** do delivery, não o valor cru da coluna: a taxa
+      // própria do fornecedor quando existe, senão a do painel administrativo.
+      // Resolvido pela mesma função que o pedido usa para cobrar, para a tela
+      // não ter de reimplementar a precedência — e não divergir dela.
+      //
+      // Só para fornecedor: delivery é vertical de fornecedor (as rotas de
+      // restaurante são `@ProfileTypes(Supplier)`), e devolver o campo para um
+      // cliente seria número sem significado na resposta dele.
+      //
+      // A leitura do painel fica dentro da condição de propósito: perfil que
+      // não é fornecedor não paga a consulta extra.
+      deliveryCommissionRate:
+        profile.profileType === UserProfileType.Supplier
+          ? resolveCommissionRate(
+              { deliveryCommissionRate: profile.deliveryCommissionRate },
+              await this.platformSettings.deliveryCommissionRate(),
+            )
+          : undefined,
       billingType: profile.billingType ?? undefined,
       // O fornecedor vê o próprio histórico de garantias; para o cliente, o
       // mesmo agregado sai em `GET /services/:id`.
