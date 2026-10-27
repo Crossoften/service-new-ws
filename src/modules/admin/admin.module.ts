@@ -22,6 +22,8 @@ import { AdminDeliveryFeesController } from './admin-delivery-fees/admin-deliver
 import { AdminDeliveryFeesService } from './admin-delivery-fees/admin-delivery-fees.service';
 import { AdminDeliveryPayoutsController } from './admin-delivery-payouts/admin-delivery-payouts.controller';
 import { AdminDeliveryPayoutsService } from './admin-delivery-payouts/admin-delivery-payouts.service';
+import { AdminSubscriptionsController } from './admin-subscriptions/admin-subscriptions.controller';
+import { AdminSubscriptionsService } from './admin-subscriptions/admin-subscriptions.service';
 
 @Module({
   imports: [NotificationsModule, UploadModule],
@@ -35,6 +37,7 @@ import { AdminDeliveryPayoutsService } from './admin-delivery-payouts/admin-deli
     AdminCategoriesController,
     AdminDeliveryFeesController,
     AdminDeliveryPayoutsController,
+    AdminSubscriptionsController,
   ],
   providers: [
     PrismaService,
@@ -47,6 +50,7 @@ import { AdminDeliveryPayoutsService } from './admin-delivery-payouts/admin-deli
     AdminCategoriesService,
     AdminDeliveryFeesService,
     AdminDeliveryPayoutsService,
+    AdminSubscriptionsService,
   ],
 })
 export class AdminModule {}
