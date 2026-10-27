@@ -17,7 +17,8 @@ export class CreateBudgetFileDto {
     example: 'https://cdn.seudominio.com/budgets/arquivo.pdf',
     type: String,
   })
-  @IsUrl({}, { message: 'A URL do arquivo é inválida.' })
+  // Idem `create-work-file`: a URL é a que a própria API emitiu no upload.
+  @IsUrl({ require_tld: false }, { message: 'A URL do arquivo é inválida.' })
   @MaxLength(1500, { message: 'A URL do arquivo deve ter no máximo 1500 caracteres.' })
   fileUrl: string;
 

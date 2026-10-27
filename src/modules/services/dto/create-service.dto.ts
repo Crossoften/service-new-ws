@@ -67,7 +67,12 @@ export class CreateServiceDto {
     required: false,
     nullable: true,
   })
-  @IsUrl({}, { message: 'A URL da imagem do serviço é inválida.' })
+  // `require_tld: false` porque a própria API emite a URL do arquivo a partir
+  // de `URL_INTEGRATION`, e em ambiente local isso é `http://localhost:8000`.
+  // Com as opções padrão o validador recusava a URL que o próprio upload
+  // devolveu — travava criar e editar serviço com imagem fora de um domínio
+  // com TLD. O IP já passava; o host sem ponto é que não.
+  @IsUrl({ require_tld: false }, { message: 'A URL da imagem do serviço é inválida.' })
   @IsOptional()
   @MaxLength(1500, { message: 'A URL da imagem deve ter no máximo 1500 caracteres.' })
   imageUrl?: string;

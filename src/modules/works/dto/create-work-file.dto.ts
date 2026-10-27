@@ -18,7 +18,10 @@ export class CreateWorkFileDto {
     example: 'https://cdn.seudominio.com/works/arquivo.pdf',
     type: String,
   })
-  @IsUrl({}, { message: 'A URL do arquivo é inválida.' })
+  // Mesmo motivo do `imageUrl` do serviço: a URL vem do nosso próprio upload
+  // e em local não tem TLD. Sem isto, anexar arquivo a um trabalho falha fora
+  // de homolog/produção.
+  @IsUrl({ require_tld: false }, { message: 'A URL do arquivo é inválida.' })
   @MaxLength(1500, { message: 'A URL do arquivo deve ter no máximo 1500 caracteres.' })
   fileUrl: string;
 
