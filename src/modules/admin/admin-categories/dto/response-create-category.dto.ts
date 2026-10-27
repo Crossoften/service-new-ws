@@ -22,8 +22,13 @@ export class ResponseCategoryDto {
   @ApiProperty({ example: 1 })
   sortOrder: number;
 
-  @ApiProperty({ example: 10, description: 'Taxa da plataforma sobre o valor do serviço (%)' })
-  platformFeeRate: number | undefined;
+  @ApiPropertyOptional({
+    example: 10,
+    description:
+      'Taxa da plataforma sobre o valor do serviço (%). Presente apenas nas categorias ' +
+      'de services — é o único contexto que tem a coluna.',
+  })
+  platformFeeRate?: number;
 
   @ApiProperty()
   createdAt: Date;

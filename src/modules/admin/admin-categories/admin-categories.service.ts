@@ -12,9 +12,37 @@ import { ResponseCategoryDto } from './dto/response-create-category.dto';
 
 type CategoryContext = 'services' | 'products' | 'accommodations' | 'transportations';
 
+/**
+ * Só `ServiceCategory` tem a coluna `platformFeeRate` no schema. As categorias
+ * de produto, hospedagem e transporte não têm.
+ *
+ * Mandar o campo para elas faz o client do Prisma recusar a consulta antes do
+ * banco, e o filtro traduz isso em `400 PRISMA_VALIDATION` — um erro que culpa
+ * a requisição quando o problema é a consulta. Era por isso que `findAll` e
+ * `create` nunca funcionaram fora de `services`.
+ */
+const CONTEXTO_COM_TAXA: CategoryContext = 'services';
+
 @Injectable()
 export class AdminCategoriesService {
   constructor(private readonly _prisma: PrismaService) {}
+
+  private temTaxaDaPlataforma(context: string): boolean {
+    return context === CONTEXTO_COM_TAXA;
+  }
+
+  /**
+   * Recusa a taxa nos contextos que não a têm, em vez de ignorá-la em silêncio.
+   * Ignorar faria o admin achar que gravou uma taxa que nunca existiu.
+   */
+  private recusarTaxaForaDeServicos(context: string, platformFeeRate?: number): void {
+    if (platformFeeRate === undefined || this.temTaxaDaPlataforma(context)) return;
+
+    throw new BadRequestException(
+      `A taxa da plataforma existe apenas nas categorias de ${CONTEXTO_COM_TAXA}. ` +
+        `Remova 'platformFeeRate' da requisição de ${context}.`,
+    );
+  }
 
   private getDelegate(context: string) {
     const delegates: Record<CategoryContext, any> = {
@@ -45,6 +73,7 @@ export class AdminCategoriesService {
 
   async create(context: string, data: CreateCategoryDto): Promise<ResponseCategoryDto> {
     const delegate = this.getDelegate(context);
+    this.recusarTaxaForaDeServicos(context, data.platformFeeRate);
 
     const categoryExists = await delegate.findFirst({
       where: {
@@ -66,7 +95,9 @@ export class AdminCategoriesService {
         iconKey: data.iconKey,
         isActive: data.isActive ?? true,
         sortOrder: data.sortOrder ?? 0,
-        platformFeeRate: data.platformFeeRate ?? 10,
+        ...(this.temTaxaDaPlataforma(context) && {
+          platformFeeRate: data.platformFeeRate ?? 10,
+        }),
       },
     });
 
@@ -85,7 +116,7 @@ export class AdminCategoriesService {
         iconKey: true,
         isActive: true,
         sortOrder: true,
-        platformFeeRate: true,
+        ...(this.temTaxaDaPlataforma(context) && { platformFeeRate: true }),
         createdAt: true,
         updatedAt: true,
       },
@@ -115,6 +146,7 @@ export class AdminCategoriesService {
 
   async update(context: string, id: number, data: UpdateCategoryDto): Promise<ResponseCategoryDto> {
     const delegate = this.getDelegate(context);
+    this.recusarTaxaForaDeServicos(context, data.platformFeeRate);
 
     const categoryExists = await delegate.findUnique({
       where: { id },
