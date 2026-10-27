@@ -32,6 +32,7 @@ export class RentalsService {
     price: true,
     conditions: true,
     cancelReason: true,
+    rejectReason: true,
     requesterId: true,
     providerId: true,
     acceptedAt: true,
@@ -194,6 +195,11 @@ export class RentalsService {
         status: payload.status,
         acceptedAt: payload.status === RentalStatusEnum.Accepted ? now : undefined,
         rejectedAt: payload.status === RentalStatusEnum.Rejected ? now : undefined,
+        // Gravado só na recusa. O DTO libera o campo quando a resposta é
+        // aprovação, e aqui ele é ignorado de propósito: motivo de recusa em
+        // registro aprovado seria dado contraditório no histórico.
+        rejectReason:
+          payload.status === RentalStatusEnum.Rejected ? payload.rejectReason : undefined,
       },
     });
 
@@ -277,6 +283,7 @@ export class RentalsService {
       price: rental.price.toFixed(2),
       conditions: rental.conditions ?? undefined,
       cancelReason: rental.cancelReason ?? undefined,
+      rejectReason: rental.rejectReason ?? undefined,
       chatRoomId,
       product: rental.product,
       requester: {

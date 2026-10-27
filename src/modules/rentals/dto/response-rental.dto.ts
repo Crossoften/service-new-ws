@@ -45,6 +45,12 @@ export class ResponseRentalDto {
   @ApiPropertyOptional()
   cancelReason?: string;
 
+  @ApiPropertyOptional({
+    description: 'Motivo da recusa pelo fornecedor.',
+    example: 'O item já está reservado para esse período.',
+  })
+  rejectReason?: string;
+
   @ApiProperty()
   chatRoomId: number;
 

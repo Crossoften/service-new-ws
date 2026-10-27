@@ -1692,6 +1692,12 @@ model Rental {
   price        Decimal          @db.Decimal(10, 2)
   conditions   String?          @db.LongText()
   cancelReason String?          @db.LongText()
+  /// Motivo da recusa pelo fornecedor, exibido ao cliente.
+  ///
+  /// Separado de `cancelReason` porque são transições diferentes feitas por
+  /// partes diferentes: o cliente cancela, o fornecedor recusa. Uma coluna só
+  /// faria o motivo de um sobrescrever o do outro no histórico.
+  rejectReason String?          @db.LongText()
   productId    Int
   requesterId  Int
   providerId   Int
@@ -1763,6 +1769,12 @@ model Booking {
   guests          Int               @default(1)
   totalValue      Decimal           @db.Decimal(10, 2)
   cancelReason    String?           @db.LongText()
+  /// Motivo da recusa pelo fornecedor, exibido ao hóspede.
+  ///
+  /// Separado de `cancelReason` porque são transições diferentes feitas por
+  /// partes diferentes: o hóspede cancela, o fornecedor recusa. Uma coluna só
+  /// faria o motivo de um sobrescrever o do outro no histórico.
+  rejectReason    String?           @db.LongText()
   accommodationId Int
   requesterId     Int
   providerId      Int

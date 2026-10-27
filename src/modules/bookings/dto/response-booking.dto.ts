@@ -45,6 +45,12 @@ export class ResponseBookingDto {
   @ApiPropertyOptional()
   cancelReason?: string;
 
+  @ApiPropertyOptional({
+    description: 'Motivo da recusa pelo fornecedor.',
+    example: 'A acomodação está indisponível nessas datas.',
+  })
+  rejectReason?: string;
+
   @ApiProperty()
   chatRoomId: number;
 

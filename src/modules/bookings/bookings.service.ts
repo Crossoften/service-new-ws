@@ -33,6 +33,7 @@ export class BookingsService {
     guests: true,
     totalValue: true,
     cancelReason: true,
+    rejectReason: true,
     requesterId: true,
     providerId: true,
     confirmedAt: true,
@@ -192,6 +193,11 @@ export class BookingsService {
           status: payload.status,
           confirmedAt: payload.status === BookingStatusEnum.Confirmed ? now : undefined,
           rejectedAt: payload.status === BookingStatusEnum.Rejected ? now : undefined,
+          // Gravado só na recusa. O DTO libera o campo quando a resposta é
+          // aprovação, e aqui ele é ignorado de propósito: motivo de recusa em
+          // registro aprovado seria dado contraditório no histórico.
+          rejectReason:
+            payload.status === BookingStatusEnum.Rejected ? payload.rejectReason : undefined,
         },
       });
 
@@ -352,6 +358,7 @@ export class BookingsService {
       guests: booking.guests,
       totalValue: booking.totalValue.toFixed(2),
       cancelReason: booking.cancelReason ?? undefined,
+      rejectReason: booking.rejectReason ?? undefined,
       chatRoomId,
       accommodation: booking.accommodation,
       requester: {
