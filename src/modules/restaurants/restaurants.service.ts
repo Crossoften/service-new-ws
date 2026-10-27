@@ -25,7 +25,8 @@ import {
   ResponseRestaurantDto,
   ResponseRestaurantPayoutDto,
 } from './dto/response-restaurant.dto';
-import { DEFAULT_COMMISSION_RATE, resolveCommissionRate } from '../food-orders/commission';
+import { resolveCommissionRate } from '../food-orders/commission';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CARD_MACHINE_TERMS_VERSION } from './card-machine';
 import { UpdateCardMachineDto } from './dto/update-card-machine.dto';
 import { RestaurantCardMachineTermsRequiredException } from './exceptions/restaurant-card-machine-terms-required.exception';
@@ -54,6 +55,7 @@ export class RestaurantsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly subscriptionGuard: SubscriptionGuardService,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   private readonly addressSelect = Prisma.validator<Prisma.AddressSelect>()({
@@ -320,7 +322,7 @@ export class RestaurantsService {
     // sempre, porque todo mundo que opera delivery paga percentual.
     const rate = resolveCommissionRate(
       { deliveryCommissionRate: user.deliveryCommissionRate },
-      DEFAULT_COMMISSION_RATE,
+      await this.platformSettings.deliveryCommissionRate(),
     );
 
     return {

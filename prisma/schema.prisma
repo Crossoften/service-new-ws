@@ -141,6 +141,14 @@ model PlatformSettings {
   // quando a categoria do serviço não define taxa própria. Configurável em vez
   // de fixo no código: a taxa é decisão comercial e muda sem deploy.
   marketplaceFeeRate       Decimal @default(10) @db.Decimal(5, 2)
+  /// Percentual retido pela plataforma sobre os ITENS de cada pedido do
+  /// delivery, usado quando o fornecedor não tem taxa própria em
+  /// `User.deliveryCommissionRate`. Configurável pelo admin em vez de fixo no
+  /// código: é decisão comercial e muda sem deploy.
+  ///
+  /// `20` é o valor que estava em `DEFAULT_COMMISSION_RATE`, para a migration
+  /// não alterar o que nenhum restaurante paga hoje.
+  deliveryCommissionRate   Decimal @default(20) @db.Decimal(5, 2)
 
   updatedAt DateTime @updatedAt
 

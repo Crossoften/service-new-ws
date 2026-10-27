@@ -23,7 +23,11 @@ function build(usesOwnCardMachine: boolean): Cenario {
     },
   } as unknown as PrismaService;
 
-  const service = new RestaurantsService(prisma, {} as SubscriptionGuardService);
+  const service = new RestaurantsService(
+    prisma,
+    {} as SubscriptionGuardService,
+    { deliveryCommissionRate: jest.fn().mockResolvedValue(20) } as never,
+  );
 
   jest.spyOn(service, 'findMine').mockResolvedValue({ id: 3 } as never);
 

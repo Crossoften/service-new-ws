@@ -14,7 +14,8 @@ import { DeliveryAddressDto } from './dto/delivery-address.dto';
 import { RespondFoodOrderDto } from './dto/respond-food-order.dto';
 import { CancelFoodOrderDto } from './dto/cancel-food-order.dto';
 import { isSettledOffPlatform } from '../restaurants/card-machine';
-import { DEFAULT_COMMISSION_RATE, calculateCommission, resolveCommissionRate } from './commission';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
+import { calculateCommission, resolveCommissionRate } from './commission';
 import { QueryFoodOrderDto } from './dto/query-food-order.dto';
 import {
   CreateFoodOrderResponseDto,
@@ -53,6 +54,7 @@ export class FoodOrdersService {
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
     private readonly subscriptionGuard: SubscriptionGuardService,
     private readonly couponsService: CouponsService,
+    private readonly platformSettings: PlatformSettingsService,
   ) {}
 
   private readonly deliveryAddressSelect = Prisma.validator<Prisma.AddressSelect>()({
@@ -246,7 +248,10 @@ export class FoodOrdersService {
     // Cobrar essa comissão por outro mecanismo é evolução pendente, decidida
     // como tal: por enquanto, pedido pago na entrega não gera comissão.
     if (!settledOffPlatform) {
-      const rate = resolveCommissionRate(owner, DEFAULT_COMMISSION_RATE);
+      const rate = resolveCommissionRate(
+        owner,
+        await this.platformSettings.deliveryCommissionRate(),
+      );
       platformFeeRate = new Prisma.Decimal(rate);
       commissionAmount = calculateCommission(itemsValue, rate);
     }

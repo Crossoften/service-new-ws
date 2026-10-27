@@ -1,6 +1,7 @@
 import { PrismaService } from '@database/PrismaService';
 import { Prisma, User } from '@prisma/client';
 
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
 import { RestaurantsService } from './restaurants.service';
 
@@ -13,6 +14,9 @@ import { RestaurantsService } from './restaurants.service';
  * foi efetivamente retida — inclusive para os pedidos antigos, que foram
  * gravados com comissão quando a regra ainda era outra.
  */
+/** Valor deliberadamente diferente do antigo 20 fixo no código. */
+const TAXA_DO_PAINEL = 17;
+
 function build(dono: { deliveryCommissionRate: string | null }) {
   const aggregate = jest.fn().mockResolvedValue({
     _count: { _all: 4 },
@@ -35,7 +39,13 @@ function build(dono: { deliveryCommissionRate: string | null }) {
   } as User;
 
   return {
-    service: new RestaurantsService(prisma, {} as SubscriptionGuardService),
+    service: new RestaurantsService(
+      prisma,
+      {} as SubscriptionGuardService,
+      {
+        deliveryCommissionRate: jest.fn().mockResolvedValue(TAXA_DO_PAINEL),
+      } as unknown as PlatformSettingsService,
+    ),
     aggregate,
     user,
   };
@@ -60,12 +70,13 @@ describe('painel de contribuição do restaurante', () => {
     expect(resposta.billingType).toBe('Subscription');
   });
 
-  it('mostra a taxa do padrão quando o dono não tem taxa própria', async () => {
+  it('mostra a taxa do painel quando o dono não tem taxa própria', async () => {
+    // Era `20` fixo no código; agora é o que o administrador configurou.
     const { service, user } = build({ deliveryCommissionRate: null });
 
     const resposta = await service.findMyPayouts(user);
 
-    expect(resposta.commissionRate).toBe('20.00');
+    expect(resposta.commissionRate).toBe('17.00');
   });
 
   it('devolve o total contribuído e o líquido do restaurante', async () => {

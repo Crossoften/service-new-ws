@@ -14651,6 +14651,11 @@
             "description": "Percentual retido pela plataforma no split do Mercado Pago (%). Vale quando a categoria do serviço não define taxa própria.",
             "example": 10
           },
+          "deliveryCommissionRate": {
+            "type": "number",
+            "description": "Percentual retido pela plataforma sobre os itens de cada pedido do delivery (%). Vale quando o fornecedor não tem taxa própria.",
+            "example": 20
+          },
           "updatedAt": {
             "type": "string",
             "example": "2026-05-01T10:00:00.000Z"
@@ -14659,6 +14664,7 @@
         "required": [
           "influencerCommissionRate",
           "marketplaceFeeRate",
+          "deliveryCommissionRate",
           "updatedAt"
         ]
       },
@@ -14674,6 +14680,11 @@
             "type": "number",
             "description": "Percentual retido pela plataforma no split do Mercado Pago (0–100). Aplicado quando a categoria do serviço não define taxa própria. Mudar aqui vale para as próximas cobranças; as já geradas mantêm a taxa do momento em que foram criadas.",
             "example": 10
+          },
+          "deliveryCommissionRate": {
+            "type": "number",
+            "description": "Percentual retido pela plataforma sobre os itens de cada pedido do delivery (0–100). Aplicado quando o fornecedor não tem taxa própria cadastrada. Mudar aqui vale para os próximos pedidos; os já criados mantêm a taxa do momento em que foram feitos.",
+            "example": 20
           }
         }
       },

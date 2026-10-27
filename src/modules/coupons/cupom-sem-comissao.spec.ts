@@ -1,10 +1,12 @@
 import { PrismaService } from '@database/PrismaService';
 import { Prisma, User } from '@prisma/client';
 
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { CouponsService } from './coupons.service';
 import { CouponNotApplicableException } from './exceptions/coupon-not-applicable.exception';
 
 const CLIENTE = { id: 1 } as User;
+const TAXA_DO_PAINEL = 20;
 
 /**
  * O desconto do cupom sai da comissão da plataforma. Pedido pago na entrega não
@@ -36,7 +38,9 @@ function build() {
     couponRedemption: { count: jest.fn().mockResolvedValue(0) },
   } as unknown as PrismaService;
 
-  return new CouponsService(prisma);
+  return new CouponsService(prisma, {
+    deliveryCommissionRate: jest.fn().mockResolvedValue(TAXA_DO_PAINEL),
+  } as unknown as PlatformSettingsService);
 }
 
 const PEDIDO = {

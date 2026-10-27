@@ -5,13 +5,15 @@ import { CouponsService } from '../coupons/coupons.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
-import { DEFAULT_COMMISSION_RATE } from './commission';
 import { CreateFoodOrderDto } from './dto/create-food-order.dto';
 import { FoodOrdersService } from './food-orders.service';
 
 const CLIENTE = { id: 1, addressId: 5 } as User;
 const ITENS = 100;
+/** Valor deliberadamente diferente do antigo 20 fixo no código. */
+const TAXA_DO_PAINEL = 17;
 
 /**
  * Quem opera delivery paga assinatura **e** percentual, sem exceção — não há
@@ -74,6 +76,9 @@ function build(opcoes: {
     {} as MercadoPagoAccountsService,
     { assertProviderCanSell: jest.fn() } as unknown as SubscriptionGuardService,
     { resolveForOrder } as unknown as CouponsService,
+    {
+      deliveryCommissionRate: jest.fn().mockResolvedValue(TAXA_DO_PAINEL),
+    } as unknown as PlatformSettingsService,
   );
 
   // O frete depende de endereço e de tabela de taxas; não é o que está sob
@@ -104,11 +109,13 @@ async function criar(opcoes: Parameters<typeof build>[0]) {
 }
 
 describe('foodOrders.create — comissão', () => {
-  it('cobra de quem não tem taxa própria, pela taxa padrão', async () => {
+  it('cobra de quem não tem taxa própria pela taxa do painel', async () => {
+    // O número não está mais no código: vem de `PlatformSettings`, editável
+    // pelo administrador. 17 é um valor que a constante nunca teve.
     const data = await criar({ paymentMethod: PaymentMethodEnum.Pix, taxaPropria: null });
 
-    expect(Number(data.platformFeeRate)).toBe(DEFAULT_COMMISSION_RATE);
-    expect(Number(data.commissionAmount)).toBe((ITENS * DEFAULT_COMMISSION_RATE) / 100);
+    expect(Number(data.platformFeeRate)).toBe(TAXA_DO_PAINEL);
+    expect(Number(data.commissionAmount)).toBe((ITENS * TAXA_DO_PAINEL) / 100);
   });
 
   it('cobra pela taxa própria do dono quando existe', async () => {

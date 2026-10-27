@@ -65,6 +65,7 @@ function build(pedido: Record<string, unknown> | null, emAberto: { id: number } 
     accounts,
     { assertProviderCanSell: jest.fn() } as never,
     { resolveForOrder: jest.fn() } as never,
+    { deliveryCommissionRate: jest.fn().mockResolvedValue(20) } as never,
   );
 
   // A montagem da resposta já é coberta pelas rotas de leitura; aqui só

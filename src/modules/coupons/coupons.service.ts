@@ -1,10 +1,7 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import {
-  DEFAULT_COMMISSION_RATE,
-  calculateCommission,
-  resolveCommissionRate,
-} from '../food-orders/commission';
+import { calculateCommission, resolveCommissionRate } from '../food-orders/commission';
+import { PlatformSettingsService } from '../platform-settings/platform-settings.service';
 import { Coupon, CouponTypeEnum, Prisma, User } from '@prisma/client';
 
 import { calculateCouponDiscount, platformDiscountAllowance } from './coupon-discount';
@@ -19,7 +16,10 @@ export interface CouponResolution {
 
 @Injectable()
 export class CouponsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly platformSettings: PlatformSettingsService,
+  ) {}
 
   /**
    * Resolve o cupom para um pedido concreto, ou explica por que ele não vale.
@@ -141,7 +141,7 @@ export class CouponsService {
 
     return calculateCommission(
       itemsValue,
-      resolveCommissionRate(restaurant?.user, DEFAULT_COMMISSION_RATE),
+      resolveCommissionRate(restaurant?.user, await this.platformSettings.deliveryCommissionRate()),
     );
   }
 
