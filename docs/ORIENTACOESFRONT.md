@@ -1929,21 +1929,81 @@ Continue mandando a `fileUrl` **absoluta** que o upload devolveu, exatamente
 como a 8.14 descreve. Nenhuma mudança de código, nenhum workaround de reescrita
 de host.
 
-### O que segue pendente: galeria e vídeo no serviço 🟡
+---
 
-O **BE-SRV-MEDIA-1 não foi feito** — está aguardando decisão do cliente sobre
-prioridade. O contrato do serviço continua com **uma imagem só**:
+## 8.16 Serviço: capa, galeria e vídeo ✅
 
+> Resolve o **BE-SRV-MEDIA-1**. Swagger já regenerado — os schemas
+> `ServiceImageInputDto` e `ServiceImageDto` estão no contrato.
+
+### As três mídias e onde cada uma vive
+
+| Mídia | Campos | Quantas |
+|---|---|---|
+| **Capa** | `imageUrl` / `imageKey` *(já existiam)* | 1 |
+| **Vídeo** | `videoUrl` / `videoKey` **(novos)** | 1 — igual a produto, hospedagem e transporte |
+| **Galeria** | `images: [{ fileUrl, fileKey, sortOrder? }]` **(novo)** | até **10** |
+
+A galeria vem **só no detalhe** (`GET /v1/services/:id`). A listagem continua
+trazendo apenas a capa — não espere `images` em `ResponseServiceListItemDto`.
+
+Serviço sem galeria responde `images: []`, nunca `null`.
+
+### Enviar
+
+Capa e vídeo são pares soltos, como já eram. A galeria é um array:
+
+```json
+PATCH /v1/services/12
+{
+  "videoUrl": "http://localhost:8000/v1/files/1791230853240-apresentacao.mp4",
+  "videoKey": "1791230853240-apresentacao.mp4",
+  "images": [
+    { "fileUrl": "http://localhost:8000/v1/files/1791230853240-a.png", "fileKey": "1791230853240-a.png" },
+    { "fileUrl": "http://localhost:8000/v1/files/1791230853241-b.png", "fileKey": "1791230853241-b.png" }
+  ]
+}
 ```
-imageUrl?, imageKey?      ← é tudo que CreateServiceDto / UpdateServiceDto /
-                             ResponseServiceDto têm hoje
-```
 
-Não há array de imagens nem `videoUrl`/`videoKey` no serviço. O front está
-certo em fazer uma imagem — bate com o contrato atual. Quando o cliente
-priorizar, há dois caminhos registrados: espelhar `videoUrl`/`videoKey` como em
-produto/hospedagem/transporte (uma mídia de cada tipo, migration pequena), ou
-tabela de mídias com galeria (migration, relacionamento novo, DTOs novos).
+O par `fileUrl`/`fileKey` é **exatamente** o que o upload devolveu — imagem por
+`POST /v1/upload/one-file`, vídeo pelo presign (8.14). O front não monta nenhum
+dos dois.
+
+**`sortOrder` é opcional.** Omitido, vale a posição no array — arrastar para
+reordenar e enviar a lista funciona sem numerar nada. Se mandar, mandar em
+todas: `sortOrder: 0` é uma ordem válida (a primeira), não "ausente".
+
+### A regra que importa: o `PATCH` substitui a galeria
+
+| O que você manda | O que acontece |
+|---|---|
+| **omite** `images` | a galeria fica como está |
+| `"images": []` | a galeria é **esvaziada** |
+| `"images": [...]` | a galeria passa a ser **exatamente** essa lista |
+
+Ou seja: para remover uma imagem, mande a lista **sem** ela. Não há rota de
+remover imagem avulsa.
+
+Duas garantias do lado do back-end:
+
+- **quem continua mantém o `id`.** Reordenar não recria as imagens, então um
+  link para `images[n].id` não quebra porque o fornecedor arrastou a galeria
+- **quem sai tem o arquivo apagado do storage.** Não precisa chamar nada para
+  limpar; e não dá para "recuperar" mandando a chave de volta depois
+
+Mesma coisa ao excluir o serviço: a galeria e os arquivos vão com ele.
+
+### Travas de UI
+
+- No formulário, mande **sempre a lista final** — inclusive as imagens que já
+  estavam lá. Mandar só as novas apagaria as antigas
+- Teto de **10** imagens: barre no front antes de enviar, porque acima disso o
+  back-end responde `400 "A galeria aceita no máximo 10 imagens."`
+- Os `400` de mídia agora têm mensagem própria: *"A URL da imagem é inválida."*,
+  *"A chave da imagem deve ser um texto."*, *"A URL do vídeo do serviço é
+  inválida."* — mostrar a mensagem do back-end, não um texto genérico
+- A capa continua sendo a imagem da listagem. Se o produto quiser "a primeira da
+  galeria é a capa", isso é decisão de tela: o back-end mantém os dois separados
 
 ---
 

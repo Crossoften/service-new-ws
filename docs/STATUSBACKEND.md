@@ -1118,6 +1118,49 @@ por um arquivo órfão trocaria um problema pequeno por um grande); e a compara�
 chamada ganhar um `select` sem `iconKey`, a chave atual viria indefinida e o
 código apagaria arquivo em uso.
 
+**Patch BE-Y18 — capa, galeria e vídeo no serviço (BE-SRV-MEDIA-1)**
+
+O pedido do app dizia "capa + galeria (várias imagens) e vídeo" e, no mesmo
+parágrafo, "espelhando o padrão de produto/hospedagem/transporte" — mas esse
+padrão é **uma** imagem e **um** vídeo. Perguntado, o cliente confirmou a
+primeira leitura.
+
+| Mídia | Onde | Quantas |
+|---|---|---|
+| Capa | `Service.imageUrl`/`imageKey` (já existia) | 1 |
+| Vídeo | `Service.videoUrl`/`videoKey` | 1 — espelha os anúncios |
+| Galeria | tabela `service_files` | até 10 |
+
+`ServiceFile` espelha `WorkFile` com **duas diferenças deliberadas**: sem
+`fileName`, porque imagem de vitrine é renderizada e não baixada por nome; e com
+`sortOrder`, porque a ordem é escolha do fornecedor. Vídeo não entra na tabela —
+é um só, e vive em coluna. A galeria sai só no detalhe; no `serviceListSelect`
+não entra, porque a listagem mostra a capa.
+
+**A reconciliação é a parte delicada.** O `PATCH` recebe a lista final e o
+back-end acerta a diferença, com os três estados de sempre: omitir não mexe,
+`[]` esvazia, lista passa a ser exatamente aquela. Quem continua **mantém o
+`id`** — apagar tudo e reinserir mudaria o id a cada edição, e um link para a
+imagem deixaria de funcionar só porque o fornecedor reordenou a galeria. Quem
+sai tem a linha apagada e o arquivo removido do storage, reusando o
+`removeStoredFile` da BE-Y15. A escrita no banco vai numa transação só; a
+limpeza do storage roda por último e **não derruba a edição**.
+
+No `delete` do serviço a galeria sai primeiro: a FK de `service_files` é
+`RESTRICT`, então sem isso o delete falharia, e é ali que ainda se tem as
+chaves dos arquivos.
+
+**O compilador cobrou metade do trabalho, e isso quase virou bug.** O `tsc`
+apontou que `findById` e `findPublicById` montam a resposta à mão e faltava
+`images` — mas **não** cobrou `videoUrl`/`videoKey`, que são opcionais. Se eu
+tivesse só acrescentado ao `select`, os dois campos nunca apareceriam na
+resposta e nada acusaria. Vale como regra: **campo opcional novo em DTO de
+resposta montada à mão não é verificado pelo compilador** — tem de ser mapeado
+e testado à mão.
+
+O teto de **10 imagens** (`MAXIMO_DE_IMAGENS`) é limite técnico contra payload
+sem fim, não regra de negócio. Está anotado como tal no código.
+
 **As fatias de admin que consumiram cada uma** vivem em `service-new-web`
 (branch `Davi-Correia-integration`), fora deste repositório: ADM-Y2 (edição de
 usuário), ADM-Y3 (repasses), ADM-Y4 (taxas de entrega), ADM-Y5 (cupons),
@@ -1126,7 +1169,7 @@ ADM-Y10 (histórico de repasses), ADM-Y12 (foto e comissão no usuário),
 ADM-Y14 (imagem da categoria por upload), ADM-Y16 (ferramentas de arquivo por
 id).
 
-**Validação.** Suíte completa: **51 suítes, 484 testes**. Teste de mutação em
+**Validação.** Suíte completa: **52 suítes, 507 testes**. Teste de mutação em
 cada fatia; três resultados que vale registrar porque **não** foram mortes por
 teste:
 
@@ -1139,6 +1182,12 @@ teste:
 - BE-Y15, guarda de chave vazia em `removeStoredFile` → **sobreviveu** na
   primeira rodada, porque é inalcançável pelo caminho das categorias. Coberta
   depois com spec própria
+
+Na BE-Y18 as seis mutações morreram, e duas valem nota: `sortOrder ?? indice`
+trocado por `|| indice` mata um teste — **ordem zero é válida** (a primeira), e
+tratá-la como ausente jogaria a imagem para o índice do array; e inverter o
+conjunto de removidas mata seis, que é o tamanho da superfície da
+reconciliação.
 
 ---
 
@@ -1319,7 +1368,9 @@ Nenhuma é defeito. Todas são decisão de produto ou resíduo conhecido.
 
 | Item | Situação | Quem resolve |
 |---|---|---|
-| **BE-SRV-MEDIA-1** | Serviço tem **uma imagem só**: não há array nem `videoUrl`/`videoKey` em `CreateServiceDto`/`UpdateServiceDto`/`ResponseServiceDto`. Dois caminhos registrados: espelhar `videoUrl`/`videoKey` como em produto/hospedagem/transporte (migration pequena), ou tabela de mídias com galeria (migration, relacionamento e DTOs novos). O front faz uma imagem, que bate com o contrato atual | Cliente |
+| ~~**BE-SRV-MEDIA-1**~~ | **Resolvido na BE-Y18** — capa, galeria de até 10 imagens e um vídeo. Contrato na 8.16 do `ORIENTACOESFRONT.md`. O que sobrou é tela: o app já tem upload de imagem e de vídeo, falta montar a galeria | — |
+| **Capa × primeira da galeria** | O back-end mantém `imageUrl` (capa) e `images` (galeria) **separados**. Se o produto quiser "a primeira da galeria é a capa", é decisão de tela — não de contrato | Decisão de produto |
+| **Teto de 10 imagens** | `MAXIMO_DE_IMAGENS` é limite técnico, escolhido por mim contra payload sem fim. Se o produto quiser outro número, é só essa constante | Decisão de produto |
 | **Categorias de cardápio de restaurante** | Não entram no `{context}` de `/admin-categories` — têm rotas próprias (`POST /v1/restaurants/menu-categories`). Ninguém decidiu se o admin deve administrá-las, nem por onde | Decisão de produto |
 | **Padrão da comissão não é exposto** | `DEFAULT_COMMISSION_RATE = 20` vive em `food-orders/commission.ts` e nenhuma rota o publica. Por isso a tela de usuário do admin **não escreve "20%"** no texto de ajuda: o número na interface poderia divergir em silêncio. Expor em `/v1/admin-settings/platform` resolveria | Decisão de produto |
 | **`billingType` fora do detalhe do usuário** | `ResponseAdminUserDto` não devolve `billingType`, então o admin não tem como dizer a quem a comissão se aplica — e `resolveCommissionRate` só cobra quando o tipo é `Commission`. O admin hoje mostra o aviso genérico do DTO | Fatia pequena de back-end |
@@ -1439,10 +1490,14 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 `admin.one@`, `client.one@`, `supplier.one@`, `delivery.one@`,
 `influencer.one@` — todos `@email.com`.
 
-**Números de referência da branch** (medidos em `7671267`, fim da Fase Y):
+**Números de referência da branch** (medidos em `695d733`, fim da Fase Y):
 **196 caminhos** e **245 operações** no `docs/swagger.json`, todos com o prefixo
-`/v1` · **51 modelos** no schema · **39 migrations** · **51 suítes, 484
+`/v1` · **52 modelos** no schema · **40 migrations** · **52 suítes, 507
 testes**.
+
+> A BE-Y18 somou **um modelo** (`ServiceFile`) e **uma migration**, mas
+> **nenhuma rota**: galeria e vídeo entraram nos DTOs das rotas de serviço que
+> já existiam. É o caso em que contar rotas não enxerga a mudança.
 
 > **"195 rotas" era contagem de caminhos**, não de operações — uma mesma rota
 > com `GET` e `PATCH` contava uma vez. Daqui em diante os dois números ficam
@@ -1474,19 +1529,20 @@ testes**.
 | **Q** | Contrato e código de erro | ✅ Entregue | 2 | 9 |
 | **AWS** | Armazenamento no S3 | ✅ Entregue e validada contra o bucket real | 6 | — |
 | **X** | Correções de campo | ✅ Entregue | 5 | 12 |
-| **Y** | Portal Gerencial e correções do app | ✅ Entregue · pendências na 5.7 | 6 | 85 |
+| **Y** | Portal Gerencial e correções do app | ✅ Entregue · pendências na 5.7 | 7 | 108 |
 
-**Total: 62 patches**, todos verificados aplicando em sequência sobre a base da
+**Total: 63 patches**, todos verificados aplicando em sequência sobre a base da
 fase correspondente, em worktree descartável, com build, `jest` e `eslint` no
 fim da cadeia e conferência byte a byte contra a árvore validada.
 
-**Suíte hoje: 51 suítes, 484 testes.**
+**Suíte hoje: 52 suítes, 507 testes.**
 
-> **Sobre a coluna "Testes" da Fase Y:** 85 é o total medido nos cinco arquivos
+> **Sobre a coluna "Testes" da Fase Y:** 108 é o total medido nos seis arquivos
 > de spec que a fase criou (`admin-users.service.spec.ts` 9,
 > `provider-subscriptions.spec.ts` 9, `categories-platform-fee.spec.ts` 34,
-> `url-de-arquivo.spec.ts` 30, `remove-stored-file.spec.ts` 3) — dois deles
-> receberam testes de mais de um patch da mesma fase. Não tentei derivar o
+> `url-de-arquivo.spec.ts` 30, `remove-stored-file.spec.ts` 3,
+> `service-gallery.spec.ts` 23) — dois deles receberam testes de mais de um
+> patch da mesma fase. Não tentei derivar o
 > número da diferença entre os totais da suíte: a base de 396 foi medida em
 > `e1d5940`, que não é o commit onde a fase começou, e a subtração daria um
 > valor que eu não consigo reconciliar com os arquivos.

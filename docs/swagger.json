@@ -20955,6 +20955,30 @@
           }
         }
       },
+      "ServiceImageInputDto": {
+        "type": "object",
+        "properties": {
+          "fileUrl": {
+            "type": "string",
+            "description": "URL devolvida pelo upload. Mande a absoluta, sem reescrever o host.",
+            "example": "http://localhost:8000/v1/files/1791230853240-foto.png"
+          },
+          "fileKey": {
+            "type": "string",
+            "description": "Chave do arquivo no storage, devolvida pelo upload.",
+            "example": "1791230853240-foto.png"
+          },
+          "sortOrder": {
+            "type": "number",
+            "description": "Posição na galeria. Quando omitida, vale a ordem em que a imagem aparece no array.",
+            "example": 0
+          }
+        },
+        "required": [
+          "fileUrl",
+          "fileKey"
+        ]
+      },
       "CreateServiceDto": {
         "type": "object",
         "properties": {
@@ -20998,6 +21022,21 @@
             "description": "Chave do arquivo da imagem no storage.",
             "nullable": true
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL do vídeo de apresentação. Um por serviço, como em produto, hospedagem e transporte. Enviado pelo fluxo de presign."
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage."
+          },
+          "images": {
+            "description": "Galeria de imagens, além da capa. No `PATCH` a lista enviada **substitui** a galeria inteira: o que não vier é removido, e o arquivo correspondente sai do storage. Omitir o campo não mexe na galeria; mandar `[]` a esvazia.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImageInputDto"
+            }
+          },
           "categoryId": {
             "type": "number",
             "description": "Identificador da categoria do serviço.",
@@ -21013,6 +21052,33 @@
           "name",
           "type",
           "categoryId"
+        ]
+      },
+      "ServiceImageDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 1
+          },
+          "fileUrl": {
+            "type": "string",
+            "example": "http://localhost:8000/v1/files/1791230853240-foto.png"
+          },
+          "fileKey": {
+            "type": "string",
+            "example": "1791230853240-foto.png"
+          },
+          "sortOrder": {
+            "type": "number",
+            "example": 0
+          }
+        },
+        "required": [
+          "id",
+          "fileUrl",
+          "fileKey",
+          "sortOrder"
         ]
       },
       "ResponseServiceCategoryDto": {
@@ -21160,6 +21226,22 @@
             "nullable": true,
             "example": "services/consulta-odontologica.png"
           },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL do vídeo de apresentação, quando houver. Um por serviço.",
+            "nullable": true
+          },
+          "videoKey": {
+            "type": "string",
+            "nullable": true
+          },
+          "images": {
+            "description": "Galeria de imagens, já ordenada por `sortOrder`. Vem só no detalhe — a listagem traz apenas a capa.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImageDto"
+            }
+          },
           "isActive": {
             "type": "boolean",
             "description": "Indica se o serviço está ativo.",
@@ -21222,6 +21304,7 @@
           "name",
           "type",
           "price",
+          "images",
           "isActive",
           "categoryId",
           "category",
@@ -21462,6 +21545,21 @@
             "type": "string",
             "description": "Chave do arquivo da imagem no storage.",
             "nullable": true
+          },
+          "videoUrl": {
+            "type": "string",
+            "description": "URL do vídeo de apresentação. Um por serviço, como em produto, hospedagem e transporte. Enviado pelo fluxo de presign."
+          },
+          "videoKey": {
+            "type": "string",
+            "description": "Chave do vídeo no storage."
+          },
+          "images": {
+            "description": "Galeria de imagens, além da capa. No `PATCH` a lista enviada **substitui** a galeria inteira: o que não vier é removido, e o arquivo correspondente sai do storage. Omitir o campo não mexe na galeria; mandar `[]` a esvazia.",
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceImageInputDto"
+            }
           },
           "categoryId": {
             "type": "number",
