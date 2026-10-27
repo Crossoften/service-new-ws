@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { ResponseWarrantyStatsDto } from '../../works/dto/response-warranty-stats.dto';
 import { ServiceTypeEnum } from '../enums/service-type.enum';
 import { ResponseServiceCategoryDto } from './response-service-category.dto';
+import { ServiceImageDto } from './service-image.dto';
 
 export class ResponseServiceOwnerDto {
   @ApiProperty({ description: 'Identificador do usuário dono do serviço.', example: 15 })
@@ -171,6 +172,25 @@ export class ResponseServiceDto {
     example: 'services/consulta-odontologica.png',
   })
   imageKey?: string;
+
+  @ApiProperty({
+    description: 'URL do vídeo de apresentação, quando houver. Um por serviço.',
+    required: false,
+    nullable: true,
+    type: String,
+  })
+  videoUrl?: string;
+
+  @ApiProperty({ required: false, nullable: true, type: String })
+  videoKey?: string;
+
+  @ApiProperty({
+    description:
+      'Galeria de imagens, já ordenada por `sortOrder`. Vem só no detalhe — a ' +
+      'listagem traz apenas a capa.',
+    type: [ServiceImageDto],
+  })
+  images: ServiceImageDto[];
 
   @ApiProperty({ description: 'Indica se o serviço está ativo.', example: true })
   isActive: boolean;

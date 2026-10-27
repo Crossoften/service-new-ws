@@ -1,6 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+import { ServiceImageInputDto } from './service-image.dto';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
+  ValidateNested,
   IsBoolean,
   IsEnum,
   IsInt,
@@ -14,6 +19,9 @@ import {
   MinLength,
 } from 'class-validator';
 import { ServiceTypeEnum } from '../enums/service-type.enum';
+
+/** Teto técnico da galeria. Não é regra de negócio — ver a nota no campo. */
+export const MAXIMO_DE_IMAGENS = 10;
 
 export class CreateServiceDto {
   @ApiProperty({ description: 'Nome do serviço.', example: 'Consulta odontológica' })
@@ -86,6 +94,40 @@ export class CreateServiceDto {
   @IsOptional()
   @MaxLength(1500, { message: 'A chave da imagem deve ter no máximo 1500 caracteres.' })
   imageKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'URL do vídeo de apresentação. Um por serviço, como em produto, hospedagem e ' +
+      'transporte. Enviado pelo fluxo de presign.',
+  })
+  @IsUrl({ require_tld: false }, { message: 'A URL do vídeo do serviço é inválida.' })
+  @IsOptional()
+  @MaxLength(1500, { message: 'A URL do vídeo deve ter no máximo 1500 caracteres.' })
+  videoUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Chave do vídeo no storage.' })
+  @IsString({ message: 'A chave do vídeo do serviço deve ser um texto.' })
+  @IsOptional()
+  @MaxLength(1500, { message: 'A chave do vídeo deve ter no máximo 1500 caracteres.' })
+  videoKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Galeria de imagens, além da capa. No `PATCH` a lista enviada **substitui** a ' +
+      'galeria inteira: o que não vier é removido, e o arquivo correspondente sai do ' +
+      'storage. Omitir o campo não mexe na galeria; mandar `[]` a esvazia.',
+    type: [ServiceImageInputDto],
+  })
+  @IsOptional()
+  @IsArray({ message: 'A galeria deve ser uma lista de imagens.' })
+  // Teto técnico para não aceitar payload sem fim. Se o produto quiser outro
+  // número, é só este valor.
+  @ArrayMaxSize(MAXIMO_DE_IMAGENS, {
+    message: `A galeria aceita no máximo ${MAXIMO_DE_IMAGENS} imagens.`,
+  })
+  @ValidateNested({ each: true })
+  @Type(() => ServiceImageInputDto)
+  images?: ServiceImageInputDto[];
 
   @ApiProperty({ description: 'Identificador da categoria do serviço.', example: 1 })
   @Type(() => Number)

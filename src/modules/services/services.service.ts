@@ -1,5 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { Prisma, Role, User } from '@prisma/client';
 import capitalizeFirstLetter from '@utils/capitalizeFirstLetter';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
@@ -21,12 +21,17 @@ import { ServiceSelfReviewNotAllowedException } from './exceptions/service-self-
 import { ServiceTypeEnum } from './enums/service-type.enum';
 import { UpdateServiceDto } from './dto/update-service.dto';
 import { SubscriptionGuardService } from '../subscription-guard/subscription-guard.service';
+import { UploadService } from '../upload/upload.service';
+import { ServiceImageInputDto } from './dto/service-image.dto';
 
 @Injectable()
 export class ServicesService {
+  private readonly logger = new Logger(ServicesService.name);
+
   constructor(
     private readonly warrantyStats: WarrantyStatsService,
     private readonly prisma: PrismaService,
+    private readonly upload: UploadService,
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
 
@@ -39,6 +44,8 @@ export class ServicesService {
     description: true,
     imageUrl: true,
     imageKey: true,
+    videoUrl: true,
+    videoKey: true,
     isActive: true,
     categoryId: true,
     userId: true,
@@ -64,6 +71,13 @@ export class ServicesService {
         email: true,
         phone: true,
       },
+    },
+    // A galeria sai só no detalhe. No `serviceListSelect` ela não entra: a
+    // listagem mostra a capa, e trazer N imagens por linha seria custo sem
+    // destino.
+    files: {
+      select: { id: true, fileUrl: true, fileKey: true, sortOrder: true },
+      orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
     },
   });
 
@@ -117,9 +131,14 @@ export class ServicesService {
           description: payload.description ? payload.description.trim() : null,
           imageUrl: payload.imageUrl || null,
           imageKey: payload.imageKey || null,
+          videoUrl: payload.videoUrl || null,
+          videoKey: payload.videoKey || null,
           isActive: payload.isActive ?? true,
           categoryId: payload.categoryId,
           userId: user.id,
+          ...(payload.images?.length && {
+            files: { create: this.montarGaleria(payload.images) },
+          }),
         },
         select: this.serviceSelect,
       });
@@ -372,6 +391,14 @@ export class ServicesService {
       description: service.description,
       imageUrl: service.imageUrl,
       imageKey: service.imageKey,
+      videoUrl: service.videoUrl ?? undefined,
+      videoKey: service.videoKey ?? undefined,
+      images: service.files.map((arquivo) => ({
+        id: arquivo.id,
+        fileUrl: arquivo.fileUrl,
+        fileKey: arquivo.fileKey,
+        sortOrder: arquivo.sortOrder,
+      })),
       isActive: service.isActive,
       categoryId: service.categoryId,
       category: {
@@ -442,6 +469,14 @@ export class ServicesService {
       description: service.description,
       imageUrl: service.imageUrl,
       imageKey: service.imageKey,
+      videoUrl: service.videoUrl ?? undefined,
+      videoKey: service.videoKey ?? undefined,
+      images: service.files.map((arquivo) => ({
+        id: arquivo.id,
+        fileUrl: arquivo.fileUrl,
+        fileKey: arquivo.fileKey,
+        sortOrder: arquivo.sortOrder,
+      })),
       isActive: service.isActive,
       categoryId: service.categoryId,
       category: {
@@ -598,10 +633,19 @@ export class ServicesService {
               : undefined,
           imageUrl: payload.imageUrl !== undefined ? payload.imageUrl || null : undefined,
           imageKey: payload.imageKey !== undefined ? payload.imageKey || null : undefined,
+          videoUrl: payload.videoUrl !== undefined ? payload.videoUrl || null : undefined,
+          videoKey: payload.videoKey !== undefined ? payload.videoKey || null : undefined,
           isActive: payload.isActive,
           categoryId: payload.categoryId,
         },
       });
+
+      // `undefined` não mexe na galeria; `[]` a esvazia. É a mesma distinção
+      // dos outros campos, e é o que diferencia "não mandei a galeria" de
+      // "quero a galeria vazia".
+      if (payload.images !== undefined) {
+        await this.reconciliarGaleria(id, payload.images);
+      }
     } catch (error) {
       if (typeof error === 'object' && error !== null && 'code' in error) {
         throw new ServicePersistenceException();
@@ -613,6 +657,101 @@ export class ServicesService {
     return this.findById(id);
   }
 
+  /**
+   * A ordem da galeria é a do array quando o cliente não manda `sortOrder`.
+   *
+   * Exigir o campo obrigaria a tela a numerar as imagens; aceitar o índice
+   * deixa o caso comum — arrastar para reordenar e enviar — funcionar sem
+   * trabalho extra.
+   */
+  private montarGaleria(
+    imagens: ServiceImageInputDto[],
+  ): { fileUrl: string; fileKey: string; sortOrder: number }[] {
+    return imagens.map((imagem, indice) => ({
+      fileUrl: imagem.fileUrl,
+      fileKey: imagem.fileKey,
+      sortOrder: imagem.sortOrder ?? indice,
+    }));
+  }
+
+  /**
+   * Troca a galeria pela lista recebida.
+   *
+   * Reconcilia em vez de apagar tudo e reinserir: as imagens que continuam
+   * mantêm o `id`, então um link para a imagem não muda porque o fornecedor
+   * reordenou a galeria. As que saíram têm o arquivo removido do storage —
+   * senão cada edição deixaria lixo no bucket, que foi o problema que a
+   * BE-Y15 corrigiu nas categorias.
+   *
+   * A remoção do storage roda por último e **não derruba a edição**: o serviço
+   * já está correto nesse ponto.
+   */
+  private async reconciliarGaleria(
+    serviceId: number,
+    imagens: ServiceImageInputDto[],
+  ): Promise<void> {
+    const atuais = await this.prisma.serviceFile.findMany({
+      where: { serviceId },
+      select: { id: true, fileKey: true },
+    });
+
+    const desejadas = this.montarGaleria(imagens);
+    const chavesDesejadas = new Set(desejadas.map((imagem) => imagem.fileKey));
+    const removidas = atuais.filter((atual) => !chavesDesejadas.has(atual.fileKey));
+
+    const porChave = new Map(atuais.map((atual) => [atual.fileKey, atual.id]));
+
+    await this.prisma.$transaction([
+      ...(removidas.length
+        ? [
+            this.prisma.serviceFile.deleteMany({
+              where: { id: { in: removidas.map((r) => r.id) } },
+            }),
+          ]
+        : []),
+      ...desejadas.map((imagem) => {
+        const existente = porChave.get(imagem.fileKey);
+
+        return existente === undefined
+          ? this.prisma.serviceFile.create({ data: { ...imagem, serviceId } })
+          : this.prisma.serviceFile.update({
+              where: { id: existente },
+              data: { fileUrl: imagem.fileUrl, sortOrder: imagem.sortOrder },
+            });
+      }),
+    ]);
+
+    await this.descartarArquivos(removidas.map((removida) => removida.fileKey));
+  }
+
+  /** Apaga a galeria inteira, banco e storage. Usado ao excluir o serviço. */
+  private async descartarGaleria(serviceId: number): Promise<void> {
+    const arquivos = await this.prisma.serviceFile.findMany({
+      where: { serviceId },
+      select: { fileKey: true },
+    });
+
+    if (!arquivos.length) return;
+
+    await this.prisma.serviceFile.deleteMany({ where: { serviceId } });
+
+    await this.descartarArquivos(arquivos.map((arquivo) => arquivo.fileKey));
+  }
+
+  private async descartarArquivos(chaves: string[]): Promise<void> {
+    for (const chave of chaves) {
+      try {
+        await this.upload.removeStoredFile(chave);
+      } catch (erro) {
+        this.logger.error(
+          `Falha ao remover a imagem '${chave}' do storage: ${
+            erro instanceof Error ? erro.message : String(erro)
+          }`,
+        );
+      }
+    }
+  }
+
   async delete(user: User, id: number): Promise<ImessageEntity> {
     const service = await this.findById(id);
 
@@ -622,6 +761,11 @@ export class ServicesService {
     if (!isAdmin && !isOwner) {
       throw new ServiceAccessDeniedException();
     }
+
+    // A FK de `service_files` é `RESTRICT`: sem apagar a galeria primeiro, o
+    // delete do serviço falha. E os arquivos saem do storage aqui porque
+    // depois ninguém mais tem as chaves.
+    await this.descartarGaleria(id);
 
     await this.prisma.service.delete({ where: { id } });
 

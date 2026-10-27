@@ -424,8 +424,17 @@ model Service {
   /// ou fica nulo quando tudo é sob orçamento.
   price            Decimal?        @db.Decimal(10, 2)
   description      String?         @db.LongText()
+
+  /// Imagem de **capa**. Continua sendo a que a listagem mostra; a galeria
+  /// (`files`) é vista só no detalhe.
   imageUrl         String?         @db.VarChar(1500)
   imageKey         String?         @db.VarChar(1500)
+
+  /// Vídeo de apresentação, **um por serviço**: espelha `imageUrl`/`imageKey`
+  /// e o padrão já usado em produto, hospedagem e transporte. Enviado pelo
+  /// fluxo de presign (`POST /v1/upload/presign`).
+  videoUrl         String?         @db.VarChar(1500)
+  videoKey         String?         @db.VarChar(1500)
   isActive         Boolean         @default(true)
   categoryId       Int
   userId           Int
@@ -438,10 +447,36 @@ model Service {
   budgets  Budget[]
   works    Work[]
   reviews  Review[]
+  files    ServiceFile[]
 
   @@index([categoryId])
   @@index([userId])
   @@map("services")
+}
+
+/// Galeria de imagens de um serviço.
+///
+/// Espelha `WorkFile`, com duas diferenças deliberadas: não tem `fileName`,
+/// porque imagem de vitrine é renderizada e não baixada por nome; e tem
+/// `sortOrder`, porque a ordem da galeria é escolha do fornecedor.
+///
+/// Vídeo **não** entra aqui: é um só por serviço e vive em
+/// `Service.videoUrl`/`videoKey`, como nos anúncios.
+model ServiceFile {
+  id Int @id @default(autoincrement())
+
+  fileUrl   String @db.VarChar(1500)
+  fileKey   String @db.VarChar(1500)
+  sortOrder Int    @default(0)
+  serviceId Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service Service @relation(fields: [serviceId], references: [id])
+
+  @@index([serviceId])
+  @@map("service_files")
 }
 
 model Review {
