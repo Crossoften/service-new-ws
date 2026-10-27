@@ -212,7 +212,11 @@ export class AdminUsersService {
       // inteiro de cada linha para não exibir nenhum. No detalhe o custo é de
       // um registro só, e é o único lugar que precisa do valor — a tela de
       // edição não tem como preencher o campo sem ele.
-      select: { ...this.userSelect, biography: true },
+      // `deliveryCommissionRate` entra aqui pelo mesmo motivo que `biography`,
+      // mas por outra razão: a coluna é barata, só a listagem não mostra o
+      // valor, então buscá-lo em toda linha seria trabalho sem destino. É o
+      // detalhe que a tela de edição lê para preencher o campo.
+      select: { ...this.userSelect, biography: true, deliveryCommissionRate: true },
     });
 
     if (!user) {
@@ -233,6 +237,11 @@ export class AdminUsersService {
       phone: user.phone,
       document: user.document,
       biography: user.biography ?? undefined,
+      // `Decimal` serializa como string. Converter aqui mantém a resposta
+      // coerente com o DTO, que declara número. Nulo vira ausente de propósito:
+      // é o que diz "sem valor próprio", e zero continua sendo zero.
+      deliveryCommissionRate:
+        user.deliveryCommissionRate === null ? undefined : Number(user.deliveryCommissionRate),
       birthDate: user.birthDate ?? undefined,
       status: user.status,
       openServices,

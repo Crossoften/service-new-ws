@@ -1,5 +1,5 @@
 import { PrismaService } from '@database/PrismaService';
-import { Status } from '@prisma/client';
+import { Prisma, Status } from '@prisma/client';
 
 import { AdminUsersService } from './admin-users.service';
 
@@ -17,6 +17,7 @@ const USUARIO = {
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
   updatedAt: new Date('2026-01-02T00:00:00.000Z'),
   referralCode: 'RAF123',
+  deliveryCommissionRate: new Prisma.Decimal('15.50'),
 };
 
 function build(usuario: Record<string, unknown> | null = USUARIO) {
@@ -76,5 +77,62 @@ describe('AdminUsersService.findById', () => {
     const resposta = await service.findById(7);
 
     expect(resposta.biography).toBeUndefined();
+  });
+});
+
+/**
+ * Mesmo problema da biografia, encontrado no mesmo lugar: o `PATCH` aceitava
+ * `deliveryCommissionRate` e o `GET` não devolvia. A tela de edição abriria o
+ * campo em branco sem saber o que está gravado.
+ */
+describe('AdminUsersService.findById — comissão do delivery', () => {
+  it('pede a comissão ao banco explicitamente', async () => {
+    const { service, findFirst } = build();
+
+    await service.findById(7);
+
+    expect(findFirst.mock.calls[0][0].select).toMatchObject({ deliveryCommissionRate: true });
+  });
+
+  it('não contamina o select compartilhado com a listagem', async () => {
+    const { service, findFirst } = build();
+
+    await service.findById(7);
+
+    const compartilhado = (service as unknown as { userSelect: Record<string, boolean> })
+      .userSelect;
+
+    expect(compartilhado).not.toHaveProperty('deliveryCommissionRate');
+    expect(findFirst.mock.calls[0][0].select).toMatchObject({ deliveryCommissionRate: true });
+  });
+
+  it('converte o Decimal em número', async () => {
+    const { service } = build();
+
+    const resposta = await service.findById(7);
+
+    expect(resposta.deliveryCommissionRate).toBe(15.5);
+    expect(typeof resposta.deliveryCommissionRate).toBe('number');
+  });
+
+  it('devolve undefined quando o usuário não tem comissão própria', async () => {
+    const { service } = build({ ...USUARIO, deliveryCommissionRate: null });
+
+    const resposta = await service.findById(7);
+
+    expect(resposta.deliveryCommissionRate).toBeUndefined();
+  });
+
+  /**
+   * Zero é um valor, não uma ausência: significa comissão zerada. Tratar os
+   * dois igual faria a tela mostrar o padrão da plataforma para quem tem
+   * isenção, e salvar devolveria a cobrança sem ninguém pedir.
+   */
+  it('mantém zero como zero, não como ausente', async () => {
+    const { service } = build({ ...USUARIO, deliveryCommissionRate: new Prisma.Decimal('0') });
+
+    const resposta = await service.findById(7);
+
+    expect(resposta.deliveryCommissionRate).toBe(0);
   });
 });

@@ -60,6 +60,19 @@ export class ResponseAdminUserDto {
   biography?: string;
 
   @ApiProperty({
+    description:
+      'Comissão do delivery sobre os itens de cada pedido, em percentual. ' +
+      'Ausente significa que o usuário não tem valor próprio e cai no padrão da ' +
+      'plataforma; zero significa comissão zerada. Não confundir com a comissão ' +
+      'do influenciador, que tem rota própria.',
+    required: false,
+    nullable: true,
+    example: 15,
+    type: Number,
+  })
+  deliveryCommissionRate?: number;
+
+  @ApiProperty({
     description: 'Status atual do usuário.',
     enum: Status,
     enumName: 'Status',

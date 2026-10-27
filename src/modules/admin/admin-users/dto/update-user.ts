@@ -85,6 +85,10 @@ export class UpdateUserDto {
     example: 15,
     minimum: 0,
     maximum: 100,
+    // `null` é o caminho para voltar ao padrão da plataforma, e é diferente de
+    // omitir o campo (que não mexe no valor atual) e de mandar 0 (que zera a
+    // comissão). Sem declarar aqui, o front não tem como saber que pode.
+    nullable: true,
   })
   @IsOptional()
   @Type(() => Number)
