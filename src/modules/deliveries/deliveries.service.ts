@@ -15,12 +15,28 @@ import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { ResponseDeliveryEarningsDto } from './dto/response-delivery-earnings.dto';
 import { QueryDeliveryDto } from './dto/query-delivery.dto';
 import { UpdateDeliveryLocationDto } from './dto/update-delivery-location.dto';
-import { ResponseDeliveryDto, ResponseFindAllDeliveryDto } from './dto/response-delivery.dto';
+import {
+  ResponseDeliveryAddressDto,
+  ResponseDeliveryDto,
+  ResponseFindAllDeliveryDto,
+} from './dto/response-delivery.dto';
 import { DeliveryNotFoundException } from './exceptions/delivery-not-found.exception';
 import { DeliveryAccessDeniedException } from './exceptions/delivery-access-denied.exception';
 import { DeliveryInvalidStatusException } from './exceptions/delivery-invalid-status.exception';
 import { DeliveryAlreadyTakenException } from './exceptions/delivery-already-taken.exception';
 import { NotificationsService } from '../notifications/notifications.service';
+
+/** O endereço como o `addressSelect` o traz do banco. */
+type EnderecoDaRota = {
+  street: string | null;
+  neighborhood: string | null;
+  city: string | null;
+  state: string | null;
+  zipCode: string | null;
+  number: string | null;
+  latitude: Prisma.Decimal | null;
+  longitude: Prisma.Decimal | null;
+};
 
 @Injectable()
 export class DeliveriesService {
@@ -32,6 +48,24 @@ export class DeliveriesService {
     private readonly deliveriesGateway: DeliveriesGateway,
     private readonly notificationsService: NotificationsService,
   ) {}
+
+  /**
+   * Endereço no formato que a rota do entregador precisa: o legível, para
+   * exibir, e as coordenadas, para traçar o caminho.
+   *
+   * Declarado antes do `deliverySelect` de propósito: inicialização de campo é
+   * em ordem, e usá-lo antes de declarar deixaria `undefined` no select.
+   */
+  private readonly addressSelect = Prisma.validator<Prisma.AddressSelect>()({
+    street: true,
+    neighborhood: true,
+    city: true,
+    state: true,
+    zipCode: true,
+    number: true,
+    latitude: true,
+    longitude: true,
+  });
 
   private readonly deliverySelect = Prisma.validator<Prisma.DeliveryAssignmentSelect>()({
     id: true,
@@ -57,29 +91,14 @@ export class DeliveriesService {
             id: true,
             name: true,
             userId: true,
-            address: {
-              select: {
-                street: true,
-                neighborhood: true,
-                city: true,
-                state: true,
-                zipCode: true,
-                number: true,
-              },
-            },
+            // Coleta: as coordenadas do restaurante. Sem elas no `select`, o
+            // valor nunca chega ao mapeamento, mesmo existindo na coluna.
+            address: { select: this.addressSelect },
           },
         },
         customer: { select: { id: true, name: true } },
-        address: {
-          select: {
-            street: true,
-            neighborhood: true,
-            city: true,
-            state: true,
-            zipCode: true,
-            number: true,
-          },
-        },
+        // Entrega: o endereço gravado no pedido.
+        address: { select: this.addressSelect },
       },
     },
   });
@@ -412,6 +431,34 @@ export class DeliveriesService {
     };
   }
 
+  /**
+   * Endereço do banco no formato da resposta.
+   *
+   * Existe por dois motivos. O primeiro é a conversão: `latitude` e `longitude`
+   * são `Decimal` no Prisma, e repassar o objeto deixaria a serialização por
+   * conta do JSON — aqui vão em texto, igual a `currentLat`/`currentLng`, para
+   * o app tratar os três pontos do mapa da mesma forma.
+   *
+   * O segundo é tipo: o `toResponseDto` recebe `any`, então nada ali é
+   * conferido pelo compilador. Passando por este recorte, um campo renomeado no
+   * `select` quebra a compilação em vez de virar `undefined` silencioso na tela
+   * do entregador.
+   */
+  private toAddressDto(address?: EnderecoDaRota | null): ResponseDeliveryAddressDto | undefined {
+    if (!address) return undefined;
+
+    return {
+      street: address.street ?? undefined,
+      neighborhood: address.neighborhood ?? undefined,
+      city: address.city ?? undefined,
+      state: address.state ?? undefined,
+      zipCode: address.zipCode ?? undefined,
+      number: address.number ?? undefined,
+      latitude: address.latitude?.toString() ?? undefined,
+      longitude: address.longitude?.toString() ?? undefined,
+    };
+  }
+
   private toResponseDto(delivery: any): ResponseDeliveryDto {
     return {
       id: delivery.id,
@@ -427,10 +474,10 @@ export class DeliveriesService {
         restaurant: {
           id: delivery.foodOrder.restaurant.id,
           name: delivery.foodOrder.restaurant.name,
-          address: delivery.foodOrder.restaurant.address ?? undefined,
+          address: this.toAddressDto(delivery.foodOrder.restaurant.address),
         },
         customer: { id: delivery.foodOrder.customer.id, name: delivery.foodOrder.customer.name },
-        deliveryAddress: delivery.foodOrder.address ?? undefined,
+        deliveryAddress: this.toAddressDto(delivery.foodOrder.address),
       },
       acceptedAt: delivery.acceptedAt ?? undefined,
       rejectedAt: delivery.rejectedAt ?? undefined,

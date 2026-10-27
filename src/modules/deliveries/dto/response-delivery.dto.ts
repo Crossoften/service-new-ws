@@ -1,7 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DeliveryAssignmentStatusEnum } from '@prisma/client';
 
-class ResponseDeliveryAddressDto {
+export class ResponseDeliveryAddressDto {
   @ApiPropertyOptional()
   street?: string;
 
@@ -19,6 +19,22 @@ class ResponseDeliveryAddressDto {
 
   @ApiPropertyOptional()
   number?: string;
+
+  /**
+   * Coordenadas do endereço, em texto — mesmo formato de `currentLat`/
+   * `currentLng`, para o app tratar os três pontos do mapa da mesma forma.
+   *
+   * Podem vir ausentes: a coluna é opcional e quem a preenche é o front, ao
+   * geocodificar o endereço escolhido. Endereço cadastrado antes disso não tem
+   * coordenada, e pedido sem coordenada cai na taxa padrão de entrega — então
+   * a tela precisa de um caminho para quando faltar, em vez de assumir que
+   * sempre vem.
+   */
+  @ApiPropertyOptional({ description: 'Latitude do endereço.', example: '-23.5505199' })
+  latitude?: string;
+
+  @ApiPropertyOptional({ description: 'Longitude do endereço.', example: '-46.6333094' })
+  longitude?: string;
 }
 
 class ResponseDeliveryRestaurantDto {

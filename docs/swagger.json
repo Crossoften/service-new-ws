@@ -24152,6 +24152,11 @@
           "cancelReason": {
             "type": "string"
           },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa pelo fornecedor.",
+            "example": "O item já está reservado para esse período."
+          },
           "chatRoomId": {
             "type": "number"
           },
@@ -24255,6 +24260,11 @@
               "Rejected"
             ],
             "example": "Accepted"
+          },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa, exibido ao locatário. Obrigatório quando `status` é `Rejected`.",
+            "example": "O item já está reservado para esse período."
           }
         },
         "required": [
@@ -24612,6 +24622,11 @@
           "cancelReason": {
             "type": "string"
           },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa pelo fornecedor.",
+            "example": "A acomodação está indisponível nessas datas."
+          },
           "chatRoomId": {
             "type": "number"
           },
@@ -24720,6 +24735,11 @@
               "Rejected"
             ],
             "example": "Confirmed"
+          },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa, exibido ao hóspede. Obrigatório quando `status` é `Rejected`.",
+            "example": "A acomodação está indisponível nessas datas."
           }
         },
         "required": [
@@ -26349,6 +26369,16 @@
           },
           "number": {
             "type": "string"
+          },
+          "latitude": {
+            "type": "string",
+            "description": "Latitude do endereço.",
+            "example": "-23.5505199"
+          },
+          "longitude": {
+            "type": "string",
+            "description": "Longitude do endereço.",
+            "example": "-46.6333094"
           }
         }
       },
