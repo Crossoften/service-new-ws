@@ -4327,6 +4327,101 @@
         ]
       }
     },
+    "/v1/admin-subscriptions": {
+      "get": {
+        "description": "Visão geral que as rotas por fornecedor não davam: antes era preciso abrir um fornecedor por vez para saber o que havia sido concedido. Filtra por origem (`Granted` é cortesia ou teste, `Paid` passou pelo pagamento), status, fornecedor e busca por nome ou email. `isCurrent` já vem calculado.",
+        "operationId": "AdminSubscriptionsController_findAll",
+        "parameters": [
+          {
+            "name": "search",
+            "required": false,
+            "in": "query",
+            "description": "Busca por nome ou email do fornecedor.",
+            "schema": {
+              "example": "Marina",
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "required": false,
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/SubscriptionStatusEnum"
+            }
+          },
+          {
+            "name": "origin",
+            "required": false,
+            "in": "query",
+            "description": "Filtra por origem: concedida pelo admin ou paga pelo fornecedor.",
+            "schema": {
+              "$ref": "#/components/schemas/SubscriptionOriginFilter"
+            }
+          },
+          {
+            "name": "providerId",
+            "required": false,
+            "in": "query",
+            "description": "Restringe a um fornecedor.",
+            "schema": {
+              "example": 7,
+              "type": "number"
+            }
+          },
+          {
+            "name": "take",
+            "required": false,
+            "in": "query",
+            "description": "Quantidade de registros por página.",
+            "schema": {
+              "example": 10,
+              "type": "number"
+            }
+          },
+          {
+            "name": "skip",
+            "required": false,
+            "in": "query",
+            "description": "Página atual.",
+            "schema": {
+              "example": 1,
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseFindAllAdminSubscriptionDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Lista as assinaturas dos fornecedores, concedidas e pagas.",
+        "tags": [
+          "Assinaturas - Portal Gerencial"
+        ]
+      }
+    },
     "/v1/accommodations": {
       "post": {
         "operationId": "AccommodationsController_create",
@@ -16726,6 +16821,168 @@
           "paidAt",
           "createdById",
           "createdAt"
+        ]
+      },
+      "SubscriptionOriginFilter": {
+        "type": "string",
+        "enum": [
+          "Granted",
+          "Paid"
+        ]
+      },
+      "AdminSubscriptionProviderDto": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "number",
+            "example": 7
+          },
+          "name": {
+            "type": "string",
+            "example": "Marina Souza"
+          },
+          "email": {
+            "type": "string",
+            "example": "marina@email.com"
+          },
+          "phone": {
+            "type": "string",
+            "nullable": true,
+            "example": "+5534998701109"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "email"
+        ]
+      },
+      "AdminSubscriptionItemDto": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "number",
+            "example": 12
+          },
+          "provider": {
+            "$ref": "#/components/schemas/AdminSubscriptionProviderDto"
+          },
+          "planName": {
+            "type": "string",
+            "example": "Plano Mensal"
+          },
+          "planInterval": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionIntervalEnum"
+              }
+            ]
+          },
+          "amount": {
+            "type": "number",
+            "description": "Valor cobrado. Zero nas concessões, porque nada foi cobrado.",
+            "example": 0
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionStatusEnum"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "number",
+            "description": "Categoria coberta. Ausente significa cobertura ampla, o caso das concessões.",
+            "example": 4
+          },
+          "categoryName": {
+            "type": "string",
+            "example": "Pintura"
+          },
+          "isGranted": {
+            "type": "boolean",
+            "description": "Verdadeiro quando um administrador concedeu, em vez de o fornecedor pagar.",
+            "example": true
+          },
+          "grantedBy": {
+            "description": "Quem concedeu.",
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/AdminSubscriptionProviderDto"
+              }
+            ]
+          },
+          "grantReason": {
+            "type": "string",
+            "example": "Conta de testes de homologação."
+          },
+          "bonusMonths": {
+            "type": "number",
+            "example": 3
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean",
+            "example": false
+          },
+          "currentPeriodStart": {
+            "type": "string",
+            "example": "2026-10-01T00:00:00.000Z"
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "example": "2026-11-01T00:00:00.000Z"
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "description": "Ativa e dentro da validade. É o mesmo critério que os guards aplicam, para a tela não ter de recalculá-lo.",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-01-10T08:00:00.000Z"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "provider",
+          "planName",
+          "planInterval",
+          "amount",
+          "status",
+          "isGranted",
+          "bonusMonths",
+          "cancelAtPeriodEnd",
+          "isCurrent",
+          "createdAt"
+        ]
+      },
+      "ResponseFindAllAdminSubscriptionDto": {
+        "type": "object",
+        "properties": {
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AdminSubscriptionItemDto"
+            }
+          },
+          "currentPage": {
+            "type": "number",
+            "example": 1
+          },
+          "totalPages": {
+            "type": "number",
+            "example": 3
+          },
+          "totalRecords": {
+            "type": "number",
+            "example": 25
+          }
+        },
+        "required": [
+          "subscriptions",
+          "currentPage",
+          "totalPages",
+          "totalRecords"
         ]
       },
       "CreateAccommodationDto": {
