@@ -294,6 +294,29 @@ export class UploadService {
     };
   }
 
+  /**
+   * Remove um arquivo do storage e o registro dele, pela chave.
+   *
+   * Existe porque dono do arquivo e dono do uso não são a mesma coisa: a imagem
+   * de uma categoria pertence à categoria, e `deleteFileById` só deixa o
+   * próprio remetente apagar — um admin não conseguiria limpar o ícone que
+   * outro admin subiu.
+   *
+   * **Não confere posse, de propósito.** Quem chama já verificou a própria
+   * autorização (no caso das categorias, papel de admin + permissão
+   * `Settings`). Não exponha isto numa rota sem essa verificação.
+   *
+   * Tolera registro ausente: a chave pode ser mais antiga que a tabela `File`
+   * ou já ter sido removida.
+   */
+  async removeStoredFile(fileKey: string): Promise<void> {
+    if (!fileKey) return;
+
+    await this.removeFromStorage(fileKey);
+
+    await this.prisma.file.deleteMany({ where: { fileKey } });
+  }
+
   private async removeFromStorage(fileKey: string): Promise<void> {
     if (this.s3Client) {
       const deleteParams: DeleteObjectCommandInput = { Bucket: this.bucketName, Key: fileKey };

@@ -2,12 +2,14 @@ import { PrismaService } from '@database/PrismaService';
 import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 
+import { UploadService } from '../../upload/upload.service';
 import { AdminCategoriesService } from './admin-categories.service';
 
 const CONTEXTOS_SEM_TAXA = ['products', 'accommodations', 'transportations'] as const;
 
 interface Cenario {
   service: AdminCategoriesService;
+  removerArquivo: jest.Mock;
   buscarMuitos: jest.Mock;
   buscarUm: jest.Mock;
   buscarPrimeiro: jest.Mock;
@@ -22,7 +24,10 @@ function build(opcoes: { existente?: Record<string, unknown> | null } = {}): Cen
   const buscarUm = jest.fn().mockResolvedValue(existente);
   const buscarPrimeiro = jest.fn().mockResolvedValue(null);
   const criar = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 9, ...data }));
-  const atualizar = jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 1, ...data }));
+  // O Prisma devolve a linha inteira no `update`, não só os campos enviados.
+  const atualizar = jest
+    .fn()
+    .mockImplementation(({ data }) => Promise.resolve({ ...(existente ?? {}), ...data }));
 
   const delegate = {
     findMany: buscarMuitos,
@@ -39,8 +44,12 @@ function build(opcoes: { existente?: Record<string, unknown> | null } = {}): Cen
     transportationCategory: delegate,
   } as unknown as PrismaService;
 
+  const removerArquivo = jest.fn().mockResolvedValue(undefined);
+  const upload = { removeStoredFile: removerArquivo } as unknown as UploadService;
+
   return {
-    service: new AdminCategoriesService(prisma),
+    service: new AdminCategoriesService(prisma, upload),
+    removerArquivo,
     buscarMuitos,
     buscarUm,
     buscarPrimeiro,
@@ -197,5 +206,88 @@ describe('AdminCategoriesService — formato da taxa na resposta', () => {
     const categoria = await service.findOne('products', 1);
 
     expect(categoria.platformFeeRate).toBeUndefined();
+  });
+});
+
+/**
+ * Trocar a imagem sobrescreve a coluna, e com ela se perde a única referência
+ * ao arquivo anterior — que ficava no bucket para sempre.
+ */
+describe('AdminCategoriesService.update — ícone antigo', () => {
+  it('descarta do storage o ícone que saiu de uso', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/antigo.png' },
+    });
+
+    await service.update('services', 1, { iconKey: 'icones/novo.png' });
+
+    expect(removerArquivo).toHaveBeenCalledWith('icones/antigo.png');
+  });
+
+  it('descarta também quando a imagem é removida, não trocada', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/antigo.png' },
+    });
+
+    await service.update('services', 1, { iconKey: null } as never);
+
+    expect(removerArquivo).toHaveBeenCalledWith('icones/antigo.png');
+  });
+
+  it('não mexe no storage quando a chave não muda', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/mesmo.png' },
+    });
+
+    await service.update('services', 1, { iconKey: 'icones/mesmo.png' });
+
+    expect(removerArquivo).not.toHaveBeenCalled();
+  });
+
+  // Editar só o nome não manda `iconKey`; o Prisma devolve a linha com a chave
+  // intacta, então nada deve ser apagado.
+  it('não apaga nada ao editar outro campo', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/mesmo.png' },
+    });
+
+    await service.update('services', 1, { name: 'Limpeza pesada' });
+
+    expect(removerArquivo).not.toHaveBeenCalled();
+  });
+
+  it('não tenta apagar quando a categoria não tinha imagem', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: null },
+    });
+
+    await service.update('services', 1, { iconKey: 'icones/novo.png' });
+
+    expect(removerArquivo).not.toHaveBeenCalled();
+  });
+
+  /**
+   * A categoria já está gravada quando a limpeza roda. Recusar a resposta por
+   * causa de um arquivo órfão trocaria um problema pequeno por um grande.
+   */
+  it('conclui a edição mesmo se o storage falhar', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/antigo.png' },
+    });
+    removerArquivo.mockRejectedValue(new Error('S3 fora do ar'));
+
+    const categoria = await service.update('services', 1, { iconKey: 'icones/novo.png' });
+
+    expect(categoria.iconKey).toBe('icones/novo.png');
+  });
+
+  it('não mexe no storage ao inativar', async () => {
+    const { service, removerArquivo } = build({
+      existente: { id: 1, name: 'Limpeza', iconKey: 'icones/mesmo.png' },
+    });
+
+    await service.inactivate('services', 1);
+
+    expect(removerArquivo).not.toHaveBeenCalled();
   });
 });

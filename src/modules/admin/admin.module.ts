@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { NotificationsModule } from '../notifications/notifications.module';
+import { UploadModule } from '../upload/upload.module';
 
 import { PrismaService } from '@database/PrismaService';
 import { AdminDashboardController } from './admin-dashboard/admin-dashboard.controller';
@@ -23,7 +24,7 @@ import { AdminDeliveryPayoutsController } from './admin-delivery-payouts/admin-d
 import { AdminDeliveryPayoutsService } from './admin-delivery-payouts/admin-delivery-payouts.service';
 
 @Module({
-  imports: [NotificationsModule],
+  imports: [NotificationsModule, UploadModule],
   controllers: [
     AdminSettingsController,
     AdminUsersController,

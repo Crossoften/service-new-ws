@@ -3,8 +3,11 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+
+import { UploadService } from '../../upload/upload.service';
 import { CreateCategoryDto } from './dto/create-category.dto';
 import { UpdateCategoryDto } from './dto/update-category.dto';
 import { UpdatePlatformFeeRateDto } from './dto/update-platformfeerate.dto';
@@ -25,7 +28,12 @@ const CONTEXTO_COM_TAXA: CategoryContext = 'services';
 
 @Injectable()
 export class AdminCategoriesService {
-  constructor(private readonly _prisma: PrismaService) {}
+  private readonly logger = new Logger(AdminCategoriesService.name);
+
+  constructor(
+    private readonly _prisma: PrismaService,
+    private readonly _upload: UploadService,
+  ) {}
 
   private temTaxaDaPlataforma(context: string): boolean {
     return context === CONTEXTO_COM_TAXA;
@@ -161,7 +169,44 @@ export class AdminCategoriesService {
       data,
     });
 
+    // A comparação é contra o **payload**, não contra o que o `update` devolve.
+    // Se algum dia esta chamada ganhar um `select` que não traga `iconKey`, a
+    // chave atual viria indefinida e a limpeza apagaria um arquivo ainda em
+    // uso. Olhar o payload também torna explícito o caso "não mencionou a
+    // imagem": aí não há nada a descartar.
+    if ('iconKey' in data) {
+      await this.descartarIconeAntigo(categoryExists.iconKey, data.iconKey);
+    }
+
     return this.formatCategory(updatedCategory);
+  }
+
+  /**
+   * Apaga do storage o ícone que a categoria deixou de usar.
+   *
+   * Sem isto, cada troca de imagem deixava o arquivo anterior no bucket para
+   * sempre — ninguém mais tem a chave dele depois que a coluna é sobrescrita.
+   *
+   * Roda **depois** da gravação e **não derruba a edição** se falhar: a
+   * categoria já está correta nesse ponto, e recusar a resposta por causa de um
+   * arquivo órfão trocaria um problema pequeno por um grande. A falha vai para
+   * o log, que é onde ela pode ser vista sem atrapalhar o admin.
+   */
+  private async descartarIconeAntigo(
+    anterior: string | null | undefined,
+    atual: string | null | undefined,
+  ): Promise<void> {
+    if (!anterior || anterior === atual) return;
+
+    try {
+      await this._upload.removeStoredFile(anterior);
+    } catch (erro) {
+      this.logger.error(
+        `Falha ao remover o ícone anterior '${anterior}' do storage: ${
+          erro instanceof Error ? erro.message : String(erro)
+        }`,
+      );
+    }
   }
 
   async updatePlatformFeeRate(
