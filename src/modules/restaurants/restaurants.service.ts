@@ -25,7 +25,7 @@ import {
   ResponseRestaurantDto,
   ResponseRestaurantPayoutDto,
 } from './dto/response-restaurant.dto';
-import { resolveCommissionRate } from '../food-orders/commission';
+import { DEFAULT_COMMISSION_RATE, resolveCommissionRate } from '../food-orders/commission';
 import { CARD_MACHINE_TERMS_VERSION } from './card-machine';
 import { UpdateCardMachineDto } from './dto/update-card-machine.dto';
 import { RestaurantCardMachineTermsRequiredException } from './exceptions/restaurant-card-machine-terms-required.exception';
@@ -139,7 +139,7 @@ export class RestaurantsService {
   }
 
   async create(user: User, payload: CreateRestaurantDto): Promise<CreateRestaurantResponseDto> {
-    await this.subscriptionGuard.assertActiveSubscription(user, { allowCommissionBilling: true });
+    await this.subscriptionGuard.assertActiveSubscription(user);
 
     const existing = await this.prisma.restaurant.findUnique({
       where: { userId: user.id },
@@ -297,6 +297,10 @@ export class RestaurantsService {
       where: {
         restaurantId: restaurant.id,
         status: FoodOrderStatusEnum.Delivered,
+        // Só o que passou pela plataforma: pedido pago na entrega não gera
+        // comissão, e somá-lo aqui mostraria ao fornecedor um total de
+        // contribuição maior do que o que foi efetivamente retido dele.
+        settledOffPlatform: false,
         ...(desde ? { updatedAt: { gte: desde } } : {}),
       },
       _count: { _all: true },
@@ -312,17 +316,16 @@ export class RestaurantsService {
     // indicação dele, quando ele era as duas coisas.
     //
     // Passa pelo mesmo `resolveCommissionRate` do cálculo do pedido, então o
-    // relatório mostra a taxa que de fato foi cobrada: quem está no modelo de
-    // comissão e não tem taxa própria vê os 20% do padrão, em vez do vazio de
-    // antes, que dava a entender que não pagava nada.
-    const rate = resolveCommissionRate({
-      billingType: user.billingType,
-      deliveryCommissionRate: user.deliveryCommissionRate,
-    });
+    // relatório mostra a taxa que de fato é cobrada — e agora ela existe
+    // sempre, porque todo mundo que opera delivery paga percentual.
+    const rate = resolveCommissionRate(
+      { deliveryCommissionRate: user.deliveryCommissionRate },
+      DEFAULT_COMMISSION_RATE,
+    );
 
     return {
       billingType: user.billingType ?? 'None',
-      commissionRate: rate !== null ? rate.toFixed(2) : undefined,
+      commissionRate: rate.toFixed(2),
       totalOrders: aggregate._count._all,
       totalItemsValue: totalItemsValue.toFixed(2),
       totalCommission: totalCommission.toFixed(2),

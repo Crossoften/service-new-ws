@@ -1,6 +1,10 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { calculateCommission, resolveCommissionRate } from '../food-orders/commission';
+import {
+  DEFAULT_COMMISSION_RATE,
+  calculateCommission,
+  resolveCommissionRate,
+} from '../food-orders/commission';
 import { Coupon, CouponTypeEnum, Prisma, User } from '@prisma/client';
 
 import { calculateCouponDiscount, platformDiscountAllowance } from './coupon-discount';
@@ -31,6 +35,8 @@ export class CouponsService {
     itemsValue: Prisma.Decimal;
     deliveryFee: Prisma.Decimal;
     commissionAmount: Prisma.Decimal | null;
+    /** Pedido pago na entrega não gera comissão, logo não custeia desconto. */
+    settledOffPlatform: boolean;
   }): Promise<CouponResolution> {
     const coupon = await this.findEligible(
       params.code,
@@ -50,8 +56,14 @@ export class CouponsService {
     const teto = platformDiscountAllowance(params.commissionAmount);
 
     if (discount.greaterThan(teto)) {
+      // Sem a distinção, pedido pago na entrega recusava o cupom dizendo "tente
+      // um pedido de valor maior" — conselho impossível de seguir, porque não é
+      // o valor que falta: é a comissão, que esse pedido não gera.
       throw new CouponNotApplicableException(
-        'Este cupom não pode ser aplicado a este pedido. Tente um pedido de valor maior.',
+        params.settledOffPlatform
+          ? 'Cupom não vale para pedido pago na entrega: o desconto sai da comissão da ' +
+            'plataforma, e pedido liquidado fora dela não gera comissão.'
+          : 'Este cupom não pode ser aplicado a este pedido. Tente um pedido de valor maior.',
       );
     }
 
@@ -109,9 +121,14 @@ export class CouponsService {
   /**
    * Comissão que o restaurante geraria sobre estes itens.
    *
-   * Mesma regra da criação do pedido: só quem fatura por comissão gera base
-   * para desconto. Duplicá-la aqui é deliberado — a alternativa seria a
-   * pré-visualização depender do módulo de pedidos inteiro.
+   * Mesma regra da criação do pedido. Duplicá-la aqui é deliberado — a
+   * alternativa seria a pré-visualização depender do módulo de pedidos inteiro.
+   *
+   * A estimativa é **otimista** quanto à forma de pagamento: a sacola ainda não
+   * sabe como o cliente vai pagar, e pedido pago na entrega não gera comissão.
+   * Então um cupom pode passar na pré-visualização e ser recusado na criação,
+   * que é onde a forma de pagamento existe. O contrário — recusar na sacola o
+   * que seria aceito — seria pior.
    */
   private async estimateCommission(
     restaurantId: number,
@@ -119,14 +136,13 @@ export class CouponsService {
   ): Promise<Prisma.Decimal | null> {
     const restaurant = await this.prisma.restaurant.findUnique({
       where: { id: restaurantId },
-      select: { user: { select: { billingType: true, deliveryCommissionRate: true } } },
+      select: { user: { select: { deliveryCommissionRate: true } } },
     });
 
-    const rate = resolveCommissionRate(restaurant?.user);
-
-    if (rate === null) return null;
-
-    return calculateCommission(itemsValue, rate);
+    return calculateCommission(
+      itemsValue,
+      resolveCommissionRate(restaurant?.user, DEFAULT_COMMISSION_RATE),
+    );
   }
 
   /**

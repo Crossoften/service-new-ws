@@ -1,6 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Injectable } from '@nestjs/common';
-import { BillingTypeEnum, User } from '@prisma/client';
+import { User } from '@prisma/client';
 import { assinaturaVigenteWhere } from './active-subscription.filter';
 import { ProviderNotSellingException } from './exceptions/provider-not-selling.exception';
 import { SupplierSubscriptionRequiredException } from './exceptions/supplier-subscription-required.exception';
@@ -11,22 +11,21 @@ export class SubscriptionGuardService {
 
   /**
    * BE-15/BE-16: assinatura é pré-condição para o fornecedor operar em todas as
-   * verticais. No delivery (híbrido), o fornecedor pode optar por comissão por
-   * pedido (billingType Commission) em vez de assinatura — nesse caso o gate é
-   * ignorado quando allowCommissionBilling é true.
+   * verticais — **inclusive no delivery**.
+   *
+   * Até esta mudança o delivery era híbrido: quem tinha `billingType`
+   * `Commission` passava pelo portão sem assinatura nenhuma, e quem tinha
+   * `Subscription` pagava a assinatura e não pagava percentual. Era um ou o
+   * outro, nunca os dois. A regra do produto passou a ser a soma: quem opera
+   * delivery paga a assinatura **e** o percentual, então não há mais isenção a
+   * conceder e o parâmetro que a concedia deixou de existir — em vez de ficar
+   * disponível como um desvio adormecido dentro de um portão de cobrança.
    *
    * `categoryId` restringe a pergunta a uma categoria de atuação. Sem ele, a
    * pergunta continua sendo a antiga — qualquer assinatura vigente serve —, que
    * é o que as verticais sem cobrança por categoria ainda precisam.
    */
-  async assertActiveSubscription(
-    user: User,
-    options?: { allowCommissionBilling?: boolean; categoryId?: number },
-  ): Promise<void> {
-    if (options?.allowCommissionBilling && user.billingType === BillingTypeEnum.Commission) {
-      return;
-    }
-
+  async assertActiveSubscription(user: User, options?: { categoryId?: number }): Promise<void> {
     if (!(await this.hasActiveSubscription(user.id, options?.categoryId))) {
       throw new SupplierSubscriptionRequiredException(options?.categoryId);
     }
@@ -47,19 +46,8 @@ export class SubscriptionGuardService {
    */
   async assertProviderCanSell(
     providerId: number,
-    options?: { allowCommissionBilling?: boolean; categoryId?: number },
+    options?: { categoryId?: number },
   ): Promise<void> {
-    if (options?.allowCommissionBilling) {
-      const provider = await this.prisma.user.findUnique({
-        where: { id: providerId },
-        select: { billingType: true },
-      });
-
-      if (provider?.billingType === BillingTypeEnum.Commission) {
-        return;
-      }
-    }
-
     if (!(await this.hasActiveSubscription(providerId, options?.categoryId))) {
       throw new ProviderNotSellingException();
     }

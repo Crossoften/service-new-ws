@@ -1,63 +1,40 @@
-import { BillingTypeEnum, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 import { DEFAULT_COMMISSION_RATE, calculateCommission, resolveCommissionRate } from './commission';
 
 const dec = (valor: string | number) => new Prisma.Decimal(valor);
+const DO_PAINEL = 15;
 
 describe('resolveCommissionRate', () => {
-  it('não cobra comissão de quem opera por assinatura', () => {
-    expect(
-      resolveCommissionRate({
-        billingType: BillingTypeEnum.Subscription,
-        deliveryCommissionRate: dec(15),
-      }),
-    ).toBeNull();
+  it('cobra de todo mundo que opera delivery, sem condicional de modelo', () => {
+    // Era aqui que estava a exceção: quem não fosse `Commission` recebia
+    // `null`, pagava a assinatura e nada além. A regra passou a ser a soma.
+    expect(resolveCommissionRate({ deliveryCommissionRate: null }, DO_PAINEL)).toBe(DO_PAINEL);
   });
 
-  it('não cobra comissão sem modelo de cobrança definido', () => {
-    expect(resolveCommissionRate({ billingType: null, deliveryCommissionRate: null })).toBeNull();
-    expect(resolveCommissionRate(null)).toBeNull();
-    expect(resolveCommissionRate(undefined)).toBeNull();
+  it('usa a taxa própria do dono quando existe', () => {
+    expect(resolveCommissionRate({ deliveryCommissionRate: dec('12.5') }, DO_PAINEL)).toBe(12.5);
   });
 
-  it('usa o padrão quando o dono não tem taxa própria', () => {
-    expect(
-      resolveCommissionRate({
-        billingType: BillingTypeEnum.Commission,
-        deliveryCommissionRate: null,
-      }),
-    ).toBe(DEFAULT_COMMISSION_RATE);
+  it('cai na taxa do painel quando o dono não tem taxa própria', () => {
+    expect(resolveCommissionRate({ deliveryCommissionRate: null }, DO_PAINEL)).toBe(DO_PAINEL);
+    expect(resolveCommissionRate(null, DO_PAINEL)).toBe(DO_PAINEL);
+    expect(resolveCommissionRate(undefined, DO_PAINEL)).toBe(DO_PAINEL);
   });
 
-  it('usa a taxa própria quando existe', () => {
-    expect(
-      resolveCommissionRate({
-        billingType: BillingTypeEnum.Commission,
-        deliveryCommissionRate: dec('12.5'),
-      }),
-    ).toBe(12.5);
+  it('trata taxa própria de 0% como 0%, não como ausência', () => {
+    // Decisão do admin — "este restaurante não paga comissão" — e é diferente
+    // de não ter taxa cadastrada. Um `||` no lugar do `??` cairia no padrão.
+    expect(resolveCommissionRate({ deliveryCommissionRate: dec(0) }, DO_PAINEL)).toBe(0);
   });
 
-  it('distingue ausência de comissão de comissão zero', () => {
-    // Taxa 0 gravada é uma decisão do admin — "este restaurante não paga
-    // comissão" — e vale como 0%, não cai no padrão de 20%. É o comportamento
-    // que já existia antes da separação dos campos, preservado de propósito:
-    // esta fase corrige a colisão de domínios, não muda regra de negócio.
-    expect(
-      resolveCommissionRate({
-        billingType: BillingTypeEnum.Commission,
-        deliveryCommissionRate: dec(0),
-      }),
-    ).toBe(0);
-
-    // Já `null` no billingType é outra coisa: não opera por comissão nenhuma,
-    // e o pedido nem grava `platformFeeRate`.
-    expect(
-      resolveCommissionRate({
-        billingType: BillingTypeEnum.Subscription,
-        deliveryCommissionRate: dec(0),
-      }),
-    ).toBeNull();
+  it('a constante é último recurso, não a taxa em uso', () => {
+    // O valor que vale é o do painel. A constante só aparece quando quem chama
+    // não tem resposta do painel para passar.
+    expect(resolveCommissionRate({ deliveryCommissionRate: null }, DEFAULT_COMMISSION_RATE)).toBe(
+      DEFAULT_COMMISSION_RATE,
+    );
+    expect(DO_PAINEL).not.toBe(DEFAULT_COMMISSION_RATE);
   });
 });
 

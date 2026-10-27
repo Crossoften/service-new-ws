@@ -102,29 +102,32 @@ describe('SubscriptionGuardService.assertProviderCanSell', () => {
     ).rejects.toBeInstanceOf(ProviderNotSellingException);
   });
 
-  it('libera quem fatura por comissão, quando a vertical permite', async () => {
+  // Comissão deixou de dispensar assinatura: as duas somam. Antes este
+  // fornecedor passava sem assinatura nenhuma, e o portão nem era consultado.
+  it('barra quem fatura por comissão e não tem assinatura', async () => {
     const { service, findFirst } = build(null, BillingTypeEnum.Commission);
-
-    await expect(
-      service.assertProviderCanSell(FORNECEDOR, { allowCommissionBilling: true }),
-    ).resolves.toBeUndefined();
-    expect(findFirst).not.toHaveBeenCalled();
-  });
-
-  it('não libera por comissão quando a vertical não permite', async () => {
-    const { service } = build(null, BillingTypeEnum.Commission);
 
     await expect(service.assertProviderCanSell(FORNECEDOR)).rejects.toBeInstanceOf(
       ProviderNotSellingException,
     );
+    // O portão foi de fato consultado — não há mais atalho antes da consulta.
+    expect(findFirst).toHaveBeenCalled();
   });
 
-  it('exige assinatura de quem fatura por assinatura, mesmo na vertical híbrida', async () => {
-    const { service } = build(null, BillingTypeEnum.Subscription);
+  it('deixa passar quem fatura por comissão e tem assinatura vigente', async () => {
+    const { service } = build({ id: 1 }, BillingTypeEnum.Commission);
 
-    await expect(
-      service.assertProviderCanSell(FORNECEDOR, { allowCommissionBilling: true }),
-    ).rejects.toBeInstanceOf(ProviderNotSellingException);
+    await expect(service.assertProviderCanSell(FORNECEDOR)).resolves.toBeUndefined();
+  });
+
+  it('não consulta o billingType do fornecedor para decidir', async () => {
+    // A isenção era o único motivo para ler o `billingType` aqui. Sem ela, a
+    // consulta extra ao usuário sairia de graça em todo pedido do delivery.
+    const { service, findUnique } = build({ id: 1 }, BillingTypeEnum.Commission);
+
+    await service.assertProviderCanSell(FORNECEDOR);
+
+    expect(findUnique).not.toHaveBeenCalled();
   });
 });
 
@@ -149,13 +152,21 @@ describe('SubscriptionGuardService.assertActiveSubscription', () => {
     ).rejects.toMatchObject({ response: { categoryId: 7 } });
   });
 
-  it('continua liberando quem fatura por comissão na vertical híbrida', async () => {
+  it('exige assinatura de quem fatura por comissão', async () => {
     const { service, findFirst } = build(null);
     const comissionado = { id: FORNECEDOR, billingType: BillingTypeEnum.Commission } as User;
 
-    await expect(
-      service.assertActiveSubscription(comissionado, { allowCommissionBilling: true }),
-    ).resolves.toBeUndefined();
-    expect(findFirst).not.toHaveBeenCalled();
+    // Este é o caso que mudou: antes criava restaurante sem assinatura nenhuma.
+    await expect(service.assertActiveSubscription(comissionado)).rejects.toBeInstanceOf(
+      SupplierSubscriptionRequiredException,
+    );
+    expect(findFirst).toHaveBeenCalled();
+  });
+
+  it('deixa passar quem fatura por comissão e tem assinatura vigente', async () => {
+    const { service } = build({ id: 1 });
+    const comissionado = { id: FORNECEDOR, billingType: BillingTypeEnum.Commission } as User;
+
+    await expect(service.assertActiveSubscription(comissionado)).resolves.toBeUndefined();
   });
 });

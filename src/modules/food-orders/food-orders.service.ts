@@ -14,7 +14,7 @@ import { DeliveryAddressDto } from './dto/delivery-address.dto';
 import { RespondFoodOrderDto } from './dto/respond-food-order.dto';
 import { CancelFoodOrderDto } from './dto/cancel-food-order.dto';
 import { isSettledOffPlatform } from '../restaurants/card-machine';
-import { calculateCommission, resolveCommissionRate } from './commission';
+import { DEFAULT_COMMISSION_RATE, calculateCommission, resolveCommissionRate } from './commission';
 import { QueryFoodOrderDto } from './dto/query-food-order.dto';
 import {
   CreateFoodOrderResponseDto,
@@ -157,13 +157,11 @@ export class FoodOrdersService {
       this.mercadoPagoService.verifySellerLinked(restaurant.user);
     }
 
-    // No delivery o gate é híbrido: quem fatura por comissão por pedido não
-    // precisa de assinatura, é a mesma regra que o cadastro do restaurante já
-    // aplicava. O que muda é o momento — agora vale a cada pedido, não só no
-    // dia em que o restaurante foi cadastrado.
-    await this.subscriptionGuard.assertProviderCanSell(restaurant.userId, {
-      allowCommissionBilling: true,
-    });
+    // O delivery deixou de ser híbrido: comissão não dispensa mais assinatura,
+    // as duas coisas somam. A verificação vale a cada pedido, não só no dia em
+    // que o restaurante foi cadastrado — sem isso a assinatura só valia na data
+    // do cadastro e o restaurante seguia vendendo para sempre.
+    await this.subscriptionGuard.assertProviderCanSell(restaurant.userId);
 
     const menuItemIds = payload.items.map((item) => item.menuItemId);
     const menuItems = await this.prisma.menuItem.findMany({
@@ -233,14 +231,22 @@ export class FoodOrdersService {
       // `deliveryCommissionRate`, não `commissionRate`: o segundo é a comissão
       // do influenciador sobre indicações, e usá-lo aqui fazia quem era as duas
       // coisas ter a taxa de indicação cobrada nos próprios pedidos.
-      select: { billingType: true, deliveryCommissionRate: true },
+      select: { deliveryCommissionRate: true },
     });
 
     let platformFeeRate: Prisma.Decimal | undefined;
     let commissionAmount: Prisma.Decimal | undefined;
-    const rate = resolveCommissionRate(owner);
 
-    if (rate !== null) {
+    // Pedido liquidado fora da plataforma — dinheiro, ou cartão na maquininha
+    // do próprio estabelecimento — não gera comissão: o valor não passa pelo
+    // split e não há de onde retê-la. Antes gravava-se a comissão igual, o que
+    // criava um valor que ninguém cobrava e que ainda entrava no total do
+    // painel do fornecedor como se tivesse sido pago.
+    //
+    // Cobrar essa comissão por outro mecanismo é evolução pendente, decidida
+    // como tal: por enquanto, pedido pago na entrega não gera comissão.
+    if (!settledOffPlatform) {
+      const rate = resolveCommissionRate(owner, DEFAULT_COMMISSION_RATE);
       platformFeeRate = new Prisma.Decimal(rate);
       commissionAmount = calculateCommission(itemsValue, rate);
     }
@@ -258,6 +264,7 @@ export class FoodOrdersService {
         itemsValue,
         deliveryFee,
         commissionAmount: commissionAmount ?? null,
+        settledOffPlatform,
       });
 
       discount = resolvido.discount;

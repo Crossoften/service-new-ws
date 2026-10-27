@@ -1,4 +1,4 @@
-import { BillingTypeEnum, Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 
 /**
  * Comissão do delivery, isolada da classe para poder ser testada sem banco.
@@ -9,27 +9,39 @@ import { BillingTypeEnum, Prisma } from '@prisma/client';
  * arquivos, com a constante de 20% escrita duas vezes.
  */
 
-/** Usado quando o dono do restaurante não tem taxa própria cadastrada. */
+/**
+ * Último recurso quando não há taxa própria do dono **nem** taxa no painel.
+ *
+ * Não é configuração: o valor que vale é o que o administrador define em
+ * `PlatformSettings`, e por isso quem chama é obrigado a informá-lo. A
+ * constante existe para o caso de não haver resposta nenhuma do painel.
+ */
 export const DEFAULT_COMMISSION_RATE = 20;
 
 export interface CommissionOwner {
-  billingType: BillingTypeEnum | null;
   deliveryCommissionRate: Prisma.Decimal | null;
 }
 
 /**
- * Percentual de comissão do pedido, ou `null` quando não há comissão.
+ * Percentual de comissão do pedido.
  *
- * `null` e zero são coisas diferentes: `null` significa que o restaurante não
- * opera por comissão — o pedido nem grava `platformFeeRate`. Zero seria uma
- * comissão de 0%, que é outra coisa.
+ * Quem opera delivery paga assinatura **e** percentual, sem exceção. Até esta
+ * mudança havia condicional por `billingType`: o percentual valia só para
+ * `Commission`, e quem estava em `Subscription` pagava a assinatura e nada
+ * além dela. Era um ou o outro; passou a ser a soma, então o condicional saiu e
+ * a função sempre devolve um número — o `null` de antes significava "não opera
+ * por comissão", caso que deixou de existir.
+ *
+ * Taxa própria igual a **zero** vale como 0% e não cai no padrão: é decisão do
+ * admin ("este restaurante não paga comissão"), diferente de não ter taxa. O
+ * `??` garante isso, porque só cai no padrão em `null`/`undefined` — um `||`
+ * aqui trataria 0% como ausência.
  */
-export function resolveCommissionRate(owner: CommissionOwner | null | undefined): number | null {
-  if (owner?.billingType !== BillingTypeEnum.Commission) return null;
-
-  return owner.deliveryCommissionRate
-    ? owner.deliveryCommissionRate.toNumber()
-    : DEFAULT_COMMISSION_RATE;
+export function resolveCommissionRate(
+  owner: CommissionOwner | null | undefined,
+  defaultRate: number,
+): number {
+  return owner?.deliveryCommissionRate?.toNumber() ?? defaultRate;
 }
 
 /**
