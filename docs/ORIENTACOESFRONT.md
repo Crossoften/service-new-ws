@@ -1877,6 +1877,76 @@ Outro tipo volta **`400`** com a mensagem pronta. Imagem nessa rota também volt
 
 ---
 
+## 8.15 Imagem no serviço: a URL local agora é aceita ✅
+
+> Resolve o **BE-SRV-URL-1**. Vale para `POST`/`PATCH /v1/services` e também
+> para os anexos de trabalho e de orçamento.
+
+### O que estava errado
+
+`CreateServiceDto.imageUrl` usava `@IsUrl` com as **opções padrão**, que exigem
+um domínio com TLD. A `fileUrl` que a própria API devolve no upload é montada a
+partir de `URL_INTEGRATION` — em ambiente local isso é
+`http://localhost:8000/v1/files/…`, um host **sem ponto**. Resultado: a API
+recusava com `400 "A URL da imagem do serviço é inválida."` a URL que ela mesma
+acabara de emitir.
+
+**Correção do diagnóstico que veio no relatório.** O pedido dizia que o
+validador "rejeita `localhost`/IP". Testamos os dois:
+
+| URL | Antes | Agora |
+|---|---|---|
+| `http://localhost:8000/v1/files/foto.png` | **recusava** | aceita |
+| `http://192.168.1.3:8000/v1/files/foto.png` | aceitava | aceita |
+| `https://homolog.crosoften.com:8029/v1/files/foto.png` | aceitava | aceita |
+| `não é uma url` | recusava | **recusa** |
+| `javascript:alert(1)` | recusava | **recusa** |
+
+O **IP sempre passou**. Quem falhava era só o host sem ponto. Isso explica por
+que o bug não aparecia para quem acessava a API pelo IP da rede local — vale
+lembrar disso antes de concluir que "funciona aqui, logo está certo".
+
+### O que mudou
+
+`@IsUrl({ require_tld: false })` nas três DTOs que usavam o validador padrão:
+
+| DTO | Campo | Destrava |
+|---|---|---|
+| `CreateServiceDto` (e `UpdateServiceDto`, que herda) | `imageUrl` | criar e editar serviço com imagem |
+| `CreateWorkFileDto` | `fileUrl` | anexar arquivo a um trabalho |
+| `CreateBudgetFileDto` | `fileUrl` | anexar arquivo a um orçamento |
+
+Os dois últimos tinham o **mesmo** defeito e não foram reportados — provavelmente
+porque os testes de anexo rodaram em homologação, onde a URL tem TLD.
+
+**Não trocamos por `@IsString`**, que é o que os outros 14 DTOs de imagem fazem.
+`@IsString` aceitaria `javascript:alert(1)` num campo que vai para `<img src>`.
+O validador segue recusando o que não é URL.
+
+### Nada a fazer no front
+
+Continue mandando a `fileUrl` **absoluta** que o upload devolveu, exatamente
+como a 8.14 descreve. Nenhuma mudança de código, nenhum workaround de reescrita
+de host.
+
+### O que segue pendente: galeria e vídeo no serviço 🟡
+
+O **BE-SRV-MEDIA-1 não foi feito** — está aguardando decisão do cliente sobre
+prioridade. O contrato do serviço continua com **uma imagem só**:
+
+```
+imageUrl?, imageKey?      ← é tudo que CreateServiceDto / UpdateServiceDto /
+                             ResponseServiceDto têm hoje
+```
+
+Não há array de imagens nem `videoUrl`/`videoKey` no serviço. O front está
+certo em fazer uma imagem — bate com o contrato atual. Quando o cliente
+priorizar, há dois caminhos registrados: espelhar `videoUrl`/`videoKey` como em
+produto/hospedagem/transporte (uma mídia de cada tipo, migration pequena), ou
+tabela de mídias com galeria (migration, relacionamento novo, DTOs novos).
+
+---
+
 ## 9. O que não muda
 
 - A base `/v1` e as rotas existentes

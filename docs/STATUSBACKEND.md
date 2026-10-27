@@ -1010,6 +1010,138 @@ X2: remover a regra derruba 7 testes; errar a fronteira do DDD derruba 1.
 
 ---
 
+### Fase Y — Portal Gerencial e correções do app · ✅ entregue
+
+Fatias nascidas de duas frentes: ligar o **Web Admin** (`service-new-web`) ao
+que o back-end já oferecia, e corrigir o que o app reportou.
+
+> **O padrão que apareceu três vezes.** Em BE-Y1, BE-Y6 e BE-Y11 o defeito foi o
+> mesmo: **o campo era gravável e não era legível.** O `PATCH` aceitava, o `GET`
+> não devolvia. A consequência é sempre a pior possível para uma tela de edição
+> — o formulário abre em branco e **salvar apaga** o que estava gravado, sem
+> erro aparente. Vale procurar isso de propósito em qualquer DTO de update:
+> para cada campo que o `PATCH` aceita, confirmar que o `GET` do detalhe o
+> devolve.
+
+**Patch BE-Y1 — biografia no detalhe do usuário**
+
+`UpdateUserDto` aceitava `biography`, `ResponseAdminUserDto` não devolvia. A
+coluna entra no select do `findById`, **não** no `userSelect` compartilhado: é
+`LongText`, e o `userSelect` também serve a listagem paginada, que buscaria o
+texto inteiro de cada linha para não exibir nenhum.
+
+**Patch BE-Y6 — assinaturas do fornecedor**
+
+`PATCH /admin-providers/{id}/subscriptions/{subscriptionId}/bonus` exigia um
+`subscriptionId` que **nenhuma rota devolvia** — varredura em todos os schemas:
+o campo só aparecia nas respostas do próprio grant e do próprio bonus. O bônus
+era alcançável só no instante seguinte a uma concessão, que é justamente quando
+não se precisa dele.
+
+Nova `GET /admin-providers/{id}/subscriptions`. O campo `activeGrantId` é
+calculado no back-end com o **mesmo predicado do 409** da concessão
+(`categoryId` nulo · `Active` · dentro da validade): posto na tela, a regra
+passaria a existir em dois lugares e divergiria na primeira mudança.
+
+Detalhe do desenho pós-Fase P que a tela precisa saber: **concessão tem
+`categoryId` nulo** (cobertura ampla) e **assinatura paga é por categoria**, então
+um fornecedor pode ter várias ao mesmo tempo.
+
+**Patch BE-Y8 — taxa da plataforma por contexto de categoria**
+
+> **Três das quatro rotas de categoria estavam quebradas, e por isso ninguém
+> usava os contextos `products`, `accommodations` e `transportations`.**
+
+`platformFeeRate` existe **só em `ServiceCategory`**. Mas o service mandava o
+campo para todos os contextos: `findAll` com `select: { platformFeeRate: true }`
+e `create` com `data: { platformFeeRate: … ?? 10 }`. O client do Prisma recusa a
+consulta antes do banco e o filtro traduz em `400 PRISMA_VALIDATION` — erro que
+culpa a requisição quando o problema é a consulta.
+
+**Por que o tsc não pegou:** `getDelegate` devolve `Record<CategoryContext, any>`.
+O `any` apagou a checagem de tipo exatamente no ponto onde os quatro modelos
+divergem. Provado compilando contra o client gerado: `platformFeeRate does not
+exist in type 'ProductCategorySelect'` (e idem nos outros dois).
+
+A taxa enviada a um contexto que não a tem passa a ser **recusada com mensagem
+clara**, em vez de ignorada em silêncio — ignorar faria o admin achar que gravou
+uma taxa que nunca existiu. O `ResponseCategoryDto` também passou a declarar o
+campo como opcional, porque agora ele legitimamente não vem nos três contextos.
+
+**Patch BE-Y11 — comissão do delivery no detalhe do usuário**
+
+Mesmo caso do BE-Y1, no mesmo arquivo. `deliveryCommissionRate` é `Decimal?` e
+tem **três estados que não são a mesma coisa**:
+
+| Valor | Significa | Na resposta |
+|---|---|---|
+| `null` | sem valor próprio → padrão da plataforma | ausente |
+| `0` | comissão zerada, isenção | `0` |
+| `15.5` | comissão própria | `15.5` |
+
+Confundir `null` com `0` faria a tela mostrar o padrão para quem tem isenção, e
+salvar devolveria a cobrança sem ninguém pedir. O `UpdateUserDto` passou a
+declarar `nullable: true`: o `@IsOptional()` já aceitava `null`, mas o swagger
+não dizia, então o front não tinha como saber que existe caminho de volta ao
+padrão.
+
+**Patch BE-Y13 — a URL que a própria API emite (BE-SRV-URL-1)**
+
+`@IsUrl` com opções padrão exige TLD, e a `fileUrl` montada a partir de
+`URL_INTEGRATION` em local é `http://localhost:8000/…`, host sem ponto. A API
+recusava com `400` a URL que ela mesma devolvera no upload.
+
+`@IsUrl({ require_tld: false })` em `CreateServiceDto.imageUrl`,
+`CreateWorkFileDto.fileUrl` e `CreateBudgetFileDto.fileUrl` — os três únicos
+DTOs de arquivo que usavam o validador padrão; os outros 14 usam `@IsString`.
+**Não** trocamos por `@IsString`: aceitaria `javascript:alert(1)` num campo que
+vai para `<img src>`. Documentado na 8.15 do `ORIENTACOESFRONT.md`.
+
+**Patch BE-Y15 — descarte da imagem antiga da categoria**
+
+Trocar a imagem de uma categoria sobrescreve `iconKey`, e com ela se perde a
+única referência ao arquivo anterior — que ficava no bucket para sempre.
+
+A rota genérica não servia: `DELETE /v1/one-file/:id` pede **id numérico** e
+nada mapeia chave → id; e ela confere o **remetente**, então um admin não
+conseguiria limpar o ícone que outro subiu. A limpeza foi para onde a posse
+realmente está: o `update` da própria categoria, via
+`UploadService.removeStoredFile(fileKey)` — primitiva pública que **não confere
+posse de propósito**, porque quem a chama já verificou papel de admin mais
+permissão `Settings`. Está documentado no método; não deve virar rota sem essa
+verificação.
+
+Duas decisões de robustez: a limpeza roda **depois** da gravação e **não derruba
+a edição** se o storage falhar (a categoria já está correta; recusar a resposta
+por um arquivo órfão trocaria um problema pequeno por um grande); e a comparação
+é contra o **payload**, não contra o que o `update` devolve — se algum dia essa
+chamada ganhar um `select` sem `iconKey`, a chave atual viria indefinida e o
+código apagaria arquivo em uso.
+
+**As fatias de admin que consumiram cada uma** vivem em `service-new-web`
+(branch `Davi-Correia-integration`), fora deste repositório: ADM-Y2 (edição de
+usuário), ADM-Y3 (repasses), ADM-Y4 (taxas de entrega), ADM-Y5 (cupons),
+ADM-Y7 (assinatura do fornecedor), ADM-Y9 (categorias nos 4 contextos),
+ADM-Y10 (histórico de repasses), ADM-Y12 (foto e comissão no usuário),
+ADM-Y14 (imagem da categoria por upload), ADM-Y16 (ferramentas de arquivo por
+id).
+
+**Validação.** Suíte completa: **51 suítes, 484 testes**. Teste de mutação em
+cada fatia; três resultados que vale registrar porque **não** foram mortes por
+teste:
+
+- BE-Y8, "comissão sai do select do detalhe" → pega pelo **compilador**
+  (`TS2339`), não pelos testes
+- BE-Y11, trocar `=== null` por teste de verdade → **mutante equivalente**:
+  `Prisma.Decimal` é objeto, logo `Decimal(0)` é *truthy*, e as duas formas se
+  comportam igual para tudo que o Prisma devolve. Nenhum teste poderia
+  distingui-las
+- BE-Y15, guarda de chave vazia em `removeStoredFile` → **sobreviveu** na
+  primeira rodada, porque é inalcançável pelo caminho das categorias. Coberta
+  depois com spec própria
+
+---
+
 ## 4. Correções ao entendimento anterior
 
 Registro do que se mostrou errado, para ninguém refazer a investigação.
@@ -1025,6 +1157,12 @@ Registro do que se mostrou errado, para ninguém refazer a investigação.
 | `backend-demandas.md` · BE-Q2 | `phone` é opcional no contrato | **O contrato mente.** Anotado `@ApiPropertyOptional`, mas o `@IsPhoneNumber` não tem `@IsOptional` — cadastrar sem telefone devolve `400`. Testado |
 | `backend-demandas.md` · BE-NUM-1 e BE-ROUTE-1 | Campos numéricos e rotas quebraram após os ajustes — `400` em todo cadastro | **Não era back-end.** Reproduzido contra a API rodando: `POST /services`, `/budgets`, `/jobs` e `/restaurants` devolvem `201` com `number` numérico. `@IsNumberString` tem zero ocorrências; os 122 `ParseIntPipe` estão todos em `@Param`. A causa era um processo antigo na porta 8000 (`node dist/src/main`, de um `start:prod` esquecido) fazendo o `start:dev` morrer com `EADDRINUSE` em silêncio e servir código velho com Prisma Client desatualizado. **Caí na mesma armadilha no meu container** |
 | Análise minha, sobre o upload | As rotas de upload não tinham `limits` nem `fileFilter` | **Falso.** O `ParseFilePipeBuilder` já validava tipo e tamanho. Eu havia olhado só o decorador do interceptor. O problema real era outro: o pipe roda **depois** de o multer bufferizar o arquivo |
+| `backend-demandas.md` · BE-SRV-URL-1 | O validador de `imageUrl` "rejeita `localhost`/IP" | **Metade certo.** O **IP sempre passou**; quem o `@IsUrl` padrão recusa é host **sem ponto**, ou seja só o `localhost`. Testado com as duas configurações lado a lado. Explica por que o bug não aparecia para quem acessava a API pelo IP da rede local |
+| Minha expectativa ao testar o BE-Y13 | `foto.png` deveria passar a ser recusado | **Já era aceito antes.** `.png` parece TLD e `require_protocol` é falso por padrão, então o validador sempre tratou `foto.png` como host válido. A mudança afrouxou **uma** coisa só: host sem ponto. Tirei a asserção em vez de deixá-la mentir sobre o efeito do patch |
+| Minha suposição ao escrever o BE-Y11 | Um teste com `Decimal('0')` protege contra trocar `=== null` por teste de verdade | **Não protege.** `Prisma.Decimal` é objeto, logo sempre *truthy* — inclusive o zero. As duas formas são equivalentes para qualquer valor que o Prisma devolva. Mantive `=== null` por declarar a intenção, mas o teste do zero cobre o mapeamento, não a troca |
+| Minha leitura de `DELETE /v1/profile-photo` | Serve para o admin remover a foto de outro usuário | **Não serve.** Tem `assertOwnership`: só apaga a foto do próprio autenticado. Tirar a foto de outro usuário é mandar `fileUrl`/`fileKey` nulos no `PATCH /admin-users/{id}` |
+| Admin, tela *Arquivos e perfil* | `fileId` das ferramentas de arquivo é a `fileKey` | **É o id numérico.** `DELETE`/`GET /v1/one-file/:id` usam `ParseIntPipe`; o DTO de resposta do upload diz literalmente "Identificador do arquivo, usado em /one-file/{id} e no download". A tela preenchia o campo com a chave e **Consultar, Baixar e Remover** respondiam `400`. Corrigido na ADM-Y16, com os tipos passando a `number` para o erro não voltar |
+| Seção 9 deste arquivo | "195 rotas no `docs/swagger.json`" | **Era contagem de caminhos distintos, não de operações.** Hoje: **196 caminhos** e **245 operações** (método + caminho). A ambiguidade fez o número parecer defasado quando não estava |
 | Diagnóstico meu, sobre patches | `git apply` falhando significa que o patch já foi aplicado | **Não significa.** A mesma mensagem cobre dois casos opostos: conteúdo já presente, e base divergente. O teste que distingue é `git apply --check -R`, ou procurar uma âncora do conteúdo no arquivo. Errei nisso com a W3 e de novo com a S6 |
 
 ---
@@ -1175,6 +1313,23 @@ não resolvidas:
 
 ---
 
+### 5.7 Fase Y — pendências abertas
+
+Nenhuma é defeito. Todas são decisão de produto ou resíduo conhecido.
+
+| Item | Situação | Quem resolve |
+|---|---|---|
+| **BE-SRV-MEDIA-1** | Serviço tem **uma imagem só**: não há array nem `videoUrl`/`videoKey` em `CreateServiceDto`/`UpdateServiceDto`/`ResponseServiceDto`. Dois caminhos registrados: espelhar `videoUrl`/`videoKey` como em produto/hospedagem/transporte (migration pequena), ou tabela de mídias com galeria (migration, relacionamento e DTOs novos). O front faz uma imagem, que bate com o contrato atual | Cliente |
+| **Categorias de cardápio de restaurante** | Não entram no `{context}` de `/admin-categories` — têm rotas próprias (`POST /v1/restaurants/menu-categories`). Ninguém decidiu se o admin deve administrá-las, nem por onde | Decisão de produto |
+| **Padrão da comissão não é exposto** | `DEFAULT_COMMISSION_RATE = 20` vive em `food-orders/commission.ts` e nenhuma rota o publica. Por isso a tela de usuário do admin **não escreve "20%"** no texto de ajuda: o número na interface poderia divergir em silêncio. Expor em `/v1/admin-settings/platform` resolveria | Decisão de produto |
+| **`billingType` fora do detalhe do usuário** | `ResponseAdminUserDto` não devolve `billingType`, então o admin não tem como dizer a quem a comissão se aplica — e `resolveCommissionRate` só cobra quando o tipo é `Commission`. O admin hoje mostra o aviso genérico do DTO | Fatia pequena de back-end |
+| **`?? 10` na criação de categoria** | `create` aplica 10% por padrão em `services`, mas o schema tem `@default(0)`. Criar pela API dá 10%, pelo banco dá 0%. Não mexi: alterar isso é regra de negócio | Decisão de produto |
+| **Bônus de assinatura sem teto** | `GrantSubscriptionDto` limita `months` a 120; `AddSubscriptionBonusDto` **não tem `@Max`**. A tela espelha o back-end exatamente. Se o bônus também deve ter teto, é fatia de back-end | Decisão de produto |
+| **Nome do arquivo baixado** | No admin, *Arquivos e perfil* baixa como `arquivo-42`, **sem extensão**. Cosmético, fora do defeito corrigido na ADM-Y16 | Brendha |
+| **`environment.prod.ts` do admin** | Diz `production: true` e aponta para **homolog**. Precisa mudar antes de produção de verdade | Brendha |
+
+---
+
 ## 6. Endereços do ambiente local
 
 A API roda em **`PORT=8000`** no ambiente local da equipe (mesmo valor do
@@ -1284,9 +1439,16 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 `admin.one@`, `client.one@`, `supplier.one@`, `delivery.one@`,
 `influencer.one@` — todos `@email.com`.
 
-**Números de referência da branch** (medidos em `e1d5940`): **195 rotas** no
-`docs/swagger.json`, todas com o prefixo `/v1` · **51 modelos** no schema ·
-**37 módulos** · **39 migrations** · **45 suítes, 396 testes**.
+**Números de referência da branch** (medidos em `7671267`, fim da Fase Y):
+**196 caminhos** e **245 operações** no `docs/swagger.json`, todos com o prefixo
+`/v1` · **51 modelos** no schema · **39 migrations** · **51 suítes, 484
+testes**.
+
+> **"195 rotas" era contagem de caminhos**, não de operações — uma mesma rota
+> com `GET` e `PATCH` contava uma vez. Daqui em diante os dois números ficam
+> explícitos, porque a ambiguidade já fez o valor parecer defasado quando não
+> estava. A Fase Y somou **um** caminho novo
+> (`GET /v1/admin-providers/{id}/subscriptions`).
 
 > Os números anteriores desta seção (217 rotas, 47 modelos, 19 migrations,
 > 33 testes) estavam defasados, e o bloco acima mandava rodar
@@ -1312,9 +1474,23 @@ Credenciais dos seeds, todas com senha `12345678`: `admin.master@`,
 | **Q** | Contrato e código de erro | ✅ Entregue | 2 | 9 |
 | **AWS** | Armazenamento no S3 | ✅ Entregue e validada contra o bucket real | 6 | — |
 | **X** | Correções de campo | ✅ Entregue | 5 | 12 |
+| **Y** | Portal Gerencial e correções do app | ✅ Entregue · pendências na 5.7 | 6 | 85 |
 
-**Total: 56 patches**, todos verificados aplicando em sequência sobre a base da
+**Total: 62 patches**, todos verificados aplicando em sequência sobre a base da
 fase correspondente, em worktree descartável, com build, `jest` e `eslint` no
 fim da cadeia e conferência byte a byte contra a árvore validada.
 
-**Suíte hoje: 45 suítes, 396 testes.**
+**Suíte hoje: 51 suítes, 484 testes.**
+
+> **Sobre a coluna "Testes" da Fase Y:** 85 é o total medido nos cinco arquivos
+> de spec que a fase criou (`admin-users.service.spec.ts` 9,
+> `provider-subscriptions.spec.ts` 9, `categories-platform-fee.spec.ts` 34,
+> `url-de-arquivo.spec.ts` 30, `remove-stored-file.spec.ts` 3) — dois deles
+> receberam testes de mais de um patch da mesma fase. Não tentei derivar o
+> número da diferença entre os totais da suíte: a base de 396 foi medida em
+> `e1d5940`, que não é o commit onde a fase começou, e a subtração daria um
+> valor que eu não consigo reconciliar com os arquivos.
+>
+> A Fase Y teve **10 fatias de front** correspondentes em `service-new-web`
+> (ADM-Y2 a ADM-Y16), que não entram nesta contagem — este registro é do
+> back-end.
