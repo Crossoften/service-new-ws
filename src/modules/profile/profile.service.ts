@@ -44,6 +44,7 @@ export class ProfileService {
         birthDate: true,
         commissionRate: true,
         deliveryCommissionRate: true,
+        isAvailableForDelivery: true,
         billingType: true,
         createdAt: true,
         updatedAt: true,
@@ -112,6 +113,17 @@ export class ProfileService {
               { deliveryCommissionRate: profile.deliveryCommissionRate },
               await this.platformSettings.deliveryCommissionRate(),
             )
+          : undefined,
+      // Disponibilidade operacional, só para entregador. A coluna carrega o
+      // domínio no nome (`isAvailableForDelivery`) porque `User` acumula campos
+      // de verticais diferentes; aqui, no perfil de quem é entregador, o nome
+      // curto basta — e é o que a tela do toggle consome.
+      //
+      // Vem no perfil para o app saber o estado inicial do toggle sem uma
+      // chamada extra: a home do entregador já lê este endpoint.
+      isAvailable:
+        profile.profileType === UserProfileType.Delivery
+          ? profile.isAvailableForDelivery
           : undefined,
       billingType: profile.billingType ?? undefined,
       // O fornecedor vê o próprio histórico de garantias; para o cliente, o

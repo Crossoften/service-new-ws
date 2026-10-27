@@ -12803,6 +12803,7 @@
     },
     "/v1/deliveries/available": {
       "get": {
+        "description": "Entregador indisponível recebe a fila vazia, não erro — ver `PATCH /deliveries/me/availability`.",
         "operationId": "DeliveriesController_findAvailable",
         "parameters": [
           {
@@ -12848,6 +12849,48 @@
           }
         },
         "summary": "Lista as entregas disponíveis para aceite.",
+        "tags": [
+          "Entregas"
+        ]
+      }
+    },
+    "/v1/deliveries/me/availability": {
+      "patch": {
+        "description": "Indisponível, ele sai da fila de `GET /deliveries/available` e não consegue aceitar corrida. O estado atual também vem em `GET /profile/me`, no campo `isAvailable`.",
+        "operationId": "DeliveriesController_setAvailability",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCourierAvailabilityDto"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseCourierAvailabilityDto"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Dados inválidos."
+          },
+          "401": {
+            "description": "Usuário não autenticado."
+          },
+          "500": {
+            "description": "Erro interno do servidor."
+          }
+        },
+        "summary": "Liga ou desliga a disponibilidade do entregador logado.",
         "tags": [
           "Entregas"
         ]
@@ -21072,6 +21115,11 @@
             "description": "Percentual que a plataforma retém sobre os ITENS de cada pedido do delivery pago pelo aplicativo, além da assinatura. É o percentual já resolvido: a taxa própria do fornecedor quando existe, senão a taxa global do painel administrativo. Presente apenas no perfil de fornecedor. Frete e gorjeta não entram na base, e pedido pago na entrega não tem retenção.",
             "example": 20
           },
+          "isAvailable": {
+            "type": "boolean",
+            "description": "Disponibilidade operacional do entregador. `false` significa que ele saiu da fila de corridas e não consegue aceitar entregas. Presente apenas no perfil de entregador; alterado em `PATCH /v1/deliveries/me/availability`.",
+            "example": true
+          },
           "socialMedias": {
             "description": "Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.",
             "type": "array",
@@ -26555,6 +26603,32 @@
           "currentPage",
           "totalPages",
           "totalRecords"
+        ]
+      },
+      "UpdateCourierAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "isAvailable": {
+            "type": "boolean",
+            "description": "Disponibilidade do entregador. `false` tira ele da fila de corridas e o impede de aceitar qualquer entrega; `true` devolve ele à operação.",
+            "example": true
+          }
+        },
+        "required": [
+          "isAvailable"
+        ]
+      },
+      "ResponseCourierAvailabilityDto": {
+        "type": "object",
+        "properties": {
+          "isAvailable": {
+            "type": "boolean",
+            "description": "Estado atual, depois da alteração.",
+            "example": true
+          }
+        },
+        "required": [
+          "isAvailable"
         ]
       },
       "ResponseDeliveryEarningsPeriodDto": {

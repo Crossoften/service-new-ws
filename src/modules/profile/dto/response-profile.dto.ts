@@ -178,6 +178,16 @@ export class ResponseProfileDto {
   })
   deliveryCommissionRate?: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Disponibilidade operacional do entregador. `false` significa que ele saiu da fila de ' +
+      'corridas e não consegue aceitar entregas. Presente apenas no perfil de entregador; ' +
+      'alterado em `PATCH /v1/deliveries/me/availability`.',
+    example: true,
+    type: Boolean,
+  })
+  isAvailable?: boolean;
+
   @ApiProperty({
     description: 'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
     type: [ResponseProfileSocialMediaDto],

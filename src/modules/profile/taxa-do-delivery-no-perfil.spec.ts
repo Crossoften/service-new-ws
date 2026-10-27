@@ -38,6 +38,7 @@ function build(opcoes: { profileType: UserProfileType; taxaPropria?: string | nu
         commissionRate: null,
         deliveryCommissionRate:
           opcoes.taxaPropria == null ? null : new Prisma.Decimal(opcoes.taxaPropria),
+        isAvailableForDelivery: true,
         billingType: null,
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -116,5 +117,38 @@ describe('taxa do delivery no perfil', () => {
     await service.findMine(FORNECEDOR);
 
     expect(prismaMock.user.findUnique.mock.calls[0][0].select.deliveryCommissionRate).toBe(true);
+  });
+});
+
+describe('disponibilidade do entregador no perfil', () => {
+  // A home do entregador já lê este endpoint: o estado inicial do toggle vem
+  // daqui, sem uma segunda chamada só para descobri-lo.
+  it('devolve a disponibilidade no perfil de entregador', async () => {
+    const { service } = build({ profileType: UserProfileType.Delivery, taxaPropria: null });
+
+    const perfil = await service.findMine(FORNECEDOR);
+
+    expect(perfil.isAvailable).toBe(true);
+  });
+
+  it.each([UserProfileType.Client, UserProfileType.Supplier, UserProfileType.Influencer])(
+    'omite a disponibilidade no perfil de %s',
+    async (profileType) => {
+      const { service } = build({ profileType, taxaPropria: null });
+
+      const perfil = await service.findMine(FORNECEDOR);
+
+      expect(perfil.isAvailable).toBeUndefined();
+    },
+  );
+
+  it('pede a coluna no select', async () => {
+    const { service } = build({ profileType: UserProfileType.Delivery, taxaPropria: null });
+    const prismaMock = (service as unknown as { prisma: { user: { findUnique: jest.Mock } } })
+      .prisma;
+
+    await service.findMine(FORNECEDOR);
+
+    expect(prismaMock.user.findUnique.mock.calls[0][0].select.isAvailableForDelivery).toBe(true);
   });
 });

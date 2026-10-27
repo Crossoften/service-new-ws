@@ -12,6 +12,10 @@ import { User, UserProfileType } from '@prisma/client';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { ProfileTypes } from '../auth/decorators/profile-types.decorator';
 import { DeliveriesService } from './deliveries.service';
+import {
+  ResponseCourierAvailabilityDto,
+  UpdateCourierAvailabilityDto,
+} from './dto/courier-availability.dto';
 import { ResponseDeliveryEarningsDto } from './dto/response-delivery-earnings.dto';
 import { QueryDeliveryDto } from './dto/query-delivery.dto';
 import { UpdateDeliveryLocationDto } from './dto/update-delivery-location.dto';
@@ -27,10 +31,30 @@ export class DeliveriesController {
 
   @Get('available')
   @ProfileTypes(UserProfileType.Delivery)
-  @ApiOperation({ summary: 'Lista as entregas disponíveis para aceite.' })
+  @ApiOperation({
+    summary: 'Lista as entregas disponíveis para aceite.',
+    description:
+      'Entregador indisponível recebe a fila vazia, não erro — ver ' +
+      '`PATCH /deliveries/me/availability`.',
+  })
   @ApiOkResponse({ type: ResponseFindAllDeliveryDto })
-  findAvailable(@Query() query: QueryDeliveryDto) {
-    return this.deliveriesService.findAvailable(query);
+  findAvailable(@CurrentUser() user: User, @Query() query: QueryDeliveryDto) {
+    return this.deliveriesService.findAvailable(user, query);
+  }
+
+  // Declarada antes das rotas com `:id` de propósito: `me` casaria com o
+  // parâmetro, e a ordem de declaração é o que decide no Nest.
+  @Patch('me/availability')
+  @ProfileTypes(UserProfileType.Delivery)
+  @ApiOperation({
+    summary: 'Liga ou desliga a disponibilidade do entregador logado.',
+    description:
+      'Indisponível, ele sai da fila de `GET /deliveries/available` e não consegue aceitar ' +
+      'corrida. O estado atual também vem em `GET /profile/me`, no campo `isAvailable`.',
+  })
+  @ApiOkResponse({ type: ResponseCourierAvailabilityDto })
+  setAvailability(@CurrentUser() user: User, @Body() body: UpdateCourierAvailabilityDto) {
+    return this.deliveriesService.setAvailability(user, body);
   }
 
   @Get('me')

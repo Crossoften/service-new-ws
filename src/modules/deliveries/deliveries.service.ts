@@ -13,6 +13,10 @@ import {
 import { DeliveriesGateway } from './deliveries.gateway';
 import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { ResponseDeliveryEarningsDto } from './dto/response-delivery-earnings.dto';
+import {
+  ResponseCourierAvailabilityDto,
+  UpdateCourierAvailabilityDto,
+} from './dto/courier-availability.dto';
 import { QueryDeliveryDto } from './dto/query-delivery.dto';
 import { UpdateDeliveryLocationDto } from './dto/update-delivery-location.dto';
 import {
@@ -23,6 +27,7 @@ import {
 import { DeliveryNotFoundException } from './exceptions/delivery-not-found.exception';
 import { DeliveryAccessDeniedException } from './exceptions/delivery-access-denied.exception';
 import { DeliveryInvalidStatusException } from './exceptions/delivery-invalid-status.exception';
+import { CourierUnavailableException } from './exceptions/courier-unavailable.exception';
 import { DeliveryAlreadyTakenException } from './exceptions/delivery-already-taken.exception';
 import { NotificationsService } from '../notifications/notifications.service';
 
@@ -103,8 +108,61 @@ export class DeliveriesService {
     },
   });
 
-  async findAvailable(query: QueryDeliveryDto): Promise<ResponseFindAllDeliveryDto> {
+  /**
+   * Fila de corridas abertas, para o entregador disponível.
+   *
+   * Entregador indisponível recebe fila **vazia**, não erro: a tela é uma
+   * listagem, e um 403 ali apareceria como falha de carregamento em vez do
+   * estado que ele mesmo escolheu.
+   *
+   * A corrida nasce com `courierId: null` e fica na fila — não há disparo para
+   * entregadores —, então filtrar aqui é o que de fato tira alguém da operação.
+   */
+  async findAvailable(user: User, query: QueryDeliveryDto): Promise<ResponseFindAllDeliveryDto> {
+    if (!(await this.estaDisponivel(user.id))) {
+      return { deliveries: [], currentPage: query.skip ?? 1, totalPages: 1, totalRecords: 0 };
+    }
+
     return this.list({ status: DeliveryAssignmentStatusEnum.Pending, courierId: null }, query);
+  }
+
+  /**
+   * Liga ou desliga a disponibilidade do entregador logado.
+   *
+   * Devolve o estado depois da alteração, para a tela não precisar de uma
+   * segunda chamada só para confirmar o que acabou de pedir.
+   */
+  async setAvailability(
+    user: User,
+    payload: UpdateCourierAvailabilityDto,
+  ): Promise<ResponseCourierAvailabilityDto> {
+    const atualizado = await this.prisma.user.update({
+      where: { id: user.id },
+      data: { isAvailableForDelivery: payload.isAvailable },
+      select: { isAvailableForDelivery: true },
+    });
+
+    this.logger.log(
+      `Entregador ${user.id} ficou ${atualizado.isAvailableForDelivery ? 'disponível' : 'indisponível'}.`,
+    );
+
+    return { isAvailable: atualizado.isAvailableForDelivery };
+  }
+
+  /**
+   * Lido do banco, não do `user` do token.
+   *
+   * O token vale 360 dias e o objeto dele é montado na autenticação: confiar no
+   * que veio ali faria a disponibilidade alternada pelo próprio entregador só
+   * valer na requisição seguinte ao login.
+   */
+  private async estaDisponivel(courierId: number): Promise<boolean> {
+    const courier = await this.prisma.user.findUnique({
+      where: { id: courierId },
+      select: { isAvailableForDelivery: true },
+    });
+
+    return courier?.isAvailableForDelivery ?? false;
   }
 
   async findMine(user: User, query: QueryDeliveryDto): Promise<ResponseFindAllDeliveryDto> {
@@ -129,6 +187,13 @@ export class DeliveriesService {
   }
 
   async accept(user: User, id: number): Promise<ResponseDeliveryDto> {
+    // Checado também aqui, e não só na fila: sem isto a disponibilidade seria
+    // cosmética — bastaria ter a lista carregada antes de ficar indisponível
+    // para seguir aceitando corrida.
+    if (!(await this.estaDisponivel(user.id))) {
+      throw new CourierUnavailableException();
+    }
+
     const delivery = await this.findRawById(id);
     if (delivery.status !== DeliveryAssignmentStatusEnum.Pending || delivery.courierId) {
       throw new DeliveryAlreadyTakenException();

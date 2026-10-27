@@ -49,6 +49,20 @@ model User {
   /// `Commission`). Nula usa o padrão de 20% de `food-orders/commission.ts`.
   deliveryCommissionRate Decimal?  @db.Decimal(5, 2)
 
+  /// Disponibilidade operacional do ENTREGADOR: quando `false`, ele sai da fila
+  /// de corridas e não consegue aceitar nenhuma.
+  ///
+  /// O nome carrega o domínio pelo mesmo motivo que `deliveryCommissionRate`:
+  /// `User` acumula campos de verticais diferentes, e um `isAvailable` solto
+  /// aqui seria disputado pela próxima vertical que precisasse do conceito —
+  /// foi exatamente o que aconteceu com `commissionRate`, lido ao mesmo tempo
+  /// pelo influenciador e pelo delivery. Na API, dentro de
+  /// `/deliveries/me/availability`, o campo é só `isAvailable`: ali o escopo já
+  /// diz de que disponibilidade se trata.
+  ///
+  /// `true` por padrão: entregador cadastrado antes disto continua operando.
+  isAvailableForDelivery Boolean @default(true)
+
   billingType    BillingTypeEnum?
 
   // Vínculo da conta do vendedor no Mercado Pago, para o split automático.
