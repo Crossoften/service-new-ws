@@ -104,6 +104,13 @@ export class ResponseCommercialTransactionDto {
   @ApiPropertyOptional()
   rejectedAt?: Date;
 
+  @ApiPropertyOptional({
+    description:
+      'Motivo da recusa informado pelo vendedor. É o mesmo texto postado no chat da negociação.',
+    example: 'O item já foi vendido.',
+  })
+  rejectReason?: string;
+
   @ApiPropertyOptional()
   cancelledAt?: Date;
 

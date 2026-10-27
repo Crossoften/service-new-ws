@@ -755,6 +755,13 @@ model CommercialTransaction {
   sellerId        Int
   acceptedAt      DateTime?
   rejectedAt      DateTime?
+  /// Motivo da recusa, exibido ao comprador no detalhe da negociação.
+  ///
+  /// É o mesmo texto do `message` da resposta, que continua sendo postado no
+  /// chat. A coluna existe para a tela de detalhe não depender de abrir o chat
+  /// e procurar a mensagem certa; o chat segue sendo a conversa, esta coluna é
+  /// o registro da decisão.
+  rejectReason    String?                                @db.LongText()
   cancelledAt     DateTime?
   paidAt          DateTime?
   completedAt     DateTime?

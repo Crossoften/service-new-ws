@@ -23750,6 +23750,11 @@
             "format": "date-time",
             "type": "string"
           },
+          "rejectReason": {
+            "type": "string",
+            "description": "Motivo da recusa informado pelo vendedor. É o mesmo texto postado no chat da negociação.",
+            "example": "O item já foi vendido."
+          },
           "cancelledAt": {
             "format": "date-time",
             "type": "string"
@@ -23844,7 +23849,7 @@
           },
           "message": {
             "type": "string",
-            "description": "Mensagem opcional enviada ao responder a negociação.",
+            "description": "Mensagem opcional enviada ao responder a negociação. É postada no chat; quando a resposta é `Rejected`, fica também gravada como `rejectReason` e aparece no detalhe da negociação para o comprador.",
             "example": "Posso seguir por esse valor."
           }
         },

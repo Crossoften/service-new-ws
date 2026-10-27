@@ -23,7 +23,10 @@ export class RespondCommercialTransactionDto {
   agreedAmount?: number;
 
   @ApiPropertyOptional({
-    description: 'Mensagem opcional enviada ao responder a negociação.',
+    description:
+      'Mensagem opcional enviada ao responder a negociação. É postada no chat; ' +
+      'quando a resposta é `Rejected`, fica também gravada como `rejectReason` e ' +
+      'aparece no detalhe da negociação para o comprador.',
     example: 'Posso seguir por esse valor.',
   })
   @IsOptional()

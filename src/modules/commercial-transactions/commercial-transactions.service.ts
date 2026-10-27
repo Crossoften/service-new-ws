@@ -62,6 +62,7 @@ export class CommercialTransactionsService {
     sellerId: true,
     acceptedAt: true,
     rejectedAt: true,
+    rejectReason: true,
     cancelledAt: true,
     paidAt: true,
     completedAt: true,
@@ -324,6 +325,7 @@ export class CommercialTransactionsService {
             : undefined,
           acceptedAt: transaction.acceptedAt || undefined,
           rejectedAt: transaction.rejectedAt || undefined,
+          rejectReason: transaction.rejectReason || undefined,
           cancelledAt: transaction.cancelledAt || undefined,
           paidAt: transaction.paidAt || undefined,
           completedAt: transaction.completedAt || undefined,
@@ -434,6 +436,7 @@ export class CommercialTransactionsService {
         : undefined,
       acceptedAt: transaction.acceptedAt || undefined,
       rejectedAt: transaction.rejectedAt || undefined,
+      rejectReason: transaction.rejectReason || undefined,
       cancelledAt: transaction.cancelledAt || undefined,
       paidAt: transaction.paidAt || undefined,
       completedAt: transaction.completedAt || undefined,
@@ -494,6 +497,15 @@ export class CommercialTransactionsService {
             payload.status === CommercialTransactionStatusEnum.Accepted ? new Date() : null,
           rejectedAt:
             payload.status === CommercialTransactionStatusEnum.Rejected ? new Date() : null,
+          // O mesmo texto que vai para o chat, gravado também no registro: é o
+          // que a tela de detalhe exibe sem precisar abrir a conversa. Aqui vai
+          // `null` quando a resposta é aceite — e não `undefined` —, porque o
+          // `acceptedAt`/`rejectedAt` ao lado também zeram, mantendo o registro
+          // coerente se a mesma negociação for respondida de novo no futuro.
+          rejectReason:
+            payload.status === CommercialTransactionStatusEnum.Rejected
+              ? payload.message?.trim() || null
+              : null,
         },
       });
 
