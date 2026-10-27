@@ -1,9 +1,10 @@
 import { PrismaService } from '@database/PrismaService';
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { randomUUID } from 'crypto';
 
 import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
+import { MercadoPagoAccountsService } from '../../mercado-pago/mercado-pago-accounts.service';
 import { MercadoPagoService } from '../../mercado-pago/mercado-pago.service';
 import { NotificationsService } from '../../notifications/notifications.service';
 import { CreateSubscriptionDto } from './dto/create-subscription.dto';
@@ -38,10 +39,13 @@ import { assinaturaVigenteWhere } from '../../subscription-guard/active-subscrip
 
 @Injectable()
 export class SubscriptionsService {
+  private readonly logger = new Logger(SubscriptionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly notificationsService: NotificationsService,
+    private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
     private readonly plansService: PlansService,
   ) {}
 
@@ -206,11 +210,52 @@ export class SubscriptionsService {
       return createdSubscription;
     });
 
+    await this.avisarSeFaltaContaParaReceber(user);
+
     return {
       message: 'Assinatura criada com sucesso. Finalize o pagamento para ativá-la.',
       checkoutUrl,
       subscription: await this.findById(user, subscription.id),
     };
+  }
+
+  /**
+   * Avisa o fornecedor que ele ainda não pode **receber**.
+   *
+   * A assinatura é o portão por onde todo fornecedor passa antes de operar em
+   * qualquer vertical, e nada nela depende do vínculo com o Mercado Pago — aqui
+   * ele é quem paga. O resultado era que o fornecedor assinava, publicava e só
+   * descobria a pendência quando o **primeiro cliente** tentava pagar e recebia
+   * 400: quem perdia a venda era o cliente, por uma pendência de quem vende.
+   *
+   * Avisa e **não bloqueia**, de propósito: travar a assinatura por falta de
+   * vínculo impediria de pagar justamente quem quer começar a operar. E sai
+   * daqui porque é uma vez por assinatura — no caminho do pagamento, sairia uma
+   * mensagem por tentativa do cliente.
+   *
+   * Não derruba a assinatura em nenhum caso. O `.catch` é local de propósito:
+   * o `NotificationsService` já promete não lançar, mas `void` numa promessa
+   * rejeitada derruba o processo inteiro no Node — depender da garantia da
+   * outra classe deixaria a assinatura paga à mercê de uma mudança lá dentro.
+   */
+  private async avisarSeFaltaContaParaReceber(user: User): Promise<void> {
+    const { isLinked } = await this.mercadoPagoAccounts.status(user);
+
+    if (isLinked) return;
+
+    this.logger.log(
+      `Fornecedor ${user.id} assinou sem conta do Mercado Pago vinculada; aviso enviado.`,
+    );
+
+    void this.notificationsService
+      .notifyUser(
+        user.id,
+        'Para receber os pagamentos dos seus clientes, falta vincular sua conta do Mercado Pago. ' +
+          'Sem o vínculo, o cliente não consegue concluir o pagamento. Vincule em Perfil > ' +
+          'Conta de recebimento.',
+        'Falta vincular sua conta para receber',
+      )
+      .catch(() => undefined);
   }
 
   async findMine(user: User): Promise<ResponseFindAllSubscriptionsDto> {

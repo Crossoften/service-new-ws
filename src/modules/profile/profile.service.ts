@@ -45,6 +45,8 @@ export class ProfileService {
         commissionRate: true,
         deliveryCommissionRate: true,
         isAvailableForDelivery: true,
+        mpUserId: true,
+        mpAccessToken: true,
         billingType: true,
         createdAt: true,
         updatedAt: true,
@@ -124,6 +126,22 @@ export class ProfileService {
       isAvailable:
         profile.profileType === UserProfileType.Delivery
           ? profile.isAvailableForDelivery
+          : undefined,
+      // Pendência de recebimento, só para fornecedor.
+      //
+      // O pagamento do cliente usa split na origem: o Mercado Pago divide no ato
+      // e a parte do fornecedor cai na conta dele, o que exige o `access_token`
+      // daquela conta. Sem o vínculo, os quatro caminhos de pagamento respondem
+      // 400 — e o erro aparece do lado do **cliente**, por uma pendência de quem
+      // vende. Nada no cadastro nem na assinatura depende do vínculo, então o
+      // fornecedor não tinha como saber antes de perder a primeira venda.
+      //
+      // Vem no perfil porque o app já lê este endpoint em toda abertura: o aviso
+      // persistente não custa requisição nova. Só o booleano sai daqui — o token
+      // nunca.
+      mercadoPagoLinked:
+        profile.profileType === UserProfileType.Supplier
+          ? !!profile.mpUserId && !!profile.mpAccessToken
           : undefined,
       billingType: profile.billingType ?? undefined,
       // O fornecedor vê o próprio histórico de garantias; para o cliente, o

@@ -188,6 +188,18 @@ export class ResponseProfileDto {
   })
   isAvailable?: boolean;
 
+  @ApiPropertyOptional({
+    description:
+      'Indica se o fornecedor já vinculou a conta do Mercado Pago que recebe os pagamentos. ' +
+      '`false` significa que o cliente **não conseguirá pagar** nenhum serviço, produto ou ' +
+      'pedido dele: o pagamento usa split na origem e precisa da conta do vendedor. O vínculo ' +
+      'é feito em `GET /v1/mercado-pago/connect-url` + `POST /v1/mercado-pago/oauth/callback`. ' +
+      'Presente apenas no perfil de fornecedor.',
+    example: true,
+    type: Boolean,
+  })
+  mercadoPagoLinked?: boolean;
+
   @ApiProperty({
     description: 'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
     type: [ResponseProfileSocialMediaDto],

@@ -16,7 +16,12 @@ const TAXA_DO_PAINEL = 17;
  * devolver o percentual já resolvido, para a tela não reimplementar a
  * precedência entre taxa própria e taxa do painel — nem divergir dela.
  */
-function build(opcoes: { profileType: UserProfileType; taxaPropria?: string | null }) {
+function build(opcoes: {
+  profileType: UserProfileType;
+  taxaPropria?: string | null;
+  /** `'parcial'` grava o id sem o token — vínculo pela metade. */
+  mpVinculado?: boolean | 'parcial';
+}) {
   const lerPainel = jest.fn().mockResolvedValue(TAXA_DO_PAINEL);
 
   const prisma = {
@@ -39,6 +44,9 @@ function build(opcoes: { profileType: UserProfileType; taxaPropria?: string | nu
         deliveryCommissionRate:
           opcoes.taxaPropria == null ? null : new Prisma.Decimal(opcoes.taxaPropria),
         isAvailableForDelivery: true,
+        mpUserId: opcoes.mpVinculado === false ? null : 'MP-123',
+        mpAccessToken:
+          opcoes.mpVinculado === false || opcoes.mpVinculado === 'parcial' ? null : 'cifrado',
         billingType: null,
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-01T00:00:00Z'),
@@ -150,5 +158,51 @@ describe('disponibilidade do entregador no perfil', () => {
     await service.findMine(FORNECEDOR);
 
     expect(prismaMock.user.findUnique.mock.calls[0][0].select.isAvailableForDelivery).toBe(true);
+  });
+});
+
+/**
+ * Sem conta do Mercado Pago vinculada, o cliente não consegue pagar nada deste
+ * fornecedor: o pagamento usa split na origem e precisa da conta do vendedor.
+ * O erro, porém, aparecia do lado do cliente — o fornecedor não tinha como
+ * saber antes de perder a venda. O perfil passa a dizer.
+ */
+describe('pendência de conta para receber, no perfil', () => {
+  it('diz que está vinculado quando há id e token', async () => {
+    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: true });
+
+    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(true);
+  });
+
+  it('diz que falta vincular quando as colunas estão vazias', async () => {
+    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: false });
+
+    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(false);
+  });
+
+  it('exige os dois campos: id sem token não é vínculo', async () => {
+    // É a mesma condição do `verifySellerLinked` que barra o pagamento. Olhar
+    // só o `mpUserId` faria o perfil dizer "tudo certo" e o cliente levar 400.
+    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: 'parcial' });
+
+    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(false);
+  });
+
+  it.each([UserProfileType.Client, UserProfileType.Delivery, UserProfileType.Influencer])(
+    'omite a pendência no perfil de %s',
+    async (profileType) => {
+      const { service } = build({ profileType, mpVinculado: false });
+
+      expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBeUndefined();
+    },
+  );
+
+  it('nunca devolve o token, só o booleano', async () => {
+    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: true });
+
+    const perfil = JSON.stringify(await service.findMine(FORNECEDOR));
+
+    expect(perfil).not.toContain('cifrado');
+    expect(perfil).not.toContain('MP-123');
   });
 });

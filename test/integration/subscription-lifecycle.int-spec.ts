@@ -40,6 +40,9 @@ describe('ciclo de vida da assinatura', () => {
     prisma as unknown as PrismaService,
     mercadoPagoFake as never,
     notificacoesFake as never,
+    // Vínculo do Mercado Pago não é o assunto aqui: conta vinculada para o
+    // aviso de pendência não entrar no caminho.
+    { status: jest.fn().mockResolvedValue({ isLinked: true }) } as never,
     new PlansService(prisma as unknown as PrismaService),
   );
 

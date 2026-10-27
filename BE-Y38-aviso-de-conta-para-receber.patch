@@ -1,0 +1,428 @@
+diff --git a/src/modules/plans/subscriptions/aviso-de-conta-para-receber.spec.ts b/src/modules/plans/subscriptions/aviso-de-conta-para-receber.spec.ts
+new file mode 100644
+index 0000000..63c309d
+--- /dev/null
++++ b/src/modules/plans/subscriptions/aviso-de-conta-para-receber.spec.ts
+@@ -0,0 +1,172 @@
++import { PrismaService } from '@database/PrismaService';
++import { Prisma, User } from '@prisma/client';
++
++import { MercadoPagoAccountsService } from '../../mercado-pago/mercado-pago-accounts.service';
++import { MercadoPagoService } from '../../mercado-pago/mercado-pago.service';
++import { NotificationsService } from '../../notifications/notifications.service';
++import { CreateSubscriptionDto } from './dto/create-subscription.dto';
++import { PlansService } from '../plans/plans.service';
++import { SubscriptionsService } from './subscriptions.service';
++
++const FORNECEDOR = { id: 9, name: 'Fornecedor' } as User;
++
++/**
++ * O fornecedor assina, publica e só descobre que não pode **receber** quando o
++ * primeiro cliente tenta pagar e leva 400 — o pagamento usa split na origem e
++ * precisa da conta do vendedor vinculada. Quem perdia a venda era o cliente,
++ * por uma pendência de quem vende.
++ *
++ * A assinatura é o portão por onde todo fornecedor passa antes de operar em
++ * qualquer vertical, então é onde o aviso alcança todos, uma vez cada.
++ */
++function build(isLinked: boolean) {
++  const notifyUser = jest.fn().mockResolvedValue(undefined);
++  const status = jest.fn().mockResolvedValue({ isLinked });
++
++  const service = new SubscriptionsService(
++    {} as PrismaService,
++    {} as MercadoPagoService,
++    { notifyUser } as unknown as NotificationsService,
++    { status } as unknown as MercadoPagoAccountsService,
++    {} as PlansService,
++  );
++
++  const avisar = (
++    service as unknown as { avisarSeFaltaContaParaReceber: (user: User) => Promise<void> }
++  ).avisarSeFaltaContaParaReceber.bind(service);
++
++  return { avisar, notifyUser, status };
++}
++
++describe('aviso de conta para receber, na assinatura', () => {
++  it('avisa quem assinou sem conta vinculada', async () => {
++    const { avisar, notifyUser } = build(false);
++
++    await avisar(FORNECEDOR);
++
++    expect(notifyUser).toHaveBeenCalledTimes(1);
++    expect(notifyUser.mock.calls[0][0]).toBe(FORNECEDOR.id);
++  });
++
++  it('diz o que acontece se não vincular, não só que falta vincular', async () => {
++    // "Falta vincular" sozinho não move ninguém; o que move é saber que o
++    // cliente não consegue pagar.
++    const { avisar, notifyUser } = build(false);
++
++    await avisar(FORNECEDOR);
++
++    expect(notifyUser.mock.calls[0][1]).toMatch(/cliente não consegue concluir o pagamento/);
++    expect(notifyUser.mock.calls[0][1]).toMatch(/Mercado Pago/);
++  });
++
++  it('não avisa quem já tem conta vinculada', async () => {
++    const { avisar, notifyUser } = build(true);
++
++    await avisar(FORNECEDOR);
++
++    expect(notifyUser).not.toHaveBeenCalled();
++  });
++
++  it('decide pelo status do vínculo, não por conta própria', async () => {
++    // A regra do que conta como "vinculado" mora no `MercadoPagoAccountsService`.
++    // Duplicá-la aqui faria o aviso divergir do que o pagamento exige.
++    const { avisar, status } = build(true);
++
++    await avisar(FORNECEDOR);
++
++    expect(status).toHaveBeenCalledWith(FORNECEDOR);
++  });
++
++  it('não lança nem derruba o processo quando a notificação falha', async () => {
++    // Notificação é acessório: falhar aqui não pode derrubar a assinatura que
++    // o fornecedor acabou de pagar. Sem o `.catch` local, `void` numa promessa
++    // rejeitada vira unhandled rejection e mata o processo — foi o que este
++    // teste pegou na primeira execução.
++    const { avisar, notifyUser } = build(false);
++    notifyUser.mockRejectedValue(new Error('WhatsApp fora do ar'));
++
++    await expect(avisar(FORNECEDOR)).resolves.toBeUndefined();
++  });
++});
++
++/**
++ * O aviso tem de estar **ligado** ao fluxo: um mutante que apagou a chamada de
++ * dentro do `create` não quebrou nada, porque os testes acima exercitam o
++ * método privado direto. Este monta a assinatura inteira para fixar a ligação.
++ */
++describe('o aviso está ligado ao fluxo da assinatura', () => {
++  function buildCreate(isLinked: boolean) {
++    const notifyUser = jest.fn().mockResolvedValue(undefined);
++    const tx = {
++      address: { create: jest.fn() },
++      subscription: { create: jest.fn().mockResolvedValue({ id: 50 }) },
++      payment: { create: jest.fn() },
++    };
++
++    const prisma = {
++      plan: {
++        findUnique: jest.fn().mockResolvedValue({
++          id: 1,
++          name: 'Essencial',
++          price: new Prisma.Decimal('99.90'),
++          interval: 'Month',
++          intervalCount: 1,
++          bonusMonths: 0,
++          isActive: true,
++          categoryId: 3,
++        }),
++      },
++      serviceCategory: { findFirst: jest.fn().mockResolvedValue({ id: 3, name: 'Pintor' }) },
++      subscription: { findFirst: jest.fn().mockResolvedValue(null) },
++      user: { findFirst: jest.fn().mockResolvedValue({ id: 1 }) },
++      $transaction: jest.fn((cb: (t: typeof tx) => unknown) => cb(tx)),
++    } as unknown as PrismaService;
++
++    const service = new SubscriptionsService(
++      prisma,
++      {
++        createPreference: jest
++          .fn()
++          .mockResolvedValue({ preferenceId: 'PREF', checkoutUrl: 'https://mp' }),
++      } as unknown as MercadoPagoService,
++      { notifyUser } as unknown as NotificationsService,
++      {
++        status: jest.fn().mockResolvedValue({ isLinked }),
++      } as unknown as MercadoPagoAccountsService,
++      {} as PlansService,
++    );
++
++    jest.spyOn(service, 'findById').mockResolvedValue({ id: 50 } as never);
++
++    return { service, notifyUser };
++  }
++
++  const PEDIDO = { planId: 1, categoryId: 3 } as CreateSubscriptionDto;
++
++  it('avisa ao criar assinatura de quem não tem conta vinculada', async () => {
++    const { service, notifyUser } = buildCreate(false);
++
++    await service.create(FORNECEDOR, PEDIDO);
++
++    expect(notifyUser).toHaveBeenCalledTimes(1);
++  });
++
++  it('não avisa ao criar assinatura de quem já tem conta', async () => {
++    const { service, notifyUser } = buildCreate(true);
++
++    await service.create(FORNECEDOR, PEDIDO);
++
++    expect(notifyUser).not.toHaveBeenCalled();
++  });
++
++  it('a assinatura é criada mesmo sem o vínculo: avisa, não bloqueia', async () => {
++    // Travar a assinatura por falta de vínculo impediria de pagar justamente
++    // quem está começando a operar.
++    const { service } = buildCreate(false);
++
++    const resposta = await service.create(FORNECEDOR, PEDIDO);
++
++    expect(resposta.checkoutUrl).toBe('https://mp');
++    expect(resposta.subscription).toEqual({ id: 50 });
++  });
++});
+diff --git a/src/modules/plans/subscriptions/subscriptions.service.ts b/src/modules/plans/subscriptions/subscriptions.service.ts
+index e804e19..d59d017 100644
+--- a/src/modules/plans/subscriptions/subscriptions.service.ts
++++ b/src/modules/plans/subscriptions/subscriptions.service.ts
+@@ -1,9 +1,10 @@
+ import { PrismaService } from '@database/PrismaService';
+-import { Injectable } from '@nestjs/common';
++import { Injectable, Logger } from '@nestjs/common';
+ import { randomUUID } from 'crypto';
+ 
+ import { PaymentMethodEnum } from '../../works/enums/payment-method.enum';
+ import { PaymentStatusEnum } from '../../works/enums/payment-status.enum';
++import { MercadoPagoAccountsService } from '../../mercado-pago/mercado-pago-accounts.service';
+ import { MercadoPagoService } from '../../mercado-pago/mercado-pago.service';
+ import { NotificationsService } from '../../notifications/notifications.service';
+ import { CreateSubscriptionDto } from './dto/create-subscription.dto';
+@@ -38,10 +39,13 @@ import { assinaturaVigenteWhere } from '../../subscription-guard/active-subscrip
+ 
+ @Injectable()
+ export class SubscriptionsService {
++  private readonly logger = new Logger(SubscriptionsService.name);
++
+   constructor(
+     private readonly prisma: PrismaService,
+     private readonly mercadoPagoService: MercadoPagoService,
+     private readonly notificationsService: NotificationsService,
++    private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
+     private readonly plansService: PlansService,
+   ) {}
+ 
+@@ -206,6 +210,8 @@ export class SubscriptionsService {
+       return createdSubscription;
+     });
+ 
++    await this.avisarSeFaltaContaParaReceber(user);
++
+     return {
+       message: 'Assinatura criada com sucesso. Finalize o pagamento para ativá-la.',
+       checkoutUrl,
+@@ -213,6 +219,45 @@ export class SubscriptionsService {
+     };
+   }
+ 
++  /**
++   * Avisa o fornecedor que ele ainda não pode **receber**.
++   *
++   * A assinatura é o portão por onde todo fornecedor passa antes de operar em
++   * qualquer vertical, e nada nela depende do vínculo com o Mercado Pago — aqui
++   * ele é quem paga. O resultado era que o fornecedor assinava, publicava e só
++   * descobria a pendência quando o **primeiro cliente** tentava pagar e recebia
++   * 400: quem perdia a venda era o cliente, por uma pendência de quem vende.
++   *
++   * Avisa e **não bloqueia**, de propósito: travar a assinatura por falta de
++   * vínculo impediria de pagar justamente quem quer começar a operar. E sai
++   * daqui porque é uma vez por assinatura — no caminho do pagamento, sairia uma
++   * mensagem por tentativa do cliente.
++   *
++   * Não derruba a assinatura em nenhum caso. O `.catch` é local de propósito:
++   * o `NotificationsService` já promete não lançar, mas `void` numa promessa
++   * rejeitada derruba o processo inteiro no Node — depender da garantia da
++   * outra classe deixaria a assinatura paga à mercê de uma mudança lá dentro.
++   */
++  private async avisarSeFaltaContaParaReceber(user: User): Promise<void> {
++    const { isLinked } = await this.mercadoPagoAccounts.status(user);
++
++    if (isLinked) return;
++
++    this.logger.log(
++      `Fornecedor ${user.id} assinou sem conta do Mercado Pago vinculada; aviso enviado.`,
++    );
++
++    void this.notificationsService
++      .notifyUser(
++        user.id,
++        'Para receber os pagamentos dos seus clientes, falta vincular sua conta do Mercado Pago. ' +
++          'Sem o vínculo, o cliente não consegue concluir o pagamento. Vincule em Perfil > ' +
++          'Conta de recebimento.',
++        'Falta vincular sua conta para receber',
++      )
++      .catch(() => undefined);
++  }
++
+   async findMine(user: User): Promise<ResponseFindAllSubscriptionsDto> {
+     const subscriptions = await this.prisma.subscription.findMany({
+       where: { userId: user.id },
+diff --git a/src/modules/profile/dto/response-profile.dto.ts b/src/modules/profile/dto/response-profile.dto.ts
+index c82aafc..7fb9796 100644
+--- a/src/modules/profile/dto/response-profile.dto.ts
++++ b/src/modules/profile/dto/response-profile.dto.ts
+@@ -188,6 +188,18 @@ export class ResponseProfileDto {
+   })
+   isAvailable?: boolean;
+ 
++  @ApiPropertyOptional({
++    description:
++      'Indica se o fornecedor já vinculou a conta do Mercado Pago que recebe os pagamentos. ' +
++      '`false` significa que o cliente **não conseguirá pagar** nenhum serviço, produto ou ' +
++      'pedido dele: o pagamento usa split na origem e precisa da conta do vendedor. O vínculo ' +
++      'é feito em `GET /v1/mercado-pago/connect-url` + `POST /v1/mercado-pago/oauth/callback`. ' +
++      'Presente apenas no perfil de fornecedor.',
++    example: true,
++    type: Boolean,
++  })
++  mercadoPagoLinked?: boolean;
++
+   @ApiProperty({
+     description: 'Redes sociais cadastradas pelo usuário. Cada rede aparece no máximo uma vez.',
+     type: [ResponseProfileSocialMediaDto],
+diff --git a/src/modules/profile/profile.service.ts b/src/modules/profile/profile.service.ts
+index 75df0fb..e98c8ba 100644
+--- a/src/modules/profile/profile.service.ts
++++ b/src/modules/profile/profile.service.ts
+@@ -45,6 +45,8 @@ export class ProfileService {
+         commissionRate: true,
+         deliveryCommissionRate: true,
+         isAvailableForDelivery: true,
++        mpUserId: true,
++        mpAccessToken: true,
+         billingType: true,
+         createdAt: true,
+         updatedAt: true,
+@@ -125,6 +127,22 @@ export class ProfileService {
+         profile.profileType === UserProfileType.Delivery
+           ? profile.isAvailableForDelivery
+           : undefined,
++      // Pendência de recebimento, só para fornecedor.
++      //
++      // O pagamento do cliente usa split na origem: o Mercado Pago divide no ato
++      // e a parte do fornecedor cai na conta dele, o que exige o `access_token`
++      // daquela conta. Sem o vínculo, os quatro caminhos de pagamento respondem
++      // 400 — e o erro aparece do lado do **cliente**, por uma pendência de quem
++      // vende. Nada no cadastro nem na assinatura depende do vínculo, então o
++      // fornecedor não tinha como saber antes de perder a primeira venda.
++      //
++      // Vem no perfil porque o app já lê este endpoint em toda abertura: o aviso
++      // persistente não custa requisição nova. Só o booleano sai daqui — o token
++      // nunca.
++      mercadoPagoLinked:
++        profile.profileType === UserProfileType.Supplier
++          ? !!profile.mpUserId && !!profile.mpAccessToken
++          : undefined,
+       billingType: profile.billingType ?? undefined,
+       // O fornecedor vê o próprio histórico de garantias; para o cliente, o
+       // mesmo agregado sai em `GET /services/:id`.
+diff --git a/src/modules/profile/taxa-do-delivery-no-perfil.spec.ts b/src/modules/profile/taxa-do-delivery-no-perfil.spec.ts
+index 2b42e7c..cceef4d 100644
+--- a/src/modules/profile/taxa-do-delivery-no-perfil.spec.ts
++++ b/src/modules/profile/taxa-do-delivery-no-perfil.spec.ts
+@@ -16,7 +16,12 @@ const TAXA_DO_PAINEL = 17;
+  * devolver o percentual já resolvido, para a tela não reimplementar a
+  * precedência entre taxa própria e taxa do painel — nem divergir dela.
+  */
+-function build(opcoes: { profileType: UserProfileType; taxaPropria?: string | null }) {
++function build(opcoes: {
++  profileType: UserProfileType;
++  taxaPropria?: string | null;
++  /** `'parcial'` grava o id sem o token — vínculo pela metade. */
++  mpVinculado?: boolean | 'parcial';
++}) {
+   const lerPainel = jest.fn().mockResolvedValue(TAXA_DO_PAINEL);
+ 
+   const prisma = {
+@@ -39,6 +44,9 @@ function build(opcoes: { profileType: UserProfileType; taxaPropria?: string | nu
+         deliveryCommissionRate:
+           opcoes.taxaPropria == null ? null : new Prisma.Decimal(opcoes.taxaPropria),
+         isAvailableForDelivery: true,
++        mpUserId: opcoes.mpVinculado === false ? null : 'MP-123',
++        mpAccessToken:
++          opcoes.mpVinculado === false || opcoes.mpVinculado === 'parcial' ? null : 'cifrado',
+         billingType: null,
+         createdAt: new Date('2026-01-01T00:00:00Z'),
+         updatedAt: new Date('2026-01-01T00:00:00Z'),
+@@ -152,3 +160,49 @@ describe('disponibilidade do entregador no perfil', () => {
+     expect(prismaMock.user.findUnique.mock.calls[0][0].select.isAvailableForDelivery).toBe(true);
+   });
+ });
++
++/**
++ * Sem conta do Mercado Pago vinculada, o cliente não consegue pagar nada deste
++ * fornecedor: o pagamento usa split na origem e precisa da conta do vendedor.
++ * O erro, porém, aparecia do lado do cliente — o fornecedor não tinha como
++ * saber antes de perder a venda. O perfil passa a dizer.
++ */
++describe('pendência de conta para receber, no perfil', () => {
++  it('diz que está vinculado quando há id e token', async () => {
++    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: true });
++
++    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(true);
++  });
++
++  it('diz que falta vincular quando as colunas estão vazias', async () => {
++    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: false });
++
++    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(false);
++  });
++
++  it('exige os dois campos: id sem token não é vínculo', async () => {
++    // É a mesma condição do `verifySellerLinked` que barra o pagamento. Olhar
++    // só o `mpUserId` faria o perfil dizer "tudo certo" e o cliente levar 400.
++    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: 'parcial' });
++
++    expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBe(false);
++  });
++
++  it.each([UserProfileType.Client, UserProfileType.Delivery, UserProfileType.Influencer])(
++    'omite a pendência no perfil de %s',
++    async (profileType) => {
++      const { service } = build({ profileType, mpVinculado: false });
++
++      expect((await service.findMine(FORNECEDOR)).mercadoPagoLinked).toBeUndefined();
++    },
++  );
++
++  it('nunca devolve o token, só o booleano', async () => {
++    const { service } = build({ profileType: UserProfileType.Supplier, mpVinculado: true });
++
++    const perfil = JSON.stringify(await service.findMine(FORNECEDOR));
++
++    expect(perfil).not.toContain('cifrado');
++    expect(perfil).not.toContain('MP-123');
++  });
++});
+diff --git a/test/integration/subscription-catalog.int-spec.ts b/test/integration/subscription-catalog.int-spec.ts
+index 77edc65..8568f06 100644
+--- a/test/integration/subscription-catalog.int-spec.ts
++++ b/test/integration/subscription-catalog.int-spec.ts
+@@ -30,6 +30,9 @@ describe('catálogo de assinaturas', () => {
+     prisma as unknown as PrismaService,
+     { createPreference: jest.fn() } as never,
+     { notifyUser: jest.fn() } as never,
++    // Vínculo do Mercado Pago não é o assunto aqui: conta vinculada para o
++    // aviso de pendência não entrar no caminho.
++    { status: jest.fn().mockResolvedValue({ isLinked: true }) } as never,
+     new PlansService(prisma as unknown as PrismaService),
+   );
+ 
+diff --git a/test/integration/subscription-lifecycle.int-spec.ts b/test/integration/subscription-lifecycle.int-spec.ts
+index 577949a..941a1e2 100644
+--- a/test/integration/subscription-lifecycle.int-spec.ts
++++ b/test/integration/subscription-lifecycle.int-spec.ts
+@@ -40,6 +40,9 @@ describe('ciclo de vida da assinatura', () => {
+     prisma as unknown as PrismaService,
+     mercadoPagoFake as never,
+     notificacoesFake as never,
++    // Vínculo do Mercado Pago não é o assunto aqui: conta vinculada para o
++    // aviso de pendência não entrar no caminho.
++    { status: jest.fn().mockResolvedValue({ isLinked: true }) } as never,
+     new PlansService(prisma as unknown as PrismaService),
+   );
+ 

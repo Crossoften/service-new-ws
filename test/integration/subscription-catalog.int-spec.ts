@@ -30,6 +30,9 @@ describe('catálogo de assinaturas', () => {
     prisma as unknown as PrismaService,
     { createPreference: jest.fn() } as never,
     { notifyUser: jest.fn() } as never,
+    // Vínculo do Mercado Pago não é o assunto aqui: conta vinculada para o
+    // aviso de pendência não entrar no caminho.
+    { status: jest.fn().mockResolvedValue({ isLinked: true }) } as never,
     new PlansService(prisma as unknown as PrismaService),
   );
 
