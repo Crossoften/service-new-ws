@@ -3189,6 +3189,55 @@
         ]
       }
     },
+    "/v1/admin-providers/{id}/subscriptions": {
+      "get": {
+        "description": "Devolve as assinaturas do fornecedor com o id de cada uma, que é o que a rota de bônus exige, a categoria coberta (ausente nas concessões, de cobertura ampla) e `isCurrent` já calculado. `activeGrantId` antecipa o 409 da concessão: quando vem preenchido, o caminho para estender a validade é o bônus sobre aquele id.",
+        "operationId": "AdminProvidersController_findSubscriptions",
+        "parameters": [
+          {
+            "name": "id",
+            "required": true,
+            "in": "path",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResponseAdminProviderSubscriptionsDto"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Token inválido."
+          },
+          "403": {
+            "description": "Acesso não autorizado."
+          },
+          "404": {
+            "description": "Fornecedor não encontrado."
+          },
+          "500": {
+            "description": "Erro interno no servidor."
+          }
+        },
+        "security": [
+          {
+            "bearerAuth": []
+          }
+        ],
+        "summary": "Lista as assinaturas de um fornecedor, pagas e concedidas.",
+        "tags": [
+          "Fornecedores - Portal Gerencial"
+        ]
+      }
+    },
     "/v1/admin-providers/{id}/subscriptions/grant": {
       "post": {
         "description": "Cria uma assinatura já ativa, válida pelo número de meses informado. Serve para cortesia comercial e para ambientes de teste, onde não há como obter assinatura ativa — ela nasce Pending e só é ativada pelo webhook de pagamento. A concessão registra quem a fez e o motivo, e não gera lançamento financeiro. Fornecedor que já tenha assinatura ativa responde 409: para estender a validade, use a rota de bônus.",
@@ -14914,6 +14963,12 @@
             "nullable": true,
             "example": "Pintor residencial há 12 anos."
           },
+          "deliveryCommissionRate": {
+            "type": "number",
+            "description": "Comissão do delivery sobre os itens de cada pedido, em percentual. Ausente significa que o usuário não tem valor próprio e cai no padrão da plataforma; zero significa comissão zerada. Não confundir com a comissão do influenciador, que tem rota própria.",
+            "nullable": true,
+            "example": 15
+          },
           "status": {
             "description": "Status atual do usuário.",
             "example": "Active",
@@ -15013,7 +15068,8 @@
             "description": "Comissão do delivery sobre os itens de cada pedido, em percentual. Vale só para quem opera no modelo de comissão. Nulo usa o padrão de 20%. Não confundir com a comissão do influenciador, que tem rota própria.",
             "example": 15,
             "minimum": 0,
-            "maximum": 100
+            "maximum": 100,
+            "nullable": true
           }
         }
       },
@@ -15759,6 +15815,153 @@
           "totalRecords"
         ]
       },
+      "SubscriptionIntervalEnum": {
+        "type": "string",
+        "enum": [
+          "Month",
+          "Year"
+        ]
+      },
+      "SubscriptionStatusEnum": {
+        "type": "string",
+        "enum": [
+          "Pending",
+          "Active",
+          "Cancelled",
+          "Expired"
+        ]
+      },
+      "ProviderSubscriptionItemDto": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "number",
+            "example": 12
+          },
+          "planId": {
+            "type": "number",
+            "example": 2
+          },
+          "planName": {
+            "type": "string",
+            "example": "Plano Mensal"
+          },
+          "planInterval": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionIntervalEnum"
+              }
+            ]
+          },
+          "intervalCount": {
+            "type": "number",
+            "example": 1
+          },
+          "amount": {
+            "type": "number",
+            "description": "Valor cobrado. Zero nas concessões, porque nada foi cobrado.",
+            "example": 49.9
+          },
+          "status": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/SubscriptionStatusEnum"
+              }
+            ]
+          },
+          "categoryId": {
+            "type": "number",
+            "description": "Categoria que esta assinatura cobre. Ausente significa cobertura ampla, o caso das concessões.",
+            "example": 4
+          },
+          "categoryName": {
+            "type": "string",
+            "example": "Pintura"
+          },
+          "isGranted": {
+            "type": "boolean",
+            "description": "Verdadeiro quando a assinatura foi concedida por um administrador.",
+            "example": false
+          },
+          "grantedById": {
+            "type": "number",
+            "description": "Administrador que concedeu.",
+            "example": 1
+          },
+          "grantReason": {
+            "type": "string",
+            "example": "Cortesia comercial"
+          },
+          "bonusMonths": {
+            "type": "number",
+            "description": "Total acumulado de meses bônus já concedidos a esta assinatura.",
+            "example": 3
+          },
+          "cancelAtPeriodEnd": {
+            "type": "boolean",
+            "example": false
+          },
+          "startedAt": {
+            "type": "string",
+            "example": "2026-01-10T08:00:00.000Z"
+          },
+          "currentPeriodStart": {
+            "type": "string",
+            "example": "2026-10-01T00:00:00.000Z"
+          },
+          "currentPeriodEnd": {
+            "type": "string",
+            "example": "2026-11-01T00:00:00.000Z"
+          },
+          "isCurrent": {
+            "type": "boolean",
+            "description": "Verdadeiro quando a assinatura está ativa e dentro da validade. É o mesmo critério que os guards aplicam, para a tela não ter de recalculá-lo.",
+            "example": true
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-01-10T08:00:00.000Z"
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "planId",
+          "planName",
+          "planInterval",
+          "intervalCount",
+          "amount",
+          "status",
+          "isGranted",
+          "bonusMonths",
+          "cancelAtPeriodEnd",
+          "isCurrent",
+          "createdAt"
+        ]
+      },
+      "ResponseAdminProviderSubscriptionsDto": {
+        "type": "object",
+        "properties": {
+          "providerId": {
+            "type": "number",
+            "example": 7
+          },
+          "activeGrantId": {
+            "type": "number",
+            "description": "Concessão vigente do fornecedor, quando houver. Ausente significa que a rota de concessão está liberada; preenchido significa que ela responderia 409 e que o caminho para estender a validade é a rota de bônus sobre este id.",
+            "example": 12
+          },
+          "subscriptions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSubscriptionItemDto"
+            }
+          }
+        },
+        "required": [
+          "providerId",
+          "subscriptions"
+        ]
+      },
       "GrantSubscriptionDto": {
         "type": "object",
         "properties": {
@@ -15842,15 +16045,6 @@
         },
         "required": [
           "months"
-        ]
-      },
-      "SubscriptionStatusEnum": {
-        "type": "string",
-        "enum": [
-          "Pending",
-          "Active",
-          "Cancelled",
-          "Expired"
         ]
       },
       "ResponseSubscriptionBonusDto": {
@@ -16175,7 +16369,7 @@
           "platformFeeRate": {
             "type": "number",
             "example": 10,
-            "description": "Taxa da plataforma sobre o valor do serviço (%)"
+            "description": "Taxa da plataforma sobre o valor do serviço (%). Presente apenas nas categorias de services — é o único contexto que tem a coluna."
           },
           "createdAt": {
             "format": "date-time",
@@ -16192,7 +16386,6 @@
           "slug",
           "isActive",
           "sortOrder",
-          "platformFeeRate",
           "createdAt",
           "updatedAt"
         ]
