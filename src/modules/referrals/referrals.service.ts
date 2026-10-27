@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { ResponseMyReferralsDto } from './dto/response-my-referrals.dto';
 import { ResponseMyReferralsSummaryDto } from './dto/response-my-referrals-summary.dto';
+import { buildReferralCode } from './referral-code';
 
 @Injectable()
 export class ReferralsService {
@@ -28,7 +29,7 @@ export class ReferralsService {
     });
 
     return {
-      referralCode: user.referralCode ?? undefined,
+      referralCode: await this.ensureReferralCode(user),
       referrals: referrals.map((ref) => ({
         id: ref.id,
         status: ref.isPaying ? 'Convertido' : 'Aguardando Pagamento',
@@ -66,7 +67,7 @@ export class ReferralsService {
     const customRate = user.commissionRate ? Number(user.commissionRate) : null;
 
     return {
-      referralCode: user.referralCode ?? undefined,
+      referralCode: await this.ensureReferralCode(user),
       totalReferrals,
       totalPaying,
       accumulatedCommission: Number(accumulatedCommission._sum.commissionAmount ?? 0),
@@ -74,6 +75,39 @@ export class ReferralsService {
       commissionRate: customRate,
       effectiveCommissionRate: customRate !== null ? customRate : globalRate,
     };
+  }
+
+  /**
+   * Código de indicação do influencer, gerado na primeira leitura se faltar.
+   *
+   * O cadastro já gera um código para quem passa por `POST /no-auth/register/*`,
+   * mas conta criada por outro caminho — seed, carga, importação — nasce com a
+   * coluna nula. Nesse caso a tela "Meu link" vinha vazia e ninguém conseguia
+   * se cadastrar indicado, sem erro nenhum para explicar.
+   *
+   * A gravação é condicional (`referralCode: null` no `where`) de propósito: se
+   * duas requisições chegarem juntas, só a primeira grava e a segunda devolve o
+   * código que ficou. Sem isso, a segunda sobrescreveria o código da primeira —
+   * e um link já compartilhado deixaria de funcionar.
+   */
+  private async ensureReferralCode(user: User): Promise<string> {
+    if (user.referralCode) return user.referralCode;
+
+    const codigo = buildReferralCode(user.name);
+
+    const gravados = await this.prisma.user.updateMany({
+      where: { id: user.id, referralCode: null },
+      data: { referralCode: codigo },
+    });
+
+    if (gravados.count > 0) return codigo;
+
+    const atual = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { referralCode: true },
+    });
+
+    return atual?.referralCode ?? codigo;
   }
 
   private async _getRankingPosition(influencerId: number): Promise<number> {

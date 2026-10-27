@@ -38,6 +38,11 @@ export async function seedUser(prisma: PrismaClient) {
         role: Role.User,
         profileType: UserProfileType.Influencer,
         status: Status.Active,
+        // Sem isto a conta de exemplo nasce sem código e a tela "Meu link" do
+        // app fica vazia — foi exatamente o que a integração encontrou. Valor
+        // fixo, e não gerado, para servir como código de convite conhecido nos
+        // testes manuais.
+        referralCode: 'influencer-one',
       },
     ],
   });

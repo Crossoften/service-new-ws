@@ -23,7 +23,7 @@ import { VerifyAccountDto } from './dto/verify-account.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { RegisterUserResponseDto } from './dto/response-register-user.dto';
 import { TextQueriesDto } from './dto/text-queries.dto';
-import { randomBytes } from 'crypto';
+import { buildReferralCode } from '../referrals/referral-code';
 
 @Injectable()
 export class NoAuthService {
@@ -334,17 +334,12 @@ export class NoAuthService {
     return this.prisma.text.findFirst({ where: { type } });
   }
 
+  /**
+   * Mantido como método para não mudar a interface do serviço; a regra mora em
+   * `referral-code.ts`, compartilhada com a geração sob demanda das indicações.
+   */
   async generateReferralCode(name: string): Promise<string> {
-    const firstName = `${name
-      .trim()
-      .split(/\s+/)[0]
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]/g, '')}`;
-
-    const randomHash = randomBytes(8).toString('hex');
-    return `${firstName}-${randomHash}`;
+    return buildReferralCode(name);
   }
 
   /**
