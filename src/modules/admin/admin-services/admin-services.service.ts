@@ -90,7 +90,11 @@ export class AdminServicesService {
           },
           provider: { id: s.user.id, name: s.user.name, fileUrl: s.user.fileUrl ?? undefined },
           price: Number(s.price),
-          platformValueReceived: (Number(s.category.platformFeeRate) / 100) * Number(s.price),
+          // Serviço não tem retenção: o fornecedor recebe o valor cheio.
+          // `category.platformFeeRate` continua sendo devolvido porque é o que
+          // está gravado na categoria — o cadastro segue previsto —, mas não é
+          // aplicado a nenhum pagamento.
+          platformValueReceived: 0,
           totalReviews: reviews.positive + reviews.negative,
           positiveReviews: reviews.positive,
           negativeReviews: reviews.negative,
@@ -144,14 +148,9 @@ export class AdminServicesService {
       totalWorks: service._count.works,
       createdAt: service.createdAt,
       updatedAt: service.updatedAt,
-      // Sem preço de referência não há quanto a plataforma receberia: o valor
-      // só existe quando o orçamento é respondido. `0` aqui daria a entender
-      // que o serviço não gera receita, que é outra coisa.
-      platformValueReceived:
-        service.price !== null
-          ? (Number(service.category.platformFeeRate) / 100) * Number(service.price)
-          : undefined,
-      platformFeeRate: Number(service.category.platformFeeRate),
+      // Nada é retido do serviço, com ou sem preço de referência.
+      platformValueReceived: 0,
+      platformFeeRate: 0,
     };
   }
 
@@ -240,7 +239,9 @@ export class AdminServicesService {
 
     return categories.map((category) => ({
       name: category.name,
-      providerRate: 100 - Number(category.platformFeeRate),
+      // O fornecedor recebe 100% do serviço. O endpoint sobrevive para não
+      // quebrar o admin antes da tela sair; depois disso não tem leitor.
+      providerRate: 100,
     }));
   }
 

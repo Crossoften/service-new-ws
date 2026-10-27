@@ -1,7 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { User } from '@prisma/client';
 
-import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -13,6 +12,7 @@ const CLIENTE = { id: 1 } as User;
 
 interface Cenario {
   service: WorksService;
+  mercadoPago: MercadoPagoService;
   buscarPagamento: jest.Mock;
   criarPagamento: jest.Mock;
 }
@@ -41,25 +41,22 @@ function build(pagamentoEmAberto: { id: number } | null): Cenario {
     verifySellerLinked: jest.fn(),
     createPreference: jest
       .fn()
-      .mockResolvedValue({ preferenceId: 'PREF', checkoutUrl: 'https://mp', marketplaceFee: 30 }),
+      .mockResolvedValue({ preferenceId: 'PREF', checkoutUrl: 'https://mp' }),
   } as unknown as MercadoPagoService;
 
   const contas = {
     accessTokenFor: jest.fn().mockResolvedValue('token'),
   } as unknown as MercadoPagoAccountsService;
 
-  const taxa = {
-    rateForService: jest.fn().mockResolvedValue(10),
-  } as unknown as MarketplaceFeeService;
   const notificacoes = { notifyUser: jest.fn() } as unknown as NotificationsService;
 
-  const service = new WorksService(prisma, mercadoPago, contas, taxa, notificacoes);
+  const service = new WorksService(prisma, mercadoPago, contas, notificacoes);
 
   // `pay()` recarrega o trabalho no fim para montar a resposta; não é o que
   // está sob teste, e modelar o select inteiro traria ruído sem ganho.
   jest.spyOn(service, 'findById').mockResolvedValue({ id: 5 } as never);
 
-  return { service, buscarPagamento, criarPagamento };
+  return { service, mercadoPago, buscarPagamento, criarPagamento };
 }
 
 describe('works.pay — quando um novo checkout é permitido', () => {
@@ -91,5 +88,27 @@ describe('works.pay — quando um novo checkout é permitido', () => {
 
     expect(criarPagamento).toHaveBeenCalledTimes(1);
     expect(resultado.checkoutUrl).toBe('https://mp');
+  });
+
+  it('não pede retenção da plataforma na preferência', async () => {
+    // Regra do produto: o fornecedor paga assinatura; serviço não tem
+    // percentual por cima. Sem `marketplaceFeeRate` no corpo, o
+    // `createPreference` omite o `marketplace_fee` e o pagamento inteiro cai
+    // na conta do fornecedor.
+    const { service, mercadoPago } = build(null);
+
+    await service.pay(CLIENTE, 5, {});
+
+    const params = jest.mocked(mercadoPago.createPreference).mock.calls[0][0];
+    expect(params).not.toHaveProperty('marketplaceFeeRate');
+    expect(params).not.toHaveProperty('marketplaceFeeAmount');
+  });
+
+  it('não registra valor retido no pagamento', async () => {
+    const { service, criarPagamento } = build(null);
+
+    await service.pay(CLIENTE, 5, {});
+
+    expect(criarPagamento.mock.calls[0][0].data.platformFeeAmount).toBeNull();
   });
 });

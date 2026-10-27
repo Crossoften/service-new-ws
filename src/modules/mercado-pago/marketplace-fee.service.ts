@@ -4,6 +4,14 @@ import { Injectable } from '@nestjs/common';
 /**
  * Percentual retido pela plataforma no split.
  *
+ * **Sem aplicação hoje.** A regra do produto é que o fornecedor paga assinatura
+ * e só o delivery tem percentual além dela — e o delivery não passa por aqui,
+ * ele usa `User.deliveryCommissionRate` com valor absoluto
+ * (`marketplaceFeeAmount`). Trabalho e negociação de produto deixaram de reter,
+ * então nada mais chama estes métodos. Mantido porque a decisão de apagar o
+ * arquivo, a coluna `PlatformSettings.marketplaceFeeRate` e a tela que a edita
+ * é separada desta mudança.
+ *
  * Existe porque a implementação original fixava 10% no código — com o comentário
  * "hardcoded 10% marketplace fee" — enquanto o projeto já tinha
  * `ServiceCategory.platformFeeRate` por categoria, sem ninguém consultar.

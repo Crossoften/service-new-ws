@@ -1,7 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Prisma, User, WarrantyRequestStatus } from '@prisma/client';
 
-import { MarketplaceFeeService } from '../../src/modules/mercado-pago/marketplace-fee.service';
 import { MercadoPagoAccountsService } from '../../src/modules/mercado-pago/mercado-pago-accounts.service';
 import { MercadoPagoService } from '../../src/modules/mercado-pago/mercado-pago.service';
 import { NotificationsService } from '../../src/modules/notifications/notifications.service';
@@ -26,7 +25,6 @@ describe('reparo em garantia, contra o banco', () => {
       prisma as unknown as PrismaService,
       {} as MercadoPagoService,
       {} as MercadoPagoAccountsService,
-      {} as MarketplaceFeeService,
       { notifyUser: jest.fn() } as unknown as NotificationsService,
     );
   }

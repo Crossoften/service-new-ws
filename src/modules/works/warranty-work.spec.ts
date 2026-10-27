@@ -1,7 +1,6 @@
 import { PrismaService } from '@database/PrismaService';
 import { Role, User, WarrantyRequestStatus } from '@prisma/client';
 
-import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -55,7 +54,6 @@ function build(trabalho: Record<string, unknown> = {}, linhasAfetadas = 1): Cena
     prisma,
     {} as MercadoPagoService,
     {} as MercadoPagoAccountsService,
-    {} as MarketplaceFeeService,
     {} as NotificationsService,
   );
 

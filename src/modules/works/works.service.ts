@@ -12,7 +12,6 @@ import { randomUUID } from 'crypto';
 import { ImessageEntity } from '@interfaces/entities/Imessage.entity';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
-import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { BudgetStatusEnum } from '../budgets/enums/budget-status.enum';
 import { CreateWorkResponseDto } from './dto/create-work-response.dto';
@@ -54,7 +53,6 @@ export class WorksService {
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
-    private readonly marketplaceFee: MarketplaceFeeService,
     private readonly notificationsService: NotificationsService,
   ) {}
 
@@ -945,8 +943,14 @@ export class WorksService {
     const externalReference = randomUUID();
 
     const sellerAccessToken = await this.mercadoPagoAccounts.accessTokenFor(work.providerId);
-    const marketplaceFeeRate = await this.marketplaceFee.rateForService(work.serviceId);
 
+    // **Serviço não tem retenção.** O que o fornecedor paga à plataforma é a
+    // assinatura; cobrar um percentual do trabalho por cima seria cobrar duas
+    // vezes. Só o delivery tem percentual além da assinatura, e ele vai por
+    // outro caminho (`marketplaceFeeAmount`, valor absoluto).
+    //
+    // Sem `marketplaceFeeRate`, o `createPreference` omite o `marketplace_fee`
+    // do corpo e o pagamento inteiro cai na conta do fornecedor.
     const { preferenceId, checkoutUrl, marketplaceFee } =
       await this.mercadoPagoService.createPreference({
         title: `Trabalho #${work.id}`,
@@ -954,7 +958,6 @@ export class WorksService {
         externalReference,
         payerEmail: payload.payerEmail,
         sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
       });
 
     await this.prisma.payment.create({
@@ -967,8 +970,9 @@ export class WorksService {
         receiverId: work.providerId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
+        // Hoje sempre `null`: sem retenção o Mercado Pago não devolve valor
+        // retido. A coluna fica porque o split acontece na origem — se algum
+        // dia voltar a existir, este é o único momento em que se sabe o valor.
         platformFeeAmount: marketplaceFee ?? null,
       },
     });

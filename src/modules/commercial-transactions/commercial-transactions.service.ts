@@ -8,7 +8,6 @@ import { PaymentMethodEnum } from '../works/enums/payment-method.enum';
 import { PaymentStatusEnum } from '../works/enums/payment-status.enum';
 import { MercadoPagoService } from '../mercado-pago/mercado-pago.service';
 import { MercadoPagoAccountsService } from '../mercado-pago/mercado-pago-accounts.service';
-import { MarketplaceFeeService } from '../mercado-pago/marketplace-fee.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CreateCommercialTransactionDto } from './dto/create-commercial-transaction.dto';
 import { PayCommercialTransactionDto } from './dto/pay-commercial-transaction.dto';
@@ -46,7 +45,6 @@ export class CommercialTransactionsService {
     private readonly prisma: PrismaService,
     private readonly mercadoPagoService: MercadoPagoService,
     private readonly mercadoPagoAccounts: MercadoPagoAccountsService,
-    private readonly marketplaceFee: MarketplaceFeeService,
     private readonly notificationsService: NotificationsService,
     private readonly subscriptionGuard: SubscriptionGuardService,
   ) {}
@@ -598,9 +596,10 @@ export class CommercialTransactionsService {
     const externalReference = randomUUID();
 
     const sellerAccessToken = await this.mercadoPagoAccounts.accessTokenFor(transaction.sellerId);
-    // Negociação de produto não passa por categoria de serviço: taxa global.
-    const marketplaceFeeRate = await this.marketplaceFee.globalRate();
 
+    // Negociação de produto também não tem retenção, pelo mesmo motivo do
+    // trabalho: o vendedor já paga assinatura. Só o delivery cobra percentual
+    // por cima.
     const { preferenceId, checkoutUrl, marketplaceFee } =
       await this.mercadoPagoService.createPreference({
         title: `Negociação #${transaction.id}`,
@@ -608,7 +607,6 @@ export class CommercialTransactionsService {
         externalReference,
         payerEmail: payload.payerEmail,
         sellerAccessToken: sellerAccessToken ?? undefined,
-        marketplaceFeeRate,
       });
 
     await this.prisma.payment.create({
@@ -621,8 +619,9 @@ export class CommercialTransactionsService {
         receiverId: transaction.sellerId,
         externalReference,
         mpPreferenceId: preferenceId,
-        // Gravado agora porque é o único momento em que se sabe quanto a
-        // plataforma reteve: o split acontece na origem, no Mercado Pago.
+        // Hoje sempre `null`: sem retenção o Mercado Pago não devolve valor
+        // retido. A coluna fica porque o split acontece na origem — se algum
+        // dia voltar a existir, este é o único momento em que se sabe o valor.
         platformFeeAmount: marketplaceFee ?? null,
       },
     });

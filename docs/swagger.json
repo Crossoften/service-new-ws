@@ -15385,8 +15385,8 @@
           },
           "providerRate": {
             "type": "number",
-            "example": 90,
-            "description": "Percentual do valor do serviço repassado ao fornecedor (%)"
+            "example": 100,
+            "description": "Percentual do valor do serviço repassado ao fornecedor (%). Sempre 100: serviço não tem retenção."
           }
         },
         "required": [
@@ -15482,13 +15482,13 @@
           },
           "platformFeeRate": {
             "type": "number",
-            "description": "Taxa da plataforma (%)",
-            "example": 10
+            "description": "Taxa da plataforma (%). Sempre 0: serviço não tem retenção.",
+            "example": 0
           },
           "platformValueReceived": {
             "type": "number",
-            "description": "Valor recebido pela plataforma.",
-            "example": 15
+            "description": "Valor recebido pela plataforma. Sempre 0: serviço não tem retenção.",
+            "example": 0
           },
           "imageUrl": {
             "type": "string",

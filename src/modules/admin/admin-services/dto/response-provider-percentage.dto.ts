@@ -5,8 +5,9 @@ export class ResponseProviderPercentageDto {
   name: string;
 
   @ApiProperty({
-    example: 90,
-    description: 'Percentual do valor do serviço repassado ao fornecedor (%)',
+    example: 100,
+    description:
+      'Percentual do valor do serviço repassado ao fornecedor (%). Sempre 100: serviço não tem retenção.',
   })
   providerRate: number;
 }
